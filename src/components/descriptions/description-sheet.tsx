@@ -1,0 +1,114 @@
+import type { Course, Control } from '@/core/models/types';
+import type { ControlId } from '@/utils/id';
+import { DescriptionCell, NumberCell } from './description-cell';
+import { calculateCourseLength } from '@/core/geometry/course-length';
+
+interface DescriptionSheetProps {
+  course: Course;
+  controls: Record<ControlId, Control>;
+  mapScale: number;
+  mapDpi: number;
+  selectedControlId: ControlId | null;
+  onCellClick?: (controlId: ControlId, column: string) => void;
+  onSelectControl?: (id: ControlId) => void;
+}
+
+const GRID_COLS = 'grid-cols-[1.5rem_2rem_repeat(6,1fr)]';
+const COLUMN_HEADERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const EDITABLE_COLUMNS = ['columnC', 'columnD', 'columnE', 'columnF', 'columnG', 'columnH'] as const;
+
+export function DescriptionSheet({
+  course,
+  controls,
+  mapScale,
+  mapDpi,
+  selectedControlId,
+  onCellClick,
+  onSelectControl,
+}: DescriptionSheetProps) {
+  const lengthMetres = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
+  const lengthKm = (lengthMetres / 1000).toFixed(1);
+
+  return (
+    <div className="description-sheet select-none">
+      {/* Header — course name */}
+      <div className={`grid ${GRID_COLS}`}>
+        <div className="col-span-full border border-gray-800 bg-white px-2 py-1 text-center text-sm font-bold text-gray-800">
+          {course.name}
+        </div>
+      </div>
+
+      {/* Info row — length and climb */}
+      <div className={`grid ${GRID_COLS}`}>
+        <div className="col-span-2 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
+          {lengthKm} km
+        </div>
+        <div className="col-span-6 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
+          {course.climb ? `↑ ${course.climb}m` : ''}
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div className={`grid ${GRID_COLS}`}>
+        {COLUMN_HEADERS.map((h) => (
+          <div
+            key={h}
+            className="border border-gray-800 bg-gray-100 px-0.5 py-0.5 text-center text-[9px] font-medium text-gray-500"
+          >
+            {h}
+          </div>
+        ))}
+      </div>
+
+      {/* Control rows */}
+      {course.controls.map((cc, index) => {
+        const control = controls[cc.controlId];
+        if (!control) return null;
+
+        const isSelected = cc.controlId === selectedControlId;
+        const isStart = cc.type === 'start';
+        const isFinish = cc.type === 'finish';
+
+        return (
+          <div
+            key={cc.controlId}
+            className={`grid ${GRID_COLS} ${isSelected ? 'bg-yellow-50' : ''}`}
+            onClick={() => onSelectControl?.(cc.controlId)}
+          >
+            {/* Column A — sequence number */}
+            <NumberCell
+              value={isStart ? 'S' : isFinish ? 'F' : index + 1}
+              muted
+            />
+
+            {/* Column B — control code */}
+            <NumberCell value={control.code} />
+
+            {/* Columns C-H — description symbols */}
+            {EDITABLE_COLUMNS.map((col) => {
+              const colLetter = col.replace('column', '');
+              return (
+                <DescriptionCell
+                  key={col}
+                  value={control.description[col]}
+                  isEditable
+                  isSelected={isSelected}
+                  onClick={() => onCellClick?.(cc.controlId, colLetter)}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* Empty state */}
+      {course.controls.length === 0 && (
+        <div className={`grid ${GRID_COLS}`}>
+          <div className="col-span-full border border-dashed border-gray-300 px-2 py-4 text-center text-xs text-gray-400">
+            Add controls to the map
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

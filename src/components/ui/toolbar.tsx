@@ -14,6 +14,8 @@ export function Toolbar() {
   const eventName = useEventStore((s) => s.event?.name);
   const activeTool = useToolStore((s) => s.activeTool);
   const setTool = useToolStore((s) => s.setTool);
+  const descriptionsPanelOpen = useToolStore((s) => s.descriptionsPanelOpen);
+  const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
   const hasImage = useMapImageStore((s) => s.image !== null);
   const [loading, setLoading] = useState(false);
 
@@ -108,6 +110,19 @@ export function Toolbar() {
           {toolButton('pan', 'Pan')}
           {toolButton('addControl', 'Add Control')}
         </div>
+      )}
+
+      {hasImage && (
+        <button
+          onClick={toggleDescriptionsPanel}
+          className={`rounded px-3 py-1.5 text-sm font-medium ${
+            descriptionsPanelOpen
+              ? 'bg-violet-100 text-violet-700'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          Descriptions
+        </button>
       )}
 
       <div className="flex-1" />
