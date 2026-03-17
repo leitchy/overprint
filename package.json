@@ -7,12 +7,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "preview": "pnpm run build && wrangler dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "pnpm run build && wrangler deploy"
   },
   "keywords": [
     "orienteering",
@@ -35,6 +36,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.29.0",
     "@tailwindcss/vite": "^4.2.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -46,6 +48,7 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.0",
     "vitest": "^4.1.0",
+    "wrangler": "^4.74.0",
     "zundo": "^2.3.0"
   }
 }
