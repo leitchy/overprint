@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useEventStore } from '@/stores/event-store';
+import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { useT } from '@/i18n/use-t';
 import type { PaperSize } from '@/core/models/types';
 
@@ -19,6 +20,8 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
   const t = useT();
   const settings = useEventStore((s) => s.event?.settings);
   const updateSettings = useEventStore((s) => s.updateSettings);
+  const showPrintBoundary = useAppSettingsStore((s) => s.showPrintBoundary);
+  const setShowPrintBoundary = useAppSettingsStore((s) => s.setShowPrintBoundary);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -210,6 +213,16 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               ))}
             </div>
           </div>
+          {/* Show print boundary */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showPrintBoundary}
+              onChange={(e) => setShowPrintBoundary(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-400"
+            />
+            <span className="text-sm text-gray-700">{t('showPrintBoundaryLabel')}</span>
+          </label>
         </div>
 
         {/* Footer */}
