@@ -1,4 +1,3 @@
-import { Fragment } from 'react';
 import type { Course, Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
@@ -14,6 +13,9 @@ interface CourseRendererProps {
   selectedControlId: ControlId | null;
   draggable: boolean;
   allowLegInsert: boolean;
+  color?: string;
+  showNumbers?: boolean;
+  clickable?: boolean;
   onSelectControl: (id: ControlId) => void;
   onDragControlEnd: (id: ControlId, x: number, y: number) => void;
   onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
@@ -48,6 +50,9 @@ export function CourseRenderer({
   selectedControlId,
   draggable,
   allowLegInsert,
+  color = '#CD59A4',
+  showNumbers = true,
+  clickable = false,
   onSelectControl,
   onDragControlEnd,
   onInsertOnLeg,
@@ -92,6 +97,7 @@ export function CourseRenderer({
             fromOffset={shapeOffset(prev.type, dimensions)}
             toOffset={shapeOffset(curr.type, dimensions)}
             lineWidth={screenLineWidth}
+            color={color}
             onInsert={
               allowLegInsert && onInsertOnLeg
                 ? (pos) => onInsertOnLeg(pos, i)
@@ -103,19 +109,21 @@ export function CourseRenderer({
 
       {/* Control shapes */}
       {resolvedControls.map(({ control, type, index }) => (
-        <Fragment key={control.id}>
-          <ControlShape
-            control={control}
-            type={type}
-            sequenceNumber={index + 1}
-            dimensions={dimensions}
-            isSelected={control.id === selectedControlId}
-            draggable={draggable}
-            startTarget={type === 'start' ? startTarget : undefined}
-            onSelect={() => onSelectControl(control.id)}
-            onDragEnd={(x, y) => onDragControlEnd(control.id, x, y)}
-          />
-        </Fragment>
+        <ControlShape
+          key={control.id}
+          control={control}
+          type={type}
+          sequenceNumber={index + 1}
+          dimensions={dimensions}
+          isSelected={control.id === selectedControlId}
+          draggable={draggable}
+          startTarget={type === 'start' ? startTarget : undefined}
+          color={color}
+          showNumber={showNumbers}
+          clickable={clickable}
+          onSelect={() => onSelectControl(control.id)}
+          onDragEnd={(x, y) => onDragControlEnd(control.id, x, y)}
+        />
       ))}
     </>
   );

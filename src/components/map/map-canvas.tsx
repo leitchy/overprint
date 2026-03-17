@@ -70,8 +70,11 @@ export function MapCanvas() {
   const dpi = event?.mapFile?.dpi ?? 150;
   const dimensions = event ? overprintPixelDimensions(event.settings, dpi) : null;
 
-  // Get active course controls for rendering
+  // Get active course — defensive: treat stale activeCourseId as null
   const activeCourse = event?.courses.find((c) => c.id === activeCourseId) ?? null;
+
+  // Background courses — all courses except the active one
+  const backgroundCourses = event?.courses.filter((c) => c.id !== activeCourseId) ?? [];
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
@@ -92,10 +95,12 @@ export function MapCanvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Map layer — dimmed when course has controls for overprint visibility */}
+          {/* Map layer — dimmed when any course has controls for overprint visibility */}
           <Layer
             listening={false}
-            opacity={activeCourse && activeCourse.controls.length > 0 ? 0.6 : 1}
+            opacity={
+              event?.courses.some((c) => c.controls.length > 0) ? 0.6 : 1
+            }
           >
             {image && (
               <KonvaImage
@@ -107,7 +112,36 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Course overprint layer */}
+          {/* Background courses layer — grey, no numbers, listening only in addControl mode */}
+          <Layer listening={activeTool === 'addControl'}>
+            {dimensions && event && backgroundCourses.map((bgCourse) => (
+              <CourseRenderer
+                key={bgCourse.id}
+                course={bgCourse}
+                controls={event.controls}
+                dimensions={dimensions}
+                selectedControlId={null}
+                draggable={false}
+                allowLegInsert={false}
+                color="#C0C0C0"
+                showNumbers={false}
+                clickable={activeTool === 'addControl'}
+                onSelectControl={(controlId) => {
+                  // Reuse this control in the active course (Step 6)
+                  const store = useEventStore.getState();
+                  if (!store.activeCourseId || !activeCourse) return;
+                  store.insertControlInCourse(
+                    store.activeCourseId,
+                    controlId,
+                    activeCourse.controls.length,
+                  );
+                }}
+                onDragControlEnd={() => { /* no-op: not draggable */ }}
+              />
+            ))}
+          </Layer>
+
+          {/* Active course overprint layer */}
           <Layer>
             {activeCourse && dimensions && event && (
               <CourseRenderer
@@ -152,19 +186,19 @@ export function MapCanvas() {
       {image && (
         <>
           <MapSettingsPanel />
-          {activeCourse && event && activeCourseId && (
-            <CoursePanel
-              course={activeCourse}
-              controls={event.controls}
-              courseId={activeCourseId}
-              selectedControlId={selectedControlId}
-            />
-          )}
           <ZoomControls
             containerWidth={size.width}
             containerHeight={size.height}
           />
         </>
+      )}
+      {event && (
+        <CoursePanel
+          course={activeCourse}
+          controls={event.controls}
+          courseId={activeCourseId}
+          selectedControlId={selectedControlId}
+        />
       )}
     </div>
   );
