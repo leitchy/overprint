@@ -1,6 +1,6 @@
-import type { OverprintEvent } from '@/core/models/types';
+import type { OverprintEvent, SpecialItem } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
-import { asControlId, asCourseId, asEventId } from '@/utils/id';
+import { asControlId, asCourseId, asEventId, asSpecialItemId } from '@/utils/id';
 import { DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
 
 const FORMAT_ID = 'overprint';
@@ -107,6 +107,22 @@ function restoreBrandedIds(raw: OverprintEvent): OverprintEvent {
     })),
     settings: course.settings ?? {},
   }));
+
+  // Restore special items with branded IDs (default to [] for files saved before this feature)
+  const rawItems = (raw as unknown as { specialItems?: unknown[] }).specialItems ?? [];
+  event.specialItems = rawItems.map((rawItem) => {
+    const item = rawItem as Record<string, unknown>;
+    const restored: SpecialItem = {
+      ...(item as unknown as SpecialItem),
+      id: asSpecialItemId(String(item['id'])),
+    };
+    // Restore courseIds entries as branded CourseId
+    if (Array.isArray(item['courseIds'])) {
+      (restored as { courseIds: ReturnType<typeof asCourseId>[] }).courseIds =
+        (item['courseIds'] as string[]).map(asCourseId);
+    }
+    return restored;
+  });
 
   return event;
 }

@@ -1,21 +1,29 @@
 import { create } from 'zustand';
+import type { SpecialItemId } from '@/utils/id';
+import type { SpecialItemType } from '@/core/models/types';
 
-export type Tool = 'pan' | 'addControl';
+export type Tool =
+  | { type: 'pan' }
+  | { type: 'addControl' }
+  | { type: 'addSpecialItem'; itemType: SpecialItemType };
 
 interface ToolState {
   activeTool: Tool;
   descriptionsPanelOpen: boolean;
+  selectedSpecialItemId: SpecialItemId | null;
 }
 
 interface ToolActions {
   setTool: (tool: Tool) => void;
   toggleDescriptionsPanel: () => void;
   setDescriptionsPanelOpen: (open: boolean) => void;
+  setSelectedSpecialItem: (id: SpecialItemId | null) => void;
 }
 
 export const useToolStore = create<ToolState & ToolActions>()((set) => ({
-  activeTool: 'pan',
+  activeTool: { type: 'pan' },
   descriptionsPanelOpen: false,
+  selectedSpecialItemId: null,
 
   setTool: (tool) => {
     set({ activeTool: tool });
@@ -27,5 +35,9 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
 
   setDescriptionsPanelOpen: (open) => {
     set({ descriptionsPanelOpen: open });
+  },
+
+  setSelectedSpecialItem: (id) => {
+    set({ selectedSpecialItemId: id });
   },
 }));

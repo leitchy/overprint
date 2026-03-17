@@ -10,8 +10,9 @@ import type {
   MapFile,
   MapPoint,
   OverprintEvent,
+  SpecialItem,
 } from '@/core/models/types';
-import type { ControlId, CourseId } from '@/utils/id';
+import type { ControlId, CourseId, SpecialItemId } from '@/utils/id';
 import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
 import { useAppSettingsStore } from './app-settings-store';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
@@ -98,6 +99,11 @@ interface EventActions {
 
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
+
+  // Special item operations
+  addSpecialItem: (item: SpecialItem) => void;
+  updateSpecialItem: (id: SpecialItemId, updates: Partial<SpecialItem>) => void;
+  deleteSpecialItem: (id: SpecialItemId) => void;
 }
 
 // --- Helper to find active course in draft ---
@@ -453,6 +459,31 @@ export const useEventStore = create<EventState & EventActions>()(
           if (control) {
             control.position = position;
           }
+        });
+      },
+
+      // --- Special item CRUD ---
+
+      addSpecialItem: (item: SpecialItem) => {
+        set((state) => {
+          if (!state.event) return;
+          state.event.specialItems.push(item);
+        });
+      },
+
+      updateSpecialItem: (id: SpecialItemId, updates: Partial<SpecialItem>) => {
+        set((state) => {
+          if (!state.event) return;
+          const index = state.event.specialItems.findIndex((si) => si.id === id);
+          if (index === -1) return;
+          Object.assign(state.event.specialItems[index]!, updates);
+        });
+      },
+
+      deleteSpecialItem: (id: SpecialItemId) => {
+        set((state) => {
+          if (!state.event) return;
+          state.event.specialItems = state.event.specialItems.filter((si) => si.id !== id);
         });
       },
     })),

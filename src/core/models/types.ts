@@ -1,4 +1,4 @@
-import type { ControlId, CourseId, EventId } from '@/utils/id';
+import type { ControlId, CourseId, EventId, SpecialItemId } from '@/utils/id';
 
 export interface MapPoint {
   x: number; // Pixels from left of map image
@@ -89,7 +89,59 @@ export interface EventSettings {
   pageSetup: PageSetup;
   /** BCP 47 language tag for IOF control description output. Default: 'en'. */
   language: string;
+  /** Optional map title for PDF output (e.g. "Red Hill North"). Falls back to event name. */
+  mapTitle?: string;
+  /** Contour interval in metres (e.g. 5). Displayed on scale bar when set. */
+  contourInterval?: number;
+  /** Map author credit line for PDF output. */
+  mapAuthor?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Special items
+// ---------------------------------------------------------------------------
+
+/** Discriminated union tag for all special overlay items. */
+export type SpecialItemType =
+  | 'text'
+  | 'line'
+  | 'rectangle'
+  | 'outOfBounds'
+  | 'dangerousArea'
+  | 'waterLocation'
+  | 'firstAid'
+  | 'forbiddenRoute';
+
+interface SpecialItemBase {
+  id: SpecialItemId;
+  position: MapPoint;
+  rotation?: number;
+  color?: string;
+  /** If defined and non-empty, item is only shown on these courses. */
+  courseIds?: CourseId[];
+}
+
+export interface TextItem extends SpecialItemBase {
+  type: 'text';
+  text: string;
+  fontSize: number; // mm
+}
+
+export interface LineItem extends SpecialItemBase {
+  type: 'line';
+  endPosition: MapPoint;
+}
+
+export interface RectangleItem extends SpecialItemBase {
+  type: 'rectangle';
+  endPosition: MapPoint;
+}
+
+export interface IofSymbolItem extends SpecialItemBase {
+  type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute';
+}
+
+export type SpecialItem = TextItem | LineItem | RectangleItem | IofSymbolItem;
 
 export interface OverprintEvent {
   id: EventId;
@@ -98,5 +150,6 @@ export interface OverprintEvent {
   courses: Course[];
   controls: Record<ControlId, Control>;
   settings: EventSettings;
+  specialItems: SpecialItem[];
   version: string; // File format version
 }

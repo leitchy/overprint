@@ -34,7 +34,7 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
   if (!settings) return null;
 
-  const { pageSetup, printScale } = settings;
+  const { pageSetup, printScale, mapTitle, contourInterval, mapAuthor } = settings;
 
   const updatePageSetup = (updates: Partial<typeof pageSetup>) => {
     updateSettings({ pageSetup: { ...pageSetup, ...updates } });
@@ -74,6 +74,56 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
         {/* Body */}
         <div className="px-4 py-4 space-y-4">
+          {/* Map Title */}
+          <div>
+            <label htmlFor="map-title" className="block text-sm font-medium text-gray-700">
+              {t('mapTitleLabel')}
+            </label>
+            <input
+              id="map-title"
+              type="text"
+              value={mapTitle ?? ''}
+              onChange={(e) => updateSettings({ mapTitle: e.target.value || undefined })}
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              placeholder={t('mapTitlePlaceholder')}
+            />
+          </div>
+
+          {/* Map Author */}
+          <div>
+            <label htmlFor="map-author" className="block text-sm font-medium text-gray-700">
+              {t('mapAuthorLabel')}
+            </label>
+            <input
+              id="map-author"
+              type="text"
+              value={mapAuthor ?? ''}
+              onChange={(e) => updateSettings({ mapAuthor: e.target.value || undefined })}
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+            />
+          </div>
+
+          {/* Contour Interval */}
+          <div>
+            <label htmlFor="contour-interval" className="block text-sm font-medium text-gray-700">
+              {t('contourIntervalLabel')} <span className="font-normal text-gray-400">({t('mm')})</span>
+            </label>
+            <input
+              id="contour-interval"
+              type="number"
+              min={0}
+              max={50}
+              step={1}
+              value={contourInterval ?? ''}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                updateSettings({ contourInterval: e.target.value === '' || val <= 0 ? undefined : val });
+              }}
+              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              placeholder={t('contourIntervalPlaceholder')}
+            />
+          </div>
+
           {/* Print Scale */}
           <div>
             <label htmlFor="print-scale" className="block text-sm font-medium text-gray-700">

@@ -8,6 +8,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useToolStore } from '@/stores/tool-store';
 import type { Tool } from '@/stores/tool-store';
+import type { SpecialItemType } from '@/core/models/types';
 import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
@@ -294,6 +295,25 @@ export function Toolbar() {
     e.target.value = '';
   };
 
+  const specialItemMenuItems: MenuEntry[] = ([
+    ['text', t('addText')],
+    ['line', t('addLine')],
+    ['rectangle', t('addRectangle')],
+    null, // separator
+    ['outOfBounds', t('outOfBounds')],
+    ['dangerousArea', t('dangerousArea')],
+    ['waterLocation', t('waterLocation')],
+    ['firstAid', t('firstAid')],
+    ['forbiddenRoute', t('forbiddenRoute')],
+  ] as Array<[SpecialItemType, string] | null>).map((entry): MenuEntry => {
+    if (entry === null) return { separator: true };
+    const [itemType, label] = entry;
+    return {
+      label,
+      onClick: () => setTool({ type: 'addSpecialItem', itemType }),
+    };
+  });
+
   const fileMenuItems: MenuEntry[] = [
     { label: t('openEvent'), onClick: handleOpenEvent },
     { label: t('saveEvent'), onClick: handleSave, disabled: !hasEvent },
@@ -314,18 +334,23 @@ export function Toolbar() {
     { label: t('newEvent'), onClick: handleNewEvent },
   ];
 
-  const toolButton = (tool: Tool, label: string) => (
-    <button
-      onClick={() => setTool(tool)}
-      className={`rounded px-3 py-1.5 text-sm font-medium ${
-        activeTool === tool
-          ? 'bg-gray-800 text-white'
-          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const toolButton = (tool: Tool, label: string) => {
+    const isActive = activeTool.type === tool.type &&
+      (tool.type !== 'addSpecialItem' ||
+        (activeTool.type === 'addSpecialItem' && activeTool.itemType === tool.itemType));
+    return (
+      <button
+        onClick={() => setTool(tool)}
+        className={`rounded px-3 py-1.5 text-sm font-medium ${
+          isActive
+            ? 'bg-gray-800 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
     <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
@@ -368,8 +393,8 @@ export function Toolbar() {
       {/* Tool buttons — only show when a map is loaded */}
       {hasImage && (
         <div className="flex gap-1">
-          {toolButton('pan', t('toolPan'))}
-          {toolButton('addControl', t('toolAddControl'))}
+          {toolButton({ type: 'pan' }, t('toolPan'))}
+          {toolButton({ type: 'addControl' }, t('toolAddControl'))}
         </div>
       )}
 
@@ -384,6 +409,13 @@ export function Toolbar() {
         >
           {t('toolDescriptions')}
         </button>
+      )}
+
+      {hasImage && (
+        <FileMenu
+          items={specialItemMenuItems}
+          label={t('specialItems')}
+        />
       )}
 
       <div className="flex-1" />
