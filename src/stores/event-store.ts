@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import type {
+  Control,
   Course,
   CourseControl,
   EventSettings,
@@ -64,6 +65,12 @@ interface EventActions {
 
   // File operations
   loadEvent: (event: OverprintEvent) => void;
+
+  /**
+   * Bulk-import controls and courses from an IOF XML parse result.
+   * Appends to the existing event's controls and courses rather than replacing them.
+   */
+  importControlsAndCourses: (controls: Control[], courses: Course[]) => void;
 
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
@@ -262,6 +269,22 @@ export const useEventStore = create<EventState & EventActions>()(
           state.event = event;
           state.activeCourseId = event.courses[0]?.id ?? null;
           state.selectedControlId = null;
+        });
+      },
+
+      importControlsAndCourses: (controls: Control[], courses: Course[]) => {
+        set((state) => {
+          if (!state.event) return;
+          for (const ctrl of controls) {
+            state.event.controls[ctrl.id] = ctrl;
+          }
+          for (const course of courses) {
+            state.event.courses.push(course);
+          }
+          // Set the first imported course as active if none selected
+          if (!state.activeCourseId && courses.length > 0) {
+            state.activeCourseId = courses[0]!.id;
+          }
         });
       },
 

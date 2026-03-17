@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { detectMapFileType } from '@/core/files/detect-file-type';
 import { loadRasterImage } from '@/core/files/load-raster';
 import { serializeEvent, deserializeEvent } from '@/core/files/overprint-format';
-import { saveString } from '@/core/files/download';
-// loadPdfAsImage and loadOcadMap are lazy-imported to avoid loading at module evaluation
+import { saveBlob, saveString } from '@/core/files/download';
+// Heavy exporters and format parsers are lazy-imported to keep initial bundle small
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useToolStore } from '@/stores/tool-store';
@@ -16,6 +16,7 @@ const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,applicati
 export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventFileInputRef = useRef<HTMLInputElement>(null);
+  const iofXmlInputRef = useRef<HTMLInputElement>(null);
   const event = useEventStore((s) => s.event);
   const eventName = event?.name;
   const activeTool = useToolStore((s) => s.activeTool);
@@ -147,7 +148,6 @@ export function Toolbar() {
 
     try {
       // Open save dialog FIRST to preserve user gesture, then generate PDF
-      const { saveBlob } = await import('@/core/files/download');
       const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
       const courseName = currentEvent.courses[0]?.name ?? 'Course';
       const suggestedName = `${currentEvent.name} - ${courseName}.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
@@ -170,6 +170,87 @@ export function Toolbar() {
     }
   };
 
+  const handleExportDescriptionPdf = async () => {
+    const currentEvent = useEventStore.getState().event;
+    if (!currentEvent) return;
+
+    try {
+      const { generateDescriptionSheetPdf } = await import(
+        '@/core/export/pdf-description-sheet'
+      );
+      const { blob, suggestedName } = await generateDescriptionSheetPdf(currentEvent);
+
+      if ('showSaveFilePicker' in window) {
+        const handle = await window.showSaveFilePicker({ suggestedName });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        await saveBlob(blob, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Description PDF export failed:', err);
+    }
+  };
+
+  const handleExportIofXml = async () => {
+    const currentEvent = useEventStore.getState().event;
+    if (!currentEvent) return;
+
+    try {
+      const { exportIofXml } = await import('@/core/iof/export-xml');
+      const xmlString = exportIofXml(currentEvent);
+      const baseName = currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '');
+      const suggestedName = `${baseName}.xml`;
+
+      await saveString(xmlString, suggestedName, 'application/xml', [
+        { description: 'IOF XML', accept: { 'application/xml': ['.xml'] } },
+      ]);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('IOF XML export failed:', err);
+    }
+  };
+
+  const handleImportIofXml = () => {
+    iofXmlInputRef.current?.click();
+  };
+
+  const handleIofXmlFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const currentEvent = useEventStore.getState().event;
+    const mapFile = currentEvent?.mapFile;
+
+    const dpi = mapFile?.dpi ?? 96;
+    const mapImage = useMapImageStore.getState().image;
+    const mapHeightPx =
+      mapImage instanceof HTMLCanvasElement
+        ? mapImage.height
+        : mapImage instanceof HTMLImageElement
+          ? mapImage.naturalHeight
+          : 0;
+
+    try {
+      const xmlString = await file.text();
+      const { importIofXml } = await import('@/core/iof/import-xml');
+      const { controls, courses } = importIofXml(xmlString, dpi, mapHeightPx);
+
+      // Ensure an event exists before importing
+      if (!useEventStore.getState().event) {
+        useEventStore.getState().newEvent('Imported Event');
+      }
+
+      useEventStore.getState().importControlsAndCourses(controls, courses);
+    } catch (err) {
+      console.error('IOF XML import failed:', err);
+    }
+
+    e.target.value = '';
+  };
+
   const fileMenuItems: MenuEntry[] = [
     { label: 'Open Event…', onClick: handleOpenEvent },
     { label: 'Save Event…', onClick: handleSave, disabled: !hasEvent },
@@ -177,12 +258,12 @@ export function Toolbar() {
     { label: 'Load Map…', onClick: handleLoadMap, disabled: loading },
     { separator: true },
     { label: 'Export PDF (Course Map)', onClick: handleExportPdf, disabled: !canExport },
-    { label: 'Export PDF (Descriptions)', onClick: () => {}, disabled: true },
-    { label: 'Export IOF XML', onClick: () => {}, disabled: true },
+    { label: 'Export PDF (Descriptions)', onClick: handleExportDescriptionPdf, disabled: !canExport },
+    { label: 'Export IOF XML', onClick: handleExportIofXml, disabled: !canExport },
     { label: 'Export PNG', onClick: () => {}, disabled: true },
     { label: 'Export JPEG', onClick: () => {}, disabled: true },
     { separator: true },
-    { label: 'Import IOF XML…', onClick: () => {}, disabled: true },
+    { label: 'Import IOF XML…', onClick: handleImportIofXml, disabled: !hasEvent },
     { separator: true },
     { label: 'New Event', onClick: handleNewEvent },
   ];
@@ -247,6 +328,13 @@ export function Toolbar() {
         type="file"
         accept=".overprint"
         onChange={handleEventFileSelected}
+        className="hidden"
+      />
+      <input
+        ref={iofXmlInputRef}
+        type="file"
+        accept=".xml,application/xml,text/xml"
+        onChange={handleIofXmlFileSelected}
         className="hidden"
       />
     </header>
