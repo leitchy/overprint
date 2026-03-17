@@ -57,6 +57,21 @@ const en = {
   descriptionLanguageLabel: 'Description language',
   descriptionLanguageDescription: 'Language used for IOF control descriptions',
   close: 'Close',
+
+  // Page setup modal
+  pageSetup: 'Page Setup\u2026',
+  pageSetupTitle: 'Page Setup',
+  printScaleLabel: 'Print scale',
+  paperSizeLabel: 'Paper size',
+  orientationLabel: 'Orientation',
+  portrait: 'Portrait',
+  landscape: 'Landscape',
+  marginsLabel: 'Margins',
+  mm: 'mm',
+  top: 'Top',
+  right: 'Right',
+  bottom: 'Bottom',
+  left: 'Left',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -96,6 +111,19 @@ const fr: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Langue des descriptions',
   descriptionLanguageDescription: 'Langue utilis\xe9e pour les descriptions IOF',
   close: 'Fermer',
+  pageSetup: 'Mise en page\u2026',
+  pageSetupTitle: 'Mise en page',
+  printScaleLabel: '\xc9chelle d\u2019impression',
+  paperSizeLabel: 'Format du papier',
+  orientationLabel: 'Orientation',
+  portrait: 'Portrait',
+  landscape: 'Paysage',
+  marginsLabel: 'Marges',
+  mm: 'mm',
+  top: 'Haut',
+  right: 'Droite',
+  bottom: 'Bas',
+  left: 'Gauche',
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +161,19 @@ const de: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Beschreibungssprache',
   descriptionLanguageDescription: 'Sprache f\xfcr IOF-Postenbeschreibungen',
   close: 'Schlie\xdfen',
+  pageSetup: 'Seite einrichten\u2026',
+  pageSetupTitle: 'Seite einrichten',
+  printScaleLabel: 'Druckma\xdfstab',
+  paperSizeLabel: 'Papiergr\xf6\xdfe',
+  orientationLabel: 'Ausrichtung',
+  portrait: 'Hochformat',
+  landscape: 'Querformat',
+  marginsLabel: 'R\xe4nder',
+  mm: 'mm',
+  top: 'Oben',
+  right: 'Rechts',
+  bottom: 'Unten',
+  left: 'Links',
 };
 
 // ---------------------------------------------------------------------------
@@ -170,6 +211,19 @@ const es: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Idioma de descripciones',
   descriptionLanguageDescription: 'Idioma para las descripciones IOF',
   close: 'Cerrar',
+  pageSetup: 'Configurar p\xe1gina\u2026',
+  pageSetupTitle: 'Configurar p\xe1gina',
+  printScaleLabel: 'Escala de impresi\xf3n',
+  paperSizeLabel: 'Tama\xf1o del papel',
+  orientationLabel: 'Orientaci\xf3n',
+  portrait: 'Vertical',
+  landscape: 'Horizontal',
+  marginsLabel: 'M\xe1rgenes',
+  mm: 'mm',
+  top: 'Superior',
+  right: 'Derecho',
+  bottom: 'Inferior',
+  left: 'Izquierdo',
 };
 
 // ---------------------------------------------------------------------------
@@ -207,6 +261,19 @@ const fi: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Rastiselitysten kieli',
   descriptionLanguageDescription: 'Kieli IOF-rastiselityksille',
   close: 'Sulje',
+  pageSetup: 'Sivun asetukset\u2026',
+  pageSetupTitle: 'Sivun asetukset',
+  printScaleLabel: 'Tulostuskaava',
+  paperSizeLabel: 'Paperikoko',
+  orientationLabel: 'Suunta',
+  portrait: 'Pysty',
+  landscape: 'Vaaka',
+  marginsLabel: 'Marginaalit',
+  mm: 'mm',
+  top: 'Yl\xe4',
+  right: 'Oikea',
+  bottom: 'Ala',
+  left: 'Vasen',
 };
 
 // ---------------------------------------------------------------------------
@@ -244,6 +311,19 @@ const it: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Lingua descrizioni',
   descriptionLanguageDescription: 'Lingua per le descrizioni IOF',
   close: 'Chiudi',
+  pageSetup: 'Impostazione pagina\u2026',
+  pageSetupTitle: 'Impostazione pagina',
+  printScaleLabel: 'Scala di stampa',
+  paperSizeLabel: 'Formato carta',
+  orientationLabel: 'Orientamento',
+  portrait: 'Verticale',
+  landscape: 'Orizzontale',
+  marginsLabel: 'Margini',
+  mm: 'mm',
+  top: 'Superiore',
+  right: 'Destro',
+  bottom: 'Inferiore',
+  left: 'Sinistro',
 };
 
 // ---------------------------------------------------------------------------
@@ -281,6 +361,19 @@ const sv: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: 'Beskrivningsspr\xe5k',
   descriptionLanguageDescription: 'Spr\xe5k f\xf6r IOF-kontrollbeskrivningar',
   close: 'St\xe4ng',
+  pageSetup: 'Sidinst\xe4llningar\u2026',
+  pageSetupTitle: 'Sidinst\xe4llningar',
+  printScaleLabel: 'Utskriftsskala',
+  paperSizeLabel: 'Pappersstorlek',
+  orientationLabel: 'Orientering',
+  portrait: 'St\xe5ende',
+  landscape: 'Liggande',
+  marginsLabel: 'Marginaler',
+  mm: 'mm',
+  top: '\xd6vre',
+  right: 'H\xf6ger',
+  bottom: 'Nedre',
+  left: 'V\xe4nster',
 };
 
 // ---------------------------------------------------------------------------
@@ -318,6 +411,19 @@ const ja: Partial<Record<TranslationKey, string>> = {
   descriptionLanguageLabel: '説明言語',
   descriptionLanguageDescription: 'IOFコントロール説明の言語',
   close: '閉じる',
+  pageSetup: 'ページ設定\u2026',
+  pageSetupTitle: 'ページ設定',
+  printScaleLabel: '印刷縮尺',
+  paperSizeLabel: '用紙サイズ',
+  orientationLabel: '向き',
+  portrait: '縦',
+  landscape: '横',
+  marginsLabel: '余白',
+  mm: 'mm',
+  top: '上',
+  right: '右',
+  bottom: '下',
+  left: '左',
 };
 
 // ---------------------------------------------------------------------------
