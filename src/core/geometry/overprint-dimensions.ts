@@ -32,9 +32,9 @@ export function overprintPixelDimensions(
     circleRadius: mmToMapPixels(settings.controlCircleDiameter / 2, dpi),
     lineWidth: mmToMapPixels(settings.lineWidth, dpi),
     numberSize: mmToMapPixels(settings.numberSize, dpi),
-    startTriangleSide: mmToMapPixels(7.0, dpi),           // IOF spec: 7mm
-    finishOuterRadius: mmToMapPixels(7.0 / 2, dpi),       // IOF spec: 7mm diameter
-    finishInnerRadius: mmToMapPixels(5.0 / 2, dpi),       // IOF spec: 5mm diameter
+    startTriangleSide: mmToMapPixels(6.0, dpi),           // ISOM 2017-2: 6mm side
+    finishOuterRadius: mmToMapPixels(5.0 / 2, dpi),       // ISOM 2017-2: 5mm outer diameter
+    finishInnerRadius: mmToMapPixels(3.5 / 2, dpi),       // ISOM 2017-2: 3.5mm inner diameter
     circleGap: mmToMapPixels(0.3, dpi),                    // IOF spec: ~0.3mm gap
   };
 }

@@ -27,8 +27,8 @@ describe('overprintPixelDimensions', () => {
   it('computes correct dimensions at 150 DPI with default settings', () => {
     const dims = overprintPixelDimensions(DEFAULT_EVENT_SETTINGS, 150);
 
-    // Circle radius: 6/2 * 150/25.4 = 17.72
-    expect(dims.circleRadius).toBeCloseTo(17.72, 1);
+    // Circle radius: 5/2 * 150/25.4 = 14.76
+    expect(dims.circleRadius).toBeCloseTo(14.76, 1);
 
     // Line width: 0.35 * 150/25.4 = 2.07
     expect(dims.lineWidth).toBeCloseTo(2.07, 1);
@@ -36,14 +36,14 @@ describe('overprintPixelDimensions', () => {
     // Number size: 4 * 150/25.4 = 23.62
     expect(dims.numberSize).toBeCloseTo(23.62, 1);
 
-    // Start triangle side: 7 * 150/25.4 = 41.34
-    expect(dims.startTriangleSide).toBeCloseTo(41.34, 1);
+    // Start triangle side: 6 * 150/25.4 = 35.43 (ISOM 2017-2)
+    expect(dims.startTriangleSide).toBeCloseTo(35.43, 1);
 
-    // Finish outer radius: 3.5 * 150/25.4 = 20.67
-    expect(dims.finishOuterRadius).toBeCloseTo(20.67, 1);
+    // Finish outer radius: 5/2 * 150/25.4 = 14.76 (ISOM 2017-2)
+    expect(dims.finishOuterRadius).toBeCloseTo(14.76, 1);
 
-    // Finish inner radius: 2.5 * 150/25.4 = 14.76
-    expect(dims.finishInnerRadius).toBeCloseTo(14.76, 1);
+    // Finish inner radius: 3.5/2 * 150/25.4 = 10.33 (ISOM 2017-2)
+    expect(dims.finishInnerRadius).toBeCloseTo(10.33, 1);
 
     // Circle gap: 0.3 * 150/25.4 = 1.77
     expect(dims.circleGap).toBeCloseTo(1.77, 1);
