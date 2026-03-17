@@ -12,10 +12,6 @@ export default defineConfig({
       buffer: 'buffer/',
     },
   },
-  define: {
-    // Make Buffer globally available for ocad2geojson
-    'globalThis.Buffer': 'globalThis.Buffer',
-  },
   test: {
     globals: true,
     environment: 'jsdom',
