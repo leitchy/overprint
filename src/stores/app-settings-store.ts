@@ -13,16 +13,33 @@ import { SUPPORTED_APP_LANGUAGES } from '@/i18n/languages';
 const LOCAL_STORAGE_KEY_LANGUAGE = 'overprint-app-language';
 const LOCAL_STORAGE_KEY_PRINT_BOUNDARY = 'overprint-show-print-boundary';
 
+/** Safe localStorage access — returns null in environments without localStorage (tests, SSR). */
+function storageGet(key: string): string | null {
+  try {
+    return globalThis.localStorage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(key: string, value: string): void {
+  try {
+    globalThis.localStorage?.setItem(key, value);
+  } catch {
+    // Ignore — localStorage unavailable (tests, SSR, quota exceeded)
+  }
+}
+
 function detectInitialLanguage(): string {
   // 1. Previously saved preference
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY_LANGUAGE);
+  const saved = storageGet(LOCAL_STORAGE_KEY_LANGUAGE);
   if (saved) {
     const isSupported = SUPPORTED_APP_LANGUAGES.some((l) => l.code === saved);
     if (isSupported) return saved;
   }
 
   // 2. Browser language — try exact match first, then base language
-  const browserLang = navigator.language; // e.g. 'fr-FR', 'en-AU', 'de'
+  const browserLang = typeof navigator !== 'undefined' ? navigator.language : 'en';
   const exactMatch = SUPPORTED_APP_LANGUAGES.find((l) => l.code === browserLang);
   if (exactMatch) return exactMatch.code;
 
@@ -34,8 +51,7 @@ function detectInitialLanguage(): string {
 }
 
 function detectInitialShowPrintBoundary(): boolean {
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY_PRINT_BOUNDARY);
-  return saved === 'true';
+  return storageGet(LOCAL_STORAGE_KEY_PRINT_BOUNDARY) === 'true';
 }
 
 interface AppSettingsState {
@@ -54,12 +70,12 @@ export const useAppSettingsStore = create<AppSettingsState & AppSettingsActions>
   showPrintBoundary: detectInitialShowPrintBoundary(),
 
   setAppLanguage: (lang: string) => {
-    localStorage.setItem(LOCAL_STORAGE_KEY_LANGUAGE, lang);
+    storageSet(LOCAL_STORAGE_KEY_LANGUAGE, lang);
     set({ appLanguage: lang });
   },
 
   setShowPrintBoundary: (show: boolean) => {
-    localStorage.setItem(LOCAL_STORAGE_KEY_PRINT_BOUNDARY, String(show));
+    storageSet(LOCAL_STORAGE_KEY_PRINT_BOUNDARY, String(show));
     set({ showPrintBoundary: show });
   },
 }));
