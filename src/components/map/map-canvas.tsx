@@ -5,6 +5,10 @@ import { useCanvasSize } from './use-canvas-size';
 import { useMapNavigation, fitToView } from './use-map-navigation';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useViewportStore } from '@/stores/viewport-store';
+import { useEventStore } from '@/stores/event-store';
+import { useToolStore } from '@/stores/tool-store';
+import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { ControlShape } from '@/components/course/control-shape';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 
@@ -17,6 +21,12 @@ export function MapCanvas() {
   const zoom = useViewportStore((s) => s.zoom);
   const panX = useViewportStore((s) => s.panX);
   const panY = useViewportStore((s) => s.panY);
+  const activeTool = useToolStore((s) => s.activeTool);
+
+  // Event store selectors
+  const event = useEventStore((s) => s.event);
+  const activeCourseId = useEventStore((s) => s.activeCourseId);
+  const selectedControlId = useEventStore((s) => s.selectedControlId);
 
   const {
     handleWheel,
@@ -35,7 +45,6 @@ export function MapCanvas() {
       const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
       useViewportStore.getState().setViewport(fit);
 
-      // Also apply to stage imperatively for immediate effect
       const stage = stageRef.current;
       if (stage) {
         stage.scale({ x: fit.zoom, y: fit.zoom });
@@ -45,6 +54,20 @@ export function MapCanvas() {
     }
     prevImageRef.current = image;
   }, [image, imageWidth, imageHeight, size.width, size.height]);
+
+  // Cursor management based on tool
+  useEffect(() => {
+    const container = stageRef.current?.container();
+    if (!container) return;
+    container.style.cursor = activeTool === 'addControl' ? 'crosshair' : 'default';
+  }, [activeTool]);
+
+  // Compute overprint dimensions
+  const dpi = event?.mapFile?.dpi ?? 150;
+  const dimensions = event ? overprintPixelDimensions(event.settings, dpi) : null;
+
+  // Get active course controls for rendering
+  const activeCourse = event?.courses.find((c) => c.id === activeCourseId) ?? null;
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
@@ -77,9 +100,30 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Course overprint layer — will be added in Phase 1 */}
+          {/* Course overprint layer */}
           <Layer>
-            {/* Controls, legs, start/finish will render here */}
+            {activeCourse && dimensions && event &&
+              activeCourse.controls.map((cc, index) => {
+                const control = event.controls[cc.controlId];
+                if (!control) return null;
+                return (
+                  <ControlShape
+                    key={control.id}
+                    control={control}
+                    type={cc.type}
+                    sequenceNumber={index + 1}
+                    dimensions={dimensions}
+                    isSelected={control.id === selectedControlId}
+                    draggable={activeTool === 'pan'}
+                    onSelect={() => {
+                      useEventStore.getState().setSelectedControl(control.id);
+                    }}
+                    onDragEnd={(x, y) => {
+                      useEventStore.getState().updateControlPosition(control.id, { x, y });
+                    }}
+                  />
+                );
+              })}
           </Layer>
         </Stage>
       )}

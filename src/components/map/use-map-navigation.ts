@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import Konva from 'konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import { useViewportStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/viewport-store';
+import { useToolStore } from '@/stores/tool-store';
+import { useEventStore } from '@/stores/event-store';
 
 // Enable hit detection during drag for correct touch events
 Konva.hitOnDragEnabled = true;
@@ -87,19 +89,46 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
     [stageRef, applyZoom, syncToStore],
   );
 
-  // Mouse down — start pan on left click, middle button, or Space+left
+  // Mouse down — tool-aware: pan mode vs add-control mode
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+
       const isLeft = e.evt.button === 0;
       const isMiddle = e.evt.button === 1;
 
-      if (isLeft || isMiddle) {
+      // Middle button always pans regardless of tool
+      if (isMiddle) {
         e.evt.preventDefault();
         isPanningRef.current = true;
         panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+        return;
+      }
+
+      if (!isLeft) return;
+
+      // If click landed on a shape (not empty canvas), let shape handle it
+      if (e.target !== e.target.getStage()) return;
+
+      const activeTool = useToolStore.getState().activeTool;
+
+      if (activeTool === 'addControl') {
+        // Add control at click position (in map-image coordinates)
+        e.evt.preventDefault();
+        const pos = stage.getRelativePointerPosition();
+        if (pos) {
+          useEventStore.getState().addControlToCourse({ x: pos.x, y: pos.y });
+        }
+      } else {
+        // Pan mode — start panning, deselect any selected control
+        e.evt.preventDefault();
+        isPanningRef.current = true;
+        panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+        useEventStore.getState().setSelectedControl(null);
       }
     },
-    [],
+    [stageRef],
   );
 
   const handleMouseMove = useCallback(
