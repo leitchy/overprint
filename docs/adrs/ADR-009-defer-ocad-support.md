@@ -1,7 +1,7 @@
 # ADR-009: Defer OCAD Binary Format Support to Post-MVP
 
 ## Status
-Accepted
+Superseded by [ADR-010](ADR-010-ocad-support-via-ocad2geojson.md)
 
 ## Context
 OCAD is a proprietary binary file format used by the commercial OCAD mapping software. It is the most common native format for orienteering maps. PurplePen includes a full binary parser (~2000+ lines of C#) supporting OCAD versions 6–2018, handling version-specific structural differences, coordinate conversion (0.01mm units), CMYK colour definitions, encrypted files, and symbol type mapping (point, line, area, text, rectangle).
