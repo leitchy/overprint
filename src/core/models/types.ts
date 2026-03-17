@@ -124,7 +124,9 @@ interface SpecialItemBase {
 export interface TextItem extends SpecialItemBase {
   type: 'text';
   text: string;
-  fontSize: number; // mm
+  fontSize: number;        // map pixels
+  fontWeight?: 'normal' | 'bold';
+  fontStyle?: 'normal' | 'italic';
 }
 
 export interface LineItem extends SpecialItemBase {

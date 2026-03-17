@@ -136,6 +136,11 @@ const TextItemShape = memo(function TextItemShape({
   onDblClick,
 }: ItemProps<TextItem>) {
   const color = item.color ?? ITEM_COLOR;
+  const konvaFontStyle = [
+    item.fontStyle === 'italic' ? 'italic' : '',
+    item.fontWeight === 'bold' ? 'bold' : '',
+  ].filter(Boolean).join(' ') || 'normal';
+
   return (
     <Group
       x={item.position.x}
@@ -151,9 +156,9 @@ const TextItemShape = memo(function TextItemShape({
       {isSelected && (
         <Rect
           x={-4}
-          y={-item.fontSize * 1.2}
+          y={-item.fontSize * 0.2}
           width={item.text.length * item.fontSize * 0.65 + 8}
-          height={item.fontSize * 1.5}
+          height={item.fontSize * 1.3}
           stroke={SELECTION_COLOR}
           strokeWidth={1.5}
           dash={SELECTION_DASH}
@@ -164,6 +169,7 @@ const TextItemShape = memo(function TextItemShape({
       <Text
         text={item.text}
         fontSize={item.fontSize}
+        fontStyle={konvaFontStyle}
         fill={color}
         listening={true}
       />
