@@ -29,9 +29,9 @@ Overprint is a side project / fun build. The goal is to bring orienteering cours
 - **IOF XML**: Custom parser/writer for IOF XML v3 data standard
 - **PDF generation**: pdf-lib for client-side PDF export
 - **Map file support (progressive)**:
-  - Phase 1: PDF and raster images (PNG, JPEG, TIFF, GIF)
-  - Phase 2: OpenOrienteering Mapper (.omap/.xmap) — XML-based, parseable in browser
-  - Phase 3: OCAD files — binary format, significantly harder
+  - Phase 0: Raster images (PNG, JPEG, TIFF, GIF)
+  - Phase 1: PDF (via PDF.js) + OCAD files (via ocad2geojson — see ADR-010)
+  - Phase 5: OpenOrienteering Mapper (.omap/.xmap) — XML-based, parseable in browser
 - **Deployment**: Static site (Cloudflare Pages, Vercel, or Netlify) — no backend needed for MVP
 - **Testing**: Vitest + React Testing Library
 

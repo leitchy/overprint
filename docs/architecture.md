@@ -20,7 +20,7 @@ Overprint is a fully client-side web application. All processing happens in the 
 | PDF export | pdf-lib |
 | Save/load project files | File API, IndexedDB, OPFS |
 | .omap parsing | JSZip + XML |
-| OCAD binary parsing | WASM (compiled from C/Rust) |
+| OCAD map loading | ocad2geojson (JS, client-side) — see ADR-010 |
 
 Course data is kilobytes even for complex multi-course events. Map files (the heaviest input at a few MB) are handled by proven browser libraries. There is no operation that requires server compute.
 
@@ -28,7 +28,7 @@ Course data is kilobytes even for complex multi-course events. Map files (the he
 
 **Inflection point**: The only scenario that would require a server is real-time collaboration — and even that could be peer-to-peer via CRDTs (Yjs) over WebRTC. Collaboration is explicitly out of scope.
 
-**Trade-off**: OCAD binary parsing is the hardest client-side challenge. WASM solves this — the same approach used by Photopea, Figma, and AutoCAD Web for heavy format parsing in the browser.
+**Trade-off**: OCAD binary parsing was originally the hardest client-side challenge, but `ocad2geojson` (Per Liedman's JS library) handles this entirely in the browser. See ADR-010.
 
 ### ADR-002: HTML5 Canvas for Map + Course Rendering
 **Decision**: Use HTML5 Canvas (not SVG DOM) for the map display and course overlay.
@@ -126,7 +126,7 @@ interface OverprintEvent {
 
 interface MapFile {
   name: string;
-  type: 'raster' | 'pdf' | 'omap';
+  type: 'raster' | 'pdf' | 'ocad' | 'omap';
   scale: number;               // e.g., 10000 for 1:10000
   dpi: number;                 // Resolution for coordinate mapping
   // Georeferencing (optional, for future use)
@@ -251,14 +251,11 @@ Straightforward: `FileReader` → `Image` → draw to canvas. Support PNG, JPEG,
 ### PDF Maps (Phase 0)
 Use PDF.js to render to an offscreen canvas at a target DPI (e.g., 150–300 DPI depending on performance). The rendered bitmap becomes the map image. PDF.js runs in a Web Worker for performance.
 
+### OCAD Files (Phase 1)
+Parsed client-side via `ocad2geojson` (Per Liedman's JS library). Supports OCAD 10, 11, 12, and 2018. The library reads the binary format from an `ArrayBuffer` and outputs SVG (for rendering) and GeoJSON (for geometry). We serialize the SVG to a Blob URL, load it as an `HTMLImageElement`, and display it on the Konva canvas. Map scale is extracted from OCAD parameter strings. See ADR-010.
+
 ### OpenOrienteering Mapper .omap (Phase 5)
 The .omap format is XML (actually a ZIP containing XML). It describes vector map objects with symbol references. Rendering this properly means implementing a subset of the ISOM/ISSprOM symbol renderer. This is a significant effort but the XML structure is well-documented.
-
-### OCAD (Phase 5, stretch)
-OCAD files are a proprietary binary format. Options:
-1. Port parts of the OpenOrienteering Mapper OCAD reader to TypeScript
-2. Use a WASM-compiled reader
-3. Ask users to export to PDF or .omap first (pragmatic cop-out)
 
 ## Undo/Redo
 
@@ -277,5 +274,5 @@ Implemented via a command pattern with Zustand middleware:
 ## Future Technical Considerations
 
 - **PWA / Service Worker**: Cache the app shell for offline use. Map files stay in IndexedDB or the Origin Private File System. Natural fit for the client-side architecture.
-- **WebAssembly**: For OCAD binary file parsing, a WASM module (compiled from C/C++ or Rust, e.g. porting from OpenOrienteering Mapper) runs entirely client-side.
+- **WebAssembly**: If deeper OCAD support is needed beyond what `ocad2geojson` provides (e.g. full symbol editing, round-trip save), a WASM module compiled from OpenOrienteering Mapper's C++ reader could supplement or replace the JS parser.
 - **Collaboration**: The only scenario that would introduce a server dependency. Even then, CRDTs (Yjs) over WebRTC can work peer-to-peer. Out of scope — noted here only as the architectural inflection point.
