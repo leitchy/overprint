@@ -20,7 +20,7 @@
     "maps"
   ],
   "author": "Jim Cresswell",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "dependencies": {
     "immer": "^11.1.4",
     "konva": "^10.2.3",
