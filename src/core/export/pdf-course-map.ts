@@ -55,7 +55,7 @@ export async function generateCoursePdf(
 
   // Draw vector overprint
   renderOverprint(
-    { page, settings: event.settings, toPdf },
+    { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
     course,
     event.controls,
     font,

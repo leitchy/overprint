@@ -1,0 +1,135 @@
+{
+  "formatId": "overprint",
+  "version": "0.1.0",
+  "event": {
+    "id": "30892baf-3dba-4f21-ad3e-fb0b2c510c9f",
+    "name": "Untitled Event",
+    "mapFile": {
+      "name": "RedHill North JL13.ocd",
+      "type": "ocad",
+      "scale": 10000,
+      "dpi": 353.67424374282035
+    },
+    "courses": [
+      {
+        "id": "703e4292-5bfd-4c96-8633-268a0aa92087",
+        "name": "Course 1",
+        "courseType": "normal",
+        "controls": [
+          {
+            "controlId": "8278e45c-4981-4cb8-9baf-3ef3ef0e846d",
+            "type": "start"
+          },
+          {
+            "controlId": "70b15473-aedb-48ef-a9e1-2bbd9aeda591",
+            "type": "control"
+          },
+          {
+            "controlId": "f394423d-70ff-4ca0-9e1e-fb913e6d133a",
+            "type": "control"
+          },
+          {
+            "controlId": "f7d3c2d7-b876-4a8a-b155-721755afcf01",
+            "type": "control"
+          },
+          {
+            "controlId": "effbd9a3-64d4-46c1-801f-f685b2e5186d",
+            "type": "control"
+          },
+          {
+            "controlId": "ef954f7b-21f6-44f2-9162-497502b179a5",
+            "type": "finish"
+          }
+        ],
+        "settings": {}
+      }
+    ],
+    "controls": {
+      "8278e45c-4981-4cb8-9baf-3ef3ef0e846d": {
+        "id": "8278e45c-4981-4cb8-9baf-3ef3ef0e846d",
+        "code": 31,
+        "position": {
+          "x": 1447.1843945528155,
+          "y": 1448.5552079499448
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "70b15473-aedb-48ef-a9e1-2bbd9aeda591": {
+        "id": "70b15473-aedb-48ef-a9e1-2bbd9aeda591",
+        "code": 32,
+        "position": {
+          "x": 1757.8211262421787,
+          "y": 1223.3067721751934
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "f394423d-70ff-4ca0-9e1e-fb913e6d133a": {
+        "id": "f394423d-70ff-4ca0-9e1e-fb913e6d133a",
+        "code": 33,
+        "position": {
+          "x": 2376.1501656238497,
+          "y": 1195.3347442031652
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "f7d3c2d7-b876-4a8a-b155-721755afcf01": {
+        "id": "f7d3c2d7-b876-4a8a-b155-721755afcf01",
+        "code": 34,
+        "position": {
+          "x": 3581.891792418108,
+          "y": 529.8949208686051
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "effbd9a3-64d4-46c1-801f-f685b2e5186d": {
+        "id": "effbd9a3-64d4-46c1-801f-f685b2e5186d",
+        "code": 35,
+        "position": {
+          "x": 2854.619065145381,
+          "y": 1706.1923076923076
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "ef954f7b-21f6-44f2-9162-497502b179a5": {
+        "id": "ef954f7b-21f6-44f2-9162-497502b179a5",
+        "code": 36,
+        "position": {
+          "x": 2779.5362532204635,
+          "y": 1276.3064041221937
+        },
+        "description": {
+          "columnD": ""
+        }
+      }
+    },
+    "settings": {
+      "printScale": 10000,
+      "controlCircleDiameter": 6,
+      "lineWidth": 0.35,
+      "numberSize": 4,
+      "descriptionStandard": "2024",
+      "mapStandard": "ISOM2017",
+      "pageSetup": {
+        "paperSize": "A4",
+        "orientation": "portrait",
+        "margins": {
+          "top": 10,
+          "right": 10,
+          "bottom": 10,
+          "left": 10
+        }
+      }
+    },
+    "version": "0.1.0"
+  }
+}

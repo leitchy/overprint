@@ -14,6 +14,15 @@ import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 
+// Module-level stage reference — allows toolbar and export utilities to access
+// the Konva stage without prop drilling.
+let _stageInstance: StageType | null = null;
+
+/** Returns the current Konva Stage instance, or null if unmounted. */
+export function getStageInstance(): StageType | null {
+  return _stageInstance;
+}
+
 export function MapCanvas() {
   const [containerRef, size] = useCanvasSize();
   const stageRef = useRef<StageType>(null);
@@ -76,11 +85,19 @@ export function MapCanvas() {
   // Background courses — all courses except the active one
   const backgroundCourses = event?.courses.filter((c) => c.id !== activeCourseId) ?? [];
 
+  // Control IDs in the active course — used to hide their shapes in background
+  // renderers (legs still draw through them, but shapes are rendered by the active course)
+  const activeControlIds = new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []);
+
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
       {size.width > 0 && size.height > 0 && (
         <Stage
-          ref={stageRef}
+          ref={(node) => {
+            // Keep both the local ref and the module-level instance in sync
+            (stageRef as React.MutableRefObject<StageType | null>).current = node;
+            _stageInstance = node;
+          }}
           width={size.width}
           height={size.height}
           scaleX={zoom}
@@ -116,7 +133,7 @@ export function MapCanvas() {
               Background controls render AFTER active course so they get hit priority
               for shared control reuse in addControl mode. */}
           <Layer>
-            {activeCourse && dimensions && event && (
+            {activeCourse && dimensions && event && activeCourseId && (
               <CourseRenderer
                 course={activeCourse}
                 controls={event.controls}
@@ -124,11 +141,17 @@ export function MapCanvas() {
                 selectedControlId={selectedControlId}
                 draggable={activeTool === 'pan'}
                 allowLegInsert={activeTool === 'addControl'}
+                courseId={activeCourseId}
                 onSelectControl={(id) => {
                   useEventStore.getState().setSelectedControl(id);
                 }}
                 onDragControlEnd={(id, x, y) => {
                   useEventStore.getState().updateControlPosition(id, { x, y });
+                }}
+                onNumberDragEnd={(controlIndex, offset) => {
+                  if (activeCourseId) {
+                    useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
+                  }
                 }}
                 onInsertOnLeg={(position, afterIndex) => {
                   const store = useEventStore.getState();
@@ -156,12 +179,15 @@ export function MapCanvas() {
 
             {/* Background courses — rendered AFTER active course in same layer
                 so their controls get hit priority over active course's leg lines
-                for shared control reuse in addControl mode. */}
+                for shared control reuse in addControl mode.
+                Exclude controls already in the active course to prevent background
+                shapes from blocking drag/selection on the active version. */}
             {dimensions && event && backgroundCourses.map((bgCourse) => (
               <CourseRenderer
                 key={bgCourse.id}
                 course={bgCourse}
                 controls={event.controls}
+                hideControlIds={activeControlIds}
                 dimensions={dimensions}
                 selectedControlId={null}
                 draggable={false}

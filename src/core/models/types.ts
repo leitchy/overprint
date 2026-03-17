@@ -43,6 +43,9 @@ export interface CourseControl {
   type: CourseControlType;
   // sequenceNumber is derived from array index — not stored
   score?: number; // For score courses only
+  /** Pixel offset from the default number position. Per-CourseControl so the same
+   *  control can have different number positions in different courses. */
+  numberOffset?: MapPoint;
 }
 
 export interface CourseSettings {

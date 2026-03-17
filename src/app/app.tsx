@@ -4,11 +4,13 @@ import { Toolbar } from '@/components/ui/toolbar';
 import { DescriptionPanel } from '@/components/descriptions/description-panel';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useEventStore } from '@/stores/event-store';
+import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
 
 export function App() {
+  useKeyboardShortcuts();
   const hasImage = useMapImageStore((s) => s.image !== null);
   const event = useEventStore((s) => s.event);
   const mapFileName = event?.mapFile?.name;

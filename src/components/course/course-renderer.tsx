@@ -1,5 +1,5 @@
 import type { Course, Control, CourseControlType, MapPoint } from '@/core/models/types';
-import type { ControlId } from '@/utils/id';
+import type { ControlId, CourseId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { ControlShape } from './control-shape';
 import { LegLine } from './leg-line';
@@ -13,12 +13,17 @@ interface CourseRendererProps {
   selectedControlId: ControlId | null;
   draggable: boolean;
   allowLegInsert: boolean;
+  /** courseId is required to enable number dragging (active course only). */
+  courseId?: CourseId;
   color?: string;
   showNumbers?: boolean;
   clickable?: boolean;
+  /** Control IDs to skip rendering shapes for (but still use for leg positions). */
+  hideControlIds?: Set<ControlId>;
   onSelectControl: (id: ControlId) => void;
   onDragControlEnd: (id: ControlId, x: number, y: number) => void;
   onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
+  onNumberDragEnd?: (controlIndex: number, offset: MapPoint) => void;
 }
 
 /**
@@ -50,27 +55,36 @@ export function CourseRenderer({
   selectedControlId,
   draggable,
   allowLegInsert,
+  courseId,
   color = '#CD59A4',
   showNumbers = true,
   clickable = false,
+  hideControlIds,
   onSelectControl,
   onDragControlEnd,
   onInsertOnLeg,
+  onNumberDragEnd,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
-  // Resolve control positions for leg drawing
+  // Resolve control positions for leg drawing — include numberOffset per-control
   const resolvedControls: Array<{
     control: Control;
     type: CourseControlType;
     index: number;
+    numberOffset?: { x: number; y: number };
   }> = [];
 
   for (let i = 0; i < course.controls.length; i++) {
     const cc = course.controls[i]!;
     const control = controls[cc.controlId];
     if (control) {
-      resolvedControls.push({ control, type: cc.type, index: i });
+      resolvedControls.push({
+        control,
+        type: cc.type,
+        index: i,
+        numberOffset: cc.numberOffset,
+      });
     }
   }
 
@@ -107,8 +121,10 @@ export function CourseRenderer({
         );
       })}
 
-      {/* Control shapes */}
-      {resolvedControls.map(({ control, type, index }) => (
+      {/* Control shapes — skip controls that are hidden (shared with active course) */}
+      {resolvedControls.map(({ control, type, index, numberOffset }) => {
+        if (hideControlIds?.has(control.id)) return null;
+        return (
         <ControlShape
           key={control.id}
           control={control}
@@ -121,10 +137,17 @@ export function CourseRenderer({
           color={color}
           showNumber={showNumbers}
           clickable={clickable}
+          numberOffset={numberOffset}
           onSelect={() => onSelectControl(control.id)}
           onDragEnd={(x, y) => onDragControlEnd(control.id, x, y)}
+          onNumberDragEnd={
+            courseId && onNumberDragEnd
+              ? (offset) => onNumberDragEnd(index, offset)
+              : undefined
+          }
         />
-      ))}
+        );
+      })}
     </>
   );
 }

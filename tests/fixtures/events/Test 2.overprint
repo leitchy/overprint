@@ -1,0 +1,184 @@
+{
+  "formatId": "overprint",
+  "version": "0.1.0",
+  "event": {
+    "id": "6859ac10-de52-47ce-b23e-79a1f4eda7e8",
+    "name": "Untitled Event",
+    "mapFile": {
+      "name": "RedHill North JL13.ocd",
+      "type": "ocad",
+      "scale": 100,
+      "dpi": 150
+    },
+    "courses": [
+      {
+        "id": "8fcb1918-7db6-4d4c-a227-1bcd01bca254",
+        "name": "Course 1",
+        "courseType": "normal",
+        "controls": [
+          {
+            "controlId": "ab5cb099-afcc-4164-996e-3565c4db76fe",
+            "type": "start"
+          },
+          {
+            "controlId": "dd1bc9f0-c93a-4a88-8698-15551a572a10",
+            "type": "control"
+          },
+          {
+            "controlId": "0b87d8de-1ddc-469f-8d44-92d48b3dc488",
+            "type": "control"
+          },
+          {
+            "controlId": "e8edf83e-2799-42a0-bc6e-d5033c7964c6",
+            "type": "control"
+          },
+          {
+            "controlId": "f45cc8f3-923b-45fa-9f99-7eca8ce655ec",
+            "type": "control"
+          },
+          {
+            "controlId": "c8cf99f2-8aef-434e-b007-74c3fc2a4c33",
+            "type": "control"
+          },
+          {
+            "controlId": "61d4e56e-86d7-4c3b-9fc2-24dc186232a7",
+            "type": "control"
+          },
+          {
+            "controlId": "450172be-f445-4b33-aab9-4a673d2d4624",
+            "type": "control"
+          },
+          {
+            "controlId": "ded08d64-3dd9-4013-9d1d-a0dc2b0517c5",
+            "type": "finish"
+          }
+        ],
+        "settings": {}
+      }
+    ],
+    "controls": {
+      "ab5cb099-afcc-4164-996e-3565c4db76fe": {
+        "id": "ab5cb099-afcc-4164-996e-3565c4db76fe",
+        "code": 31,
+        "position": {
+          "x": 1446.0694698354662,
+          "y": 1257.732175502742
+        },
+        "description": {
+          "columnD": "",
+          "columnC": "0.2NE",
+          "columnE": "8.9"
+        }
+      },
+      "dd1bc9f0-c93a-4a88-8698-15551a572a10": {
+        "id": "dd1bc9f0-c93a-4a88-8698-15551a572a10",
+        "code": 32,
+        "position": {
+          "x": 1979.8903107861058,
+          "y": 1023.7285191956124
+        },
+        "description": {
+          "columnD": "2.8"
+        }
+      },
+      "0b87d8de-1ddc-469f-8d44-92d48b3dc488": {
+        "id": "0b87d8de-1ddc-469f-8d44-92d48b3dc488",
+        "code": 33,
+        "position": {
+          "x": 2575.868372943327,
+          "y": 1444.203839122486
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "e8edf83e-2799-42a0-bc6e-d5033c7964c6": {
+        "id": "e8edf83e-2799-42a0-bc6e-d5033c7964c6",
+        "code": 34,
+        "position": {
+          "x": 3208.409506398537,
+          "y": 1870.163619744058
+        },
+        "description": {
+          "columnD": "",
+          "columnC": "0.2NE",
+          "columnE": "8.4"
+        }
+      },
+      "f45cc8f3-923b-45fa-9f99-7eca8ce655ec": {
+        "id": "f45cc8f3-923b-45fa-9f99-7eca8ce655ec",
+        "code": 35,
+        "position": {
+          "x": 3164.5338208409503,
+          "y": 2268.7010968921386
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "c8cf99f2-8aef-434e-b007-74c3fc2a4c33": {
+        "id": "c8cf99f2-8aef-434e-b007-74c3fc2a4c33",
+        "code": 36,
+        "position": {
+          "x": 2036.563071297989,
+          "y": 2303.4360146252284
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "61d4e56e-86d7-4c3b-9fc2-24dc186232a7": {
+        "id": "61d4e56e-86d7-4c3b-9fc2-24dc186232a7",
+        "code": 37,
+        "position": {
+          "x": 1570.3839122486288,
+          "y": 1930.4926873857403
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "450172be-f445-4b33-aab9-4a673d2d4624": {
+        "id": "450172be-f445-4b33-aab9-4a673d2d4624",
+        "code": 38,
+        "position": {
+          "x": 1870.2010968921386,
+          "y": 1343.6553930530163
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "ded08d64-3dd9-4013-9d1d-a0dc2b0517c5": {
+        "id": "ded08d64-3dd9-4013-9d1d-a0dc2b0517c5",
+        "code": 39,
+        "position": {
+          "x": 2146.252285191956,
+          "y": 1599.5968921389394
+        },
+        "description": {
+          "columnD": ""
+        }
+      }
+    },
+    "settings": {
+      "printScale": 15000,
+      "controlCircleDiameter": 6,
+      "lineWidth": 0.35,
+      "numberSize": 4,
+      "descriptionStandard": "2024",
+      "mapStandard": "ISOM2017",
+      "pageSetup": {
+        "paperSize": "A4",
+        "orientation": "portrait",
+        "margins": {
+          "top": 10,
+          "right": 10,
+          "bottom": 10,
+          "left": 10
+        }
+      }
+    },
+    "version": "0.1.0"
+  }
+}

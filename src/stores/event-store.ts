@@ -76,6 +76,9 @@ interface EventActions {
    */
   importControlsAndCourses: (controls: Control[], courses: Course[]) => void;
 
+  // Number offset (per-course draggable number position)
+  setNumberOffset: (courseId: CourseId, controlIndex: number, offset: MapPoint) => void;
+
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
 }
@@ -97,14 +100,14 @@ export const useEventStore = create<EventState & EventActions>()(
 
       newEvent: (name: string) => {
         set((state) => {
-          // Inherit the app language as the default description language if it
-          // is in the IOF language list; otherwise fall back to 'en'.
           const appLang = useAppSettingsStore.getState().appLanguage;
           const iofLang = SUPPORTED_IOF_LANGUAGES.find((l) => l.code === appLang)?.code ?? 'en';
           state.event = createEvent(name, iofLang);
           state.activeCourseId = null;
           state.selectedControlId = null;
         });
+        // Clear undo history after temporal middleware finishes processing
+        queueMicrotask(() => useEventStore.temporal.getState().clear());
       },
 
       setMapFile: (mapFile: MapFile) => {
@@ -312,6 +315,8 @@ export const useEventStore = create<EventState & EventActions>()(
           state.activeCourseId = event.courses[0]?.id ?? null;
           state.selectedControlId = null;
         });
+        // Clear undo history after temporal middleware finishes processing
+        queueMicrotask(() => useEventStore.temporal.getState().clear());
       },
 
       importControlsAndCourses: (controls: Control[], courses: Course[]) => {
@@ -326,6 +331,20 @@ export const useEventStore = create<EventState & EventActions>()(
           // Set the first imported course as active if none selected
           if (!state.activeCourseId && courses.length > 0) {
             state.activeCourseId = courses[0]!.id;
+          }
+        });
+      },
+
+      // --- Number offset update ---
+
+      setNumberOffset: (courseId: CourseId, controlIndex: number, offset: MapPoint) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          const cc = course.controls[controlIndex];
+          if (cc) {
+            cc.numberOffset = offset;
           }
         });
       },

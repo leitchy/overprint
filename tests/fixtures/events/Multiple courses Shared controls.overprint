@@ -1,0 +1,250 @@
+{
+  "formatId": "overprint",
+  "version": "0.1.0",
+  "event": {
+    "id": "f918e1c5-9e75-4a67-8372-9b308a391624",
+    "name": "Untitled Event",
+    "mapFile": {
+      "name": "RedHill North JL13.ocd",
+      "type": "ocad",
+      "scale": 10000,
+      "dpi": 353.67424374282035
+    },
+    "courses": [
+      {
+        "id": "813e938e-e3f8-4afc-841a-7b618e9e9c58",
+        "name": "Course 1",
+        "courseType": "normal",
+        "controls": [
+          {
+            "controlId": "f19b6542-c982-4156-8618-bc033ac5c992",
+            "type": "start"
+          },
+          {
+            "controlId": "ece98f77-7ed2-49dd-ae2d-2dc80e0a0d22",
+            "type": "control"
+          },
+          {
+            "controlId": "de6fa13a-5e9d-4a85-b518-10231eef5df4",
+            "type": "control"
+          },
+          {
+            "controlId": "9decff9e-b39a-45aa-931b-c27bfc8368a9",
+            "type": "control"
+          },
+          {
+            "controlId": "145adc2d-9b27-4068-a2df-26401a81cb7c",
+            "type": "control"
+          },
+          {
+            "controlId": "6f8104e4-e90c-403a-9cfc-a306270a872a",
+            "type": "control"
+          },
+          {
+            "controlId": "033f8967-6c8b-47a0-ba5c-1439a3c3cc5d",
+            "type": "control"
+          },
+          {
+            "controlId": "5c6d7010-16d4-4b61-96ce-2e179665c3d0",
+            "type": "finish"
+          }
+        ],
+        "settings": {}
+      },
+      {
+        "id": "344f369e-86ac-4a62-af07-ad4f39cc4f10",
+        "name": "Course 2",
+        "courseType": "normal",
+        "controls": [
+          {
+            "controlId": "f19b6542-c982-4156-8618-bc033ac5c992",
+            "type": "start"
+          },
+          {
+            "controlId": "bd09b151-858e-45cb-a640-74981e0f4fea",
+            "type": "control"
+          },
+          {
+            "controlId": "de6fa13a-5e9d-4a85-b518-10231eef5df4",
+            "type": "control"
+          },
+          {
+            "controlId": "6f8104e4-e90c-403a-9cfc-a306270a872a",
+            "type": "control"
+          },
+          {
+            "controlId": "145adc2d-9b27-4068-a2df-26401a81cb7c",
+            "type": "control"
+          },
+          {
+            "controlId": "0bacd874-a65b-419b-a34c-afeef8b3e9c6",
+            "type": "control"
+          },
+          {
+            "controlId": "347b91f3-87bc-4e83-8d6c-569acafd90f6",
+            "type": "control"
+          },
+          {
+            "controlId": "7482fdac-0c61-4a86-8b2c-23a75023cb1d",
+            "type": "finish"
+          }
+        ],
+        "settings": {}
+      }
+    ],
+    "controls": {
+      "f19b6542-c982-4156-8618-bc033ac5c992": {
+        "id": "f19b6542-c982-4156-8618-bc033ac5c992",
+        "code": 31,
+        "position": {
+          "x": 1067.7300178838077,
+          "y": 2201.4140527987374
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "ece98f77-7ed2-49dd-ae2d-2dc80e0a0d22": {
+        "id": "ece98f77-7ed2-49dd-ae2d-2dc80e0a0d22",
+        "code": 32,
+        "position": {
+          "x": 914.3026181773511,
+          "y": 1670.077907157869
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "de6fa13a-5e9d-4a85-b518-10231eef5df4": {
+        "id": "de6fa13a-5e9d-4a85-b518-10231eef5df4",
+        "code": 33,
+        "position": {
+          "x": 1656.1320043869214,
+          "y": 1208.3214948747332
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "9decff9e-b39a-45aa-931b-c27bfc8368a9": {
+        "id": "9decff9e-b39a-45aa-931b-c27bfc8368a9",
+        "code": 34,
+        "position": {
+          "x": 2295.149215535464,
+          "y": 1067.5806705829552
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "145adc2d-9b27-4068-a2df-26401a81cb7c": {
+        "id": "145adc2d-9b27-4068-a2df-26401a81cb7c",
+        "code": 35,
+        "position": {
+          "x": 2831.354251622978,
+          "y": 1576.7778101554543
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "6f8104e4-e90c-403a-9cfc-a306270a872a": {
+        "id": "6f8104e4-e90c-403a-9cfc-a306270a872a",
+        "code": 36,
+        "position": {
+          "x": 2242.952265119865,
+          "y": 1342.7368888612623
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "033f8967-6c8b-47a0-ba5c-1439a3c3cc5d": {
+        "id": "033f8967-6c8b-47a0-ba5c-1439a3c3cc5d",
+        "code": 37,
+        "position": {
+          "x": 2851.9166866351834,
+          "y": 1961.0477011992969
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "5c6d7010-16d4-4b61-96ce-2e179665c3d0": {
+        "id": "5c6d7010-16d4-4b61-96ce-2e179665c3d0",
+        "code": 38,
+        "position": {
+          "x": 2489.7014852663315,
+          "y": 2508.197422603287
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "bd09b151-858e-45cb-a640-74981e0f4fea": {
+        "id": "bd09b151-858e-45cb-a640-74981e0f4fea",
+        "code": 39,
+        "position": {
+          "x": 1608.6802312818318,
+          "y": 1608.4049616816967
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "0bacd874-a65b-419b-a34c-afeef8b3e9c6": {
+        "id": "0bacd874-a65b-419b-a34c-afeef8b3e9c6",
+        "code": 40,
+        "position": {
+          "x": 3084.4303748501234,
+          "y": 1877.235749654755
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "347b91f3-87bc-4e83-8d6c-569acafd90f6": {
+        "id": "347b91f3-87bc-4e83-8d6c-569acafd90f6",
+        "code": 41,
+        "position": {
+          "x": 3114.483164483347,
+          "y": 2308.9463679879614
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "7482fdac-0c61-4a86-8b2c-23a75023cb1d": {
+        "id": "7482fdac-0c61-4a86-8b2c-23a75023cb1d",
+        "code": 42,
+        "position": {
+          "x": 2086.3614138730686,
+          "y": 1690.6355556499261
+        },
+        "description": {
+          "columnD": ""
+        }
+      }
+    },
+    "settings": {
+      "printScale": 10000,
+      "controlCircleDiameter": 5,
+      "lineWidth": 0.35,
+      "numberSize": 4,
+      "descriptionStandard": "2024",
+      "mapStandard": "ISOM2017",
+      "pageSetup": {
+        "paperSize": "A4",
+        "orientation": "portrait",
+        "margins": {
+          "top": 10,
+          "right": 10,
+          "bottom": 10,
+          "left": 10
+        }
+      },
+      "language": "en-AU"
+    },
+    "version": "0.1.0"
+  }
+}

@@ -19,6 +19,8 @@ interface PdfOverprintContext {
   settings: EventSettings;
   /** Convert a map pixel coordinate to a PDF point (bottom-left origin) */
   toPdf: (point: MapPoint) => MapPoint;
+  /** Scale factor: map pixels → PDF points. Used to convert relative offsets. */
+  effectivePPP: number;
 }
 
 /**
@@ -34,18 +36,19 @@ export function renderOverprint(
   const { page, settings } = ctx;
   const lineWidth = mmToPdfPoints(settings.lineWidth);
 
-  // Resolve controls with positions
+  // Resolve controls with positions and per-course number offsets
   const resolved: Array<{
     control: Control;
     type: CourseControlType;
     index: number;
+    numberOffset?: MapPoint;
   }> = [];
 
   for (let i = 0; i < course.controls.length; i++) {
     const cc = course.controls[i]!;
     const control = controls[cc.controlId];
     if (control) {
-      resolved.push({ control, type: cc.type, index: i });
+      resolved.push({ control, type: cc.type, index: i, numberOffset: cc.numberOffset });
     }
   }
 
@@ -99,7 +102,7 @@ export function renderOverprint(
       : undefined;
 
   // Draw shapes and numbers
-  for (const { control, type, index } of resolved) {
+  for (const { control, type, index, numberOffset } of resolved) {
     const pt = ctx.toPdf(control.position);
 
     if (type === 'start') {
@@ -116,11 +119,18 @@ export function renderOverprint(
       });
     }
 
-    // Sequence number — offset to the right of the shape
-    const offsetX = shapeOffset(type) + lineWidth;
+    // Sequence number — default offset to the right of the shape, then apply
+    // the user-defined numberOffset (stored in map pixels, converted via effectivePPP).
+    // PDF Y-axis is inverted relative to screen (bottom-left origin), so negate Y.
+    const baseOffsetX = shapeOffset(type) + lineWidth;
+    const baseOffsetY = -numberSize * 0.35;
+
+    const numOffsetX = numberOffset ? numberOffset.x * ctx.effectivePPP : 0;
+    const numOffsetY = numberOffset ? -(numberOffset.y * ctx.effectivePPP) : 0;
+
     page.drawText(String(index + 1), {
-      x: pt.x + offsetX,
-      y: pt.y - numberSize * 0.35,
+      x: pt.x + baseOffsetX + numOffsetX,
+      y: pt.y + baseOffsetY + numOffsetY,
       size: numberSize,
       font,
       color: PURPLE,
