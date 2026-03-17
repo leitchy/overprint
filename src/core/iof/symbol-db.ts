@@ -89,14 +89,27 @@ export function getSymbolText(id: string, lang = 'en'): string {
   return symbol.texts[lang] ?? symbol.texts['en'] ?? symbol.name;
 }
 
+// Load all SVG files from the package as raw strings at build time
+const svgModules = import.meta.glob(
+  '/node_modules/svg-control-descriptions/symbols/*.svg',
+  { query: '?raw', import: 'default', eager: true },
+) as Record<string, string>;
+
+// Build a lookup map: symbol ID → raw SVG string
+const svgCache = new Map<string, string>();
+for (const [path, content] of Object.entries(svgModules)) {
+  // Path format: /node_modules/svg-control-descriptions/symbols/1.1.svg
+  const filename = path.split('/').pop()?.replace('.svg', '');
+  if (filename) {
+    svgCache.set(filename, content);
+  }
+}
+
 /**
- * Get the SVG file path for a symbol (relative to the package's symbols directory).
- * Returns undefined for symbols without SVG files.
+ * Get the raw SVG markup for a symbol. Returns undefined if no SVG exists.
  */
-export function getSymbolSvgPath(id: string): string | undefined {
-  if (!symbolDb.has(id)) return undefined;
-  // SVG files are named by ID in the package's symbols/ directory
-  return `svg-control-descriptions/symbols/${id}.svg`;
+export function getSymbolSvg(id: string): string | undefined {
+  return svgCache.get(id);
 }
 
 /**

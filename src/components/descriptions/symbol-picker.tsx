@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { getSymbolsForColumn } from '@/core/iof/symbol-db';
 import type { SymbolColumn } from '@/core/iof/symbol-db';
+import { SymbolIcon } from './symbol-icon';
 
 interface SymbolPickerProps {
   column: SymbolColumn;
@@ -106,9 +107,7 @@ export function SymbolPicker({
                 symbol.id === currentValue ? 'bg-violet-100 font-medium' : ''
               }`}
             >
-              <span className="w-8 shrink-0 text-center font-mono text-gray-400">
-                {symbol.id}
-              </span>
+              <SymbolIcon symbolId={symbol.id} size={24} className="shrink-0" />
               <span className="truncate text-gray-700">{symbol.name}</span>
             </button>
           ))
