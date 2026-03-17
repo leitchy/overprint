@@ -4,6 +4,7 @@ import type { Stage as StageType } from 'konva/lib/Stage';
 import { useViewportStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/viewport-store';
 import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
+import { generateSpecialItemId } from '@/utils/id';
 
 // Enable hit detection during drag for correct touch events
 Konva.hitOnDragEnabled = true;
@@ -120,6 +121,57 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
         if (pos) {
           useEventStore.getState().addControlToCourse({ x: pos.x, y: pos.y });
         }
+      } else if (activeTool.type === 'addSpecialItem') {
+        // Place a special item at click position
+        e.evt.preventDefault();
+        const pos = stage.getRelativePointerPosition();
+        if (pos) {
+          const itemType = activeTool.itemType;
+          const store = useEventStore.getState();
+
+          // Convert mm to map pixels for text sizing
+          const dpi = useEventStore.getState().event?.mapFile?.dpi ?? 150;
+          const mmToPixels = (mm: number) => (mm * dpi) / 25.4;
+
+          if (itemType === 'text') {
+            const text = window.prompt('Text:');
+            if (text && text.trim()) {
+              store.addSpecialItem({
+                id: generateSpecialItemId(),
+                type: 'text',
+                text: text.trim(),
+                fontSize: mmToPixels(4), // 4mm text height in map pixels
+                position: { x: pos.x, y: pos.y },
+              });
+            }
+          } else if (itemType === 'line') {
+            // Place a default-length line (100px in map coords)
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: 'line',
+              position: { x: pos.x, y: pos.y },
+              endPosition: { x: pos.x + mmToPixels(30), y: pos.y },
+            });
+          } else if (itemType === 'rectangle') {
+            // Place a default-sized rectangle (30x20mm in map coords)
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: 'rectangle',
+              position: { x: pos.x, y: pos.y },
+              endPosition: { x: pos.x + mmToPixels(30), y: pos.y + mmToPixels(20) },
+            });
+          } else {
+            // IOF symbols — click to place
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: itemType,
+              position: { x: pos.x, y: pos.y },
+            });
+          }
+
+          // Switch back to Pan mode after placing so user can immediately move/edit
+          useToolStore.getState().setTool({ type: 'pan' });
+        }
       } else if (activeTool.type === 'pan') {
         // Pan mode — start panning, deselect any selected control
         e.evt.preventDefault();
@@ -127,7 +179,6 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
         panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
         useEventStore.getState().setSelectedControl(null);
       }
-      // addSpecialItem mode: let SpecialItemsLayer handle the click
     },
     [stageRef],
   );
