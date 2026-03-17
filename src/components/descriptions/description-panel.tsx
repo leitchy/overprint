@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { DescriptionSheet } from './description-sheet';
 import { SymbolPicker } from './symbol-picker';
-import type { ControlId } from '@/utils/id';
+import type { ControlId, CourseId } from '@/utils/id';
+import type { Course } from '@/core/models/types';
 import type { SymbolColumn } from '@/core/iof/symbol-db';
 
 interface PickerState {
@@ -16,6 +17,7 @@ export function DescriptionPanel() {
   const event = useEventStore((s) => s.event);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
+  const viewMode = useEventStore((s) => s.viewMode);
   const isOpen = useToolStore((s) => s.descriptionsPanelOpen);
   // Description language is per-event (stored in .overprint), not a global pref
   const descriptionLang = event?.settings.language ?? 'en';
@@ -24,6 +26,22 @@ export function DescriptionPanel() {
 
   const activeCourse = event?.courses.find((c) => c.id === activeCourseId);
   const mapFile = event?.mapFile;
+
+  // Synthetic "all controls" course — controls sorted by code number
+  const allControlsCourse = useMemo((): Course | null => {
+    if (viewMode !== 'allControls' || !event) return null;
+    const allControls = Object.values(event.controls);
+    if (allControls.length === 0) return null;
+    return {
+      id: 'all-controls' as CourseId,
+      name: 'All controls',
+      courseType: 'score',
+      controls: [...allControls]
+        .sort((a, b) => a.code - b.code)
+        .map((c) => ({ controlId: c.id, type: 'control' as const })),
+      settings: {},
+    };
+  }, [viewMode, event]);
 
   const handleCellClick = useCallback(
     (controlId: ControlId, column: string, cellElement: HTMLElement) => {
@@ -48,7 +66,14 @@ export function DescriptionPanel() {
     [picker],
   );
 
-  if (!isOpen || !activeCourse || !event || !mapFile) return null;
+  if (!isOpen || !event || !mapFile) return null;
+
+  // In all-controls mode we need either the synthetic course or bail
+  if (viewMode === 'allControls' && !allControlsCourse) return null;
+  // In course mode we need an active course
+  if (viewMode === 'course' && !activeCourse) return null;
+
+  const sheetCourse = viewMode === 'allControls' ? allControlsCourse! : activeCourse!;
 
   // Get current value for picker
   const pickerCurrentValue = picker
@@ -61,7 +86,7 @@ export function DescriptionPanel() {
     : undefined;
 
   return (
-    <div className="h-full w-[280px] shrink-0 border-l border-gray-200 bg-white">
+    <div className="h-full w-70 shrink-0 border-l border-gray-200 bg-white">
       {/* Panel header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
         <span className="text-sm font-medium text-gray-700">Descriptions</span>
@@ -77,21 +102,22 @@ export function DescriptionPanel() {
       {/* Scrollable sheet */}
       <div className="overflow-y-auto p-3" style={{ maxHeight: 'calc(100% - 2.5rem)' }}>
         <DescriptionSheet
-          course={activeCourse}
+          course={sheetCourse}
           controls={event.controls}
           mapScale={mapFile.scale}
           mapDpi={mapFile.dpi}
           lang={descriptionLang}
           selectedControlId={selectedControlId}
+          mode={viewMode === 'allControls' ? 'allControls' : 'course'}
           onSelectControl={(id) => {
             useEventStore.getState().setSelectedControl(id);
           }}
-          onCellClick={handleCellClick}
+          onCellClick={viewMode === 'course' ? handleCellClick : undefined}
         />
       </div>
 
-      {/* Symbol picker popover */}
-      {picker && (
+      {/* Symbol picker popover — only in course mode */}
+      {picker && viewMode === 'course' && (
         <SymbolPicker
           column={picker.column}
           anchorRect={picker.anchorRect}

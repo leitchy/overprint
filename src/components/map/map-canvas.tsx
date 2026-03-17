@@ -9,7 +9,8 @@ import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { createControl } from '@/core/models/defaults';
-import type { ControlId } from '@/utils/id';
+import type { ControlId, CourseId } from '@/utils/id';
+import type { Course } from '@/core/models/types';
 import { CourseRenderer } from '@/components/course/course-renderer';
 import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
@@ -46,6 +47,7 @@ export function MapCanvas() {
   const hasEvent = useEventStore((s) => s.event !== null);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
+  const viewMode = useEventStore((s) => s.viewMode);
 
   const {
     handleWheel,
@@ -112,6 +114,23 @@ export function MapCanvas() {
     [courses],
   );
 
+  // Synthetic "all controls" course — used when viewMode === 'allControls'
+  const allControlsCourse = useMemo((): Course | null => {
+    if (viewMode !== 'allControls' || !controls) return null;
+    const allControls = Object.values(controls);
+    if (allControls.length === 0) return null;
+    return {
+      id: 'all-controls' as CourseId,
+      name: 'All controls',
+      courseType: 'score',
+      controls: allControls.map((c) => ({
+        controlId: c.id,
+        type: 'control' as const,
+      })),
+      settings: {},
+    };
+  }, [viewMode, controls]);
+
   // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
   const handleSelectControl = useCallback((id: ControlId) => {
     useEventStore.getState().setSelectedControl(id);
@@ -144,10 +163,10 @@ export function MapCanvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Map layer — dimmed when any course has controls for overprint visibility */}
+          {/* Map layer — dimmed when controls are visible for overprint readability */}
           <Layer
             listening={false}
-            opacity={hasControls ? 0.6 : 1}
+            opacity={(hasControls || (viewMode === 'allControls' && allControlsCourse !== null)) ? 0.6 : 1}
           >
             {image && (
               <KonvaImage
@@ -159,90 +178,111 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Course overprint layer — background courses (grey) then active course (purple).
-              Background controls render AFTER active course so they get hit priority
-              for shared control reuse in addControl mode. */}
+          {/* Course overprint layer — branches on viewMode */}
           <Layer>
-            {activeCourse && dimensions && controls && activeCourseId && (
-              <CourseRenderer
-                course={activeCourse}
-                controls={controls}
-                dimensions={dimensions}
-                selectedControlId={selectedControlId}
-                draggable={activeTool.type === 'pan'}
-                allowLegInsert={activeTool.type === 'addControl'}
-                courseId={activeCourseId}
-                onSelectControl={handleSelectControl}
-                onDragControlEnd={handleDragControlEnd}
-                onNumberDragEnd={(controlIndex, offset) => {
-                  if (activeCourseId) {
-                    useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
-                  }
-                }}
-                onInsertOnLeg={(position, afterIndex) => {
-                  const store = useEventStore.getState();
-                  if (!store.activeCourseId || !store.event) return;
-                  // Create a new control and insert at the leg position
-                  const code = Math.max(
-                    30,
-                    ...Object.values(store.event.controls).map((c) => c.code),
-                  ) + 1;
-                  const control = createControl(code, position);
-                  // Add to controls pool via immer mutation
-                  useEventStore.setState((state) => {
-                    if (state.event) {
-                      state.event.controls[control.id] = control;
-                    }
-                  });
-                  store.insertControlInCourse(
-                    store.activeCourseId,
-                    control.id,
-                    afterIndex,
-                  );
-                }}
-              />
+            {viewMode === 'allControls' ? (
+              /* All-controls view: synthetic score course with no legs */
+              allControlsCourse && dimensions && controls && (
+                <CourseRenderer
+                  course={allControlsCourse}
+                  controls={controls}
+                  dimensions={dimensions}
+                  selectedControlId={selectedControlId}
+                  draggable={false}
+                  allowLegInsert={false}
+                  showNumbers={true}
+                  onSelectControl={handleSelectControl}
+                  onDragControlEnd={() => { /* no-op */ }}
+                />
+              )
+            ) : (
+              /* Course view: active course (purple) + background courses (grey).
+                 Background controls render AFTER active course so they get hit
+                 priority for shared control reuse in addControl mode. */
+              <>
+                {activeCourse && dimensions && controls && activeCourseId && (
+                  <CourseRenderer
+                    course={activeCourse}
+                    controls={controls}
+                    dimensions={dimensions}
+                    selectedControlId={selectedControlId}
+                    draggable={activeTool.type === 'pan'}
+                    allowLegInsert={activeTool.type === 'addControl'}
+                    courseId={activeCourseId}
+                    onSelectControl={handleSelectControl}
+                    onDragControlEnd={handleDragControlEnd}
+                    onNumberDragEnd={(controlIndex, offset) => {
+                      if (activeCourseId) {
+                        useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
+                      }
+                    }}
+                    onInsertOnLeg={(position, afterIndex) => {
+                      const store = useEventStore.getState();
+                      if (!store.activeCourseId || !store.event) return;
+                      // Create a new control and insert at the leg position
+                      const code = Math.max(
+                        30,
+                        ...Object.values(store.event.controls).map((c) => c.code),
+                      ) + 1;
+                      const control = createControl(code, position);
+                      // Add to controls pool via immer mutation
+                      useEventStore.setState((state) => {
+                        if (state.event) {
+                          state.event.controls[control.id] = control;
+                        }
+                      });
+                      store.insertControlInCourse(
+                        store.activeCourseId,
+                        control.id,
+                        afterIndex,
+                      );
+                    }}
+                  />
+                )}
+
+                {/* Background courses — rendered AFTER active course in same layer
+                    so their controls get hit priority over active course's leg lines
+                    for shared control reuse in addControl mode.
+                    Exclude controls already in the active course to prevent background
+                    shapes from blocking drag/selection on the active version. */}
+                {dimensions && controls && backgroundCourses.map((bgCourse) => (
+                  <CourseRenderer
+                    key={bgCourse.id}
+                    course={bgCourse}
+                    controls={controls}
+                    hideControlIds={activeControlIds}
+                    dimensions={dimensions}
+                    selectedControlId={null}
+                    draggable={false}
+                    allowLegInsert={false}
+                    color="#C0C0C0"
+                    showNumbers={false}
+                    clickable={activeTool.type === 'addControl'}
+                    onSelectControl={(controlId) => {
+                      const store = useEventStore.getState();
+                      if (!store.activeCourseId || !activeCourse) return;
+                      store.insertControlInCourse(
+                        store.activeCourseId,
+                        controlId,
+                        activeCourse.controls.length,
+                      );
+                    }}
+                    onDragControlEnd={() => { /* no-op */ }}
+                  />
+                ))}
+              </>
             )}
-
-            {/* Background courses — rendered AFTER active course in same layer
-                so their controls get hit priority over active course's leg lines
-                for shared control reuse in addControl mode.
-                Exclude controls already in the active course to prevent background
-                shapes from blocking drag/selection on the active version. */}
-            {dimensions && controls && backgroundCourses.map((bgCourse) => (
-              <CourseRenderer
-                key={bgCourse.id}
-                course={bgCourse}
-                controls={controls}
-                hideControlIds={activeControlIds}
-                dimensions={dimensions}
-                selectedControlId={null}
-                draggable={false}
-                allowLegInsert={false}
-                color="#C0C0C0"
-                showNumbers={false}
-                clickable={activeTool.type === 'addControl'}
-                onSelectControl={(controlId) => {
-                  const store = useEventStore.getState();
-                  if (!store.activeCourseId || !activeCourse) return;
-                  store.insertControlInCourse(
-                    store.activeCourseId,
-                    controlId,
-                    activeCourse.controls.length,
-                  );
-                }}
-                onDragControlEnd={() => { /* no-op */ }}
-              />
-            ))}
-
           </Layer>
 
           {/* Special items layer — interactive annotations above the overprint */}
           <SpecialItemsLayer />
 
-          {/* Print boundary layer — non-interactive, always on top */}
-          <Layer listening={false}>
-            <PrintBoundary />
-          </Layer>
+          {/* Print boundary layer — non-interactive, only in course view */}
+          {viewMode === 'course' && (
+            <Layer listening={false}>
+              <PrintBoundary />
+            </Layer>
+          )}
         </Stage>
       )}
       <TextFormatToolbar />

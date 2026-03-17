@@ -44,6 +44,7 @@ export function CoursePanel({
   const mapFile = useEventStore((s) => s.event?.mapFile);
   const descriptionLang = useEventStore((s) => s.event?.settings.language ?? 'en');
   const updateSettings = useEventStore((s) => s.updateSettings);
+  const viewMode = useEventStore((s) => s.viewMode);
   const setSelectedControl = useEventStore((s) => s.setSelectedControl);
   const moveControlInCourse = useEventStore((s) => s.moveControlInCourse);
   const removeControlFromCourse = useEventStore((s) => s.removeControlFromCourse);
@@ -64,6 +65,32 @@ export function CoursePanel({
   const lengthKm = (lengthMetres / 1000).toFixed(1);
 
   const isScoreCourse = course?.courseType === 'score';
+
+  // All-controls view: collapsed panel showing only course list + language selector
+  if (viewMode === 'allControls') {
+    return (
+      <div className="absolute right-4 top-4 w-56 rounded bg-white/90 shadow">
+        <CourseList />
+        <div className="border-t border-gray-200 px-3 py-2">
+          <p className="mb-2 text-[10px] italic text-gray-400">{t('viewingAllControls')}</p>
+          <label className="block text-[10px] font-medium text-gray-400 mb-1">
+            {t('descriptionLanguageLabel')}
+          </label>
+          <select
+            value={descriptionLang}
+            onChange={(e) => updateSettings({ language: e.target.value })}
+            className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+          >
+            {SUPPORTED_IOF_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.nativeName} ({lang.englishName})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="absolute right-4 top-4 w-56 rounded bg-white/90 shadow">

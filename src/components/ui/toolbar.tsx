@@ -24,6 +24,7 @@ export function Toolbar() {
   const iofXmlInputRef = useRef<HTMLInputElement>(null);
   const event = useEventStore((s) => s.event);
   const eventName = event?.name;
+  const viewMode = useEventStore((s) => s.viewMode);
   const activeTool = useToolStore((s) => s.activeTool);
   const setTool = useToolStore((s) => s.setTool);
   const descriptionsPanelOpen = useToolStore((s) => s.descriptionsPanelOpen);
@@ -394,7 +395,20 @@ export function Toolbar() {
       {hasImage && (
         <div className="flex gap-1">
           {toolButton({ type: 'pan' }, t('toolPan'))}
-          {toolButton({ type: 'addControl' }, t('toolAddControl'))}
+          <button
+            onClick={() => setTool({ type: 'addControl' })}
+            disabled={viewMode === 'allControls'}
+            title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              activeTool.type === 'addControl'
+                ? 'bg-gray-800 text-white'
+                : viewMode === 'allControls'
+                  ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            {t('toolAddControl')}
+          </button>
         </div>
       )}
 
