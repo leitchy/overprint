@@ -112,36 +112,9 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Background courses layer — grey, no numbers, listening only in addControl mode */}
-          <Layer listening={activeTool === 'addControl'}>
-            {dimensions && event && backgroundCourses.map((bgCourse) => (
-              <CourseRenderer
-                key={bgCourse.id}
-                course={bgCourse}
-                controls={event.controls}
-                dimensions={dimensions}
-                selectedControlId={null}
-                draggable={false}
-                allowLegInsert={false}
-                color="#C0C0C0"
-                showNumbers={false}
-                clickable={activeTool === 'addControl'}
-                onSelectControl={(controlId) => {
-                  // Reuse this control in the active course (Step 6)
-                  const store = useEventStore.getState();
-                  if (!store.activeCourseId || !activeCourse) return;
-                  store.insertControlInCourse(
-                    store.activeCourseId,
-                    controlId,
-                    activeCourse.controls.length,
-                  );
-                }}
-                onDragControlEnd={() => { /* no-op: not draggable */ }}
-              />
-            ))}
-          </Layer>
-
-          {/* Active course overprint layer */}
+          {/* Course overprint layer — background courses (grey) then active course (purple).
+              Background controls render AFTER active course so they get hit priority
+              for shared control reuse in addControl mode. */}
           <Layer>
             {activeCourse && dimensions && event && (
               <CourseRenderer
@@ -180,6 +153,34 @@ export function MapCanvas() {
                 }}
               />
             )}
+
+            {/* Background courses — rendered AFTER active course in same layer
+                so their controls get hit priority over active course's leg lines
+                for shared control reuse in addControl mode. */}
+            {dimensions && event && backgroundCourses.map((bgCourse) => (
+              <CourseRenderer
+                key={bgCourse.id}
+                course={bgCourse}
+                controls={event.controls}
+                dimensions={dimensions}
+                selectedControlId={null}
+                draggable={false}
+                allowLegInsert={false}
+                color="#C0C0C0"
+                showNumbers={false}
+                clickable={activeTool === 'addControl'}
+                onSelectControl={(controlId) => {
+                  const store = useEventStore.getState();
+                  if (!store.activeCourseId || !activeCourse) return;
+                  store.insertControlInCourse(
+                    store.activeCourseId,
+                    controlId,
+                    activeCourse.controls.length,
+                  );
+                }}
+                onDragControlEnd={() => { /* no-op */ }}
+              />
+            ))}
           </Layer>
         </Stage>
       )}
