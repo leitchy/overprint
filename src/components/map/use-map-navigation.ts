@@ -5,6 +5,7 @@ import { useViewportStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/viewport-store';
 import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
 import { generateSpecialItemId } from '@/utils/id';
+import { isEditableTarget } from '@/utils/dom';
 
 // Enable hit detection during drag for correct touch events
 Konva.hitOnDragEnabled = true;
@@ -26,7 +27,6 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
   const panStartRef = useRef({ x: 0, y: 0 });
   const lastTouchDistRef = useRef(0);
   const lastTouchCenterRef = useRef({ x: 0, y: 0 });
-  const spaceDownRef = useRef(false);
 
   // Debounced sync to Zustand — only on gesture end
   const syncToStore = useCallback(() => {
@@ -290,18 +290,11 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
 
   const ARROW_PAN_STEP = 50;
 
-  // Keyboard: Space tracking + arrow key panning
+  // Keyboard: arrow key panning + Delete/Backspace control removal
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // Don't intercept when typing in form elements
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        spaceDownRef.current = true;
-        return;
-      }
+      if (isEditableTarget(e.target)) return;
 
       const stage = stageRef.current;
       if (!stage) return;
@@ -344,16 +337,9 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
       stage.batchDraw();
       syncToStore();
     };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        spaceDownRef.current = false;
-      }
-    };
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
     };
   }, [stageRef, syncToStore]);
 

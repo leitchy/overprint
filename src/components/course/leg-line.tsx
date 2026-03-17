@@ -1,6 +1,8 @@
+import { memo } from 'react';
 import { Line } from 'react-konva';
 import type Konva from 'konva';
 import type { MapPoint } from '@/core/models/types';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 
 interface LegLineProps {
@@ -13,7 +15,7 @@ interface LegLineProps {
   onInsert?: (position: MapPoint) => void;
 }
 
-export function LegLine({ from, to, fromOffset, toOffset, lineWidth, color = '#CD59A4', onInsert }: LegLineProps) {
+export const LegLine = memo(function LegLine({ from, to, fromOffset, toOffset, lineWidth, color = OVERPRINT_PURPLE, onInsert }: LegLineProps) {
   const endpoints = shortenedLeg(from, to, fromOffset, toOffset);
   if (!endpoints) return null;
 
@@ -60,4 +62,4 @@ export function LegLine({ from, to, fromOffset, toOffset, lineWidth, color = '#C
       }}
     />
   );
-}
+});

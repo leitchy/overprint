@@ -24,25 +24,27 @@ const STROKE_WIDTH = 2;
 
 export function PrintBoundary() {
   const showPrintBoundary = useAppSettingsStore((s) => s.showPrintBoundary);
-  const event = useEventStore((s) => s.event);
+  const courses = useEventStore((s) => s.event?.courses);
+  const controls = useEventStore((s) => s.event?.controls);
+  const settings = useEventStore((s) => s.event?.settings);
+  const mapFile = useEventStore((s) => s.event?.mapFile);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const imgWidth = useMapImageStore((s) => s.imageWidth);
   const imgHeight = useMapImageStore((s) => s.imageHeight);
 
-  if (!showPrintBoundary || !event || !activeCourseId) return null;
+  if (!showPrintBoundary || !courses || !controls || !settings || !activeCourseId) return null;
 
-  const activeCourse = event.courses.find((c) => c.id === activeCourseId) ?? null;
+  const activeCourse = courses.find((c) => c.id === activeCourseId) ?? null;
   if (!activeCourse || activeCourse.controls.length === 0) return null;
 
-  const mapFile = event.mapFile;
   if (!mapFile) return null;
 
-  const bounds = computeCourseBounds(activeCourse, event.controls);
+  const bounds = computeCourseBounds(activeCourse, controls);
   if (!bounds) return null;
 
   const { dpi, scale: mapScale } = mapFile;
-  const printScale = activeCourse.settings.printScale ?? event.settings.printScale;
-  const layout = computePageLayout(event.settings.pageSetup);
+  const printScale = activeCourse.settings.printScale ?? settings.printScale;
+  const layout = computePageLayout(settings.pageSetup);
 
   const viewport = computeMapViewport(
     layout,

@@ -1,5 +1,6 @@
 import { Line } from 'react-konva';
 import type { MapPoint } from '@/core/models/types';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 
 interface StartTriangleProps {
   sideLength: number;
@@ -32,7 +33,7 @@ function trianglePoints(side: number, target?: MapPoint, extraRotation = 0): num
   return points;
 }
 
-export function StartTriangle({ sideLength, lineWidth, targetPoint, color = '#CD59A4', extraRotation = 0 }: StartTriangleProps) {
+export function StartTriangle({ sideLength, lineWidth, targetPoint, color = OVERPRINT_PURPLE, extraRotation = 0 }: StartTriangleProps) {
   const points = trianglePoints(sideLength, targetPoint, extraRotation);
 
   return (

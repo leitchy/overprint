@@ -9,6 +9,8 @@ import type {
 } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
+import { computeShapeOffset } from '@/core/geometry/shape-offset';
+import { IOF_OVERPRINT_MM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
 /** IOF purple: Pantone 814 approximation */
@@ -56,26 +58,23 @@ export function renderOverprint(
 
   // Dimension helpers (IOF exact, in PDF points)
   const circleRadius = mmToPdfPoints(settings.controlCircleDiameter / 2);
-  const startTriangleSide = mmToPdfPoints(6.0);         // ISOM 2017-2: 6mm side
-  const finishOuterRadius = mmToPdfPoints(5.0 / 2);     // ISOM 2017-2: 5mm outer diameter
-  const finishInnerRadius = mmToPdfPoints(3.5 / 2);     // ISOM 2017-2: 3.5mm inner diameter
-  const circleGap = mmToPdfPoints(0.3);
+  const startTriangleSide = mmToPdfPoints(IOF_OVERPRINT_MM.startTriangleSide);
+  const finishOuterRadius = mmToPdfPoints(IOF_OVERPRINT_MM.finishOuterDiameter / 2);
+  const finishInnerRadius = mmToPdfPoints(IOF_OVERPRINT_MM.finishInnerDiameter / 2);
+  const circleGap = mmToPdfPoints(IOF_OVERPRINT_MM.circleGap);
   const numberSize = mmToPdfPoints(settings.numberSize);
-
-  const crossingPointArm = mmToPdfPoints(3.0); // IOF spec: 6mm total, half = 3mm
+  const crossingPointArm = mmToPdfPoints(IOF_OVERPRINT_MM.crossingPointArm);
 
   function shapeOffset(type: CourseControlType): number {
-    switch (type) {
-      case 'start':
-      case 'mapExchange':
-        return startTriangleSide / Math.sqrt(3) + circleGap + lineWidth / 2;
-      case 'finish':
-        return finishOuterRadius + circleGap + lineWidth / 2;
-      case 'crossingPoint':
-        return crossingPointArm + circleGap + lineWidth / 2;
-      default:
-        return circleRadius + circleGap + lineWidth / 2;
-    }
+    return computeShapeOffset(
+      type,
+      circleRadius,
+      startTriangleSide,
+      finishOuterRadius,
+      crossingPointArm,
+      circleGap,
+      lineWidth,
+    );
   }
 
   // Draw legs first (behind shapes).

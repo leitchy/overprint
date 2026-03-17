@@ -19,12 +19,11 @@ import type {
   MapPoint,
 } from '@/core/models/types';
 import { generateSpecialItemId } from '@/utils/id';
+import { isEditableTarget } from '@/utils/dom';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 
-// Overprint purple colour for special items
-const ITEM_COLOR = '#CD59A4';
 const SELECTION_DASH = [6, 4];
 const SELECTION_COLOR = '#FFD700';
-const SCREEN_LINE_MULTIPLIER = 3;
 const DEFAULT_LINE_WIDTH = 2;
 const IOF_SYMBOL_SIZE = 20; // px radius / half-size for IOF symbols
 
@@ -135,7 +134,7 @@ const TextItemShape = memo(function TextItemShape({
   onDragEnd,
   onDblClick,
 }: ItemProps<TextItem>) {
-  const color = item.color ?? ITEM_COLOR;
+  const color = item.color ?? OVERPRINT_PURPLE;
   const konvaFontStyle = [
     item.fontStyle === 'italic' ? 'italic' : '',
     item.fontWeight === 'bold' ? 'bold' : '',
@@ -185,7 +184,7 @@ const LineItemShape = memo(function LineItemShape({
   onDragEnd,
   onUpdate,
 }: ItemProps<LineItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
-  const color = item.color ?? ITEM_COLOR;
+  const color = item.color ?? OVERPRINT_PURPLE;
   const dx = item.endPosition.x - item.position.x;
   const dy = item.endPosition.y - item.position.y;
   return (
@@ -263,7 +262,7 @@ const RectangleItemShape = memo(function RectangleItemShape({
   onDragEnd,
   onUpdate,
 }: ItemProps<RectangleItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
-  const color = item.color ?? ITEM_COLOR;
+  const color = item.color ?? OVERPRINT_PURPLE;
   const w = item.endPosition.x - item.position.x;
   const h = item.endPosition.y - item.position.y;
   const minX = Math.min(0, w);
@@ -334,7 +333,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
   onSelect,
   onDragEnd,
 }: ItemProps<IofSymbolItem>) {
-  const color = item.color ?? ITEM_COLOR;
+  const color = item.color ?? OVERPRINT_PURPLE;
   const lineWidth = DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER;
 
   const symbolShape = (() => {
@@ -397,7 +396,7 @@ function DrawPreview({ itemType, start, end }: DrawPreviewProps) {
     return (
       <Line
         points={[start.x, start.y, end.x, end.y]}
-        stroke={ITEM_COLOR}
+        stroke={OVERPRINT_PURPLE}
         strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
         dash={[6, 4]}
         lineCap="round"
@@ -413,7 +412,7 @@ function DrawPreview({ itemType, start, end }: DrawPreviewProps) {
       y={minY}
       width={Math.abs(end.x - start.x)}
       height={Math.abs(end.y - start.y)}
-      stroke={ITEM_COLOR}
+      stroke={OVERPRINT_PURPLE}
       strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
       dash={[6, 4]}
       fill="transparent"
@@ -460,8 +459,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedSpecialItemId) return;
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (isEditableTarget(e.target)) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
         deleteSpecialItem(selectedSpecialItemId);
         setSelectedSpecialItem(null);
@@ -535,44 +533,6 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     setDrawState(null);
   };
 
-  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    if (!isAddSpecialItem || !addItemType) return;
-    // Only fire on the stage background
-    if (e.target !== e.target.getStage() && e.target.getParent()?.getType() !== 'Layer') return;
-
-    const pos = stagePointerPosition(e);
-    if (!pos) return;
-
-    if (addItemType === 'text') {
-      const text = window.prompt('Enter text:');
-      if (text && text.trim()) {
-        addSpecialItem({
-          id: generateSpecialItemId(),
-          type: 'text',
-          position: pos,
-          text: text.trim(),
-          fontSize: 14,
-        });
-      }
-      return;
-    }
-
-    // IOF symbols: click to place
-    if (
-      addItemType === 'outOfBounds' ||
-      addItemType === 'dangerousArea' ||
-      addItemType === 'waterLocation' ||
-      addItemType === 'firstAid' ||
-      addItemType === 'forbiddenRoute'
-    ) {
-      addSpecialItem({
-        id: generateSpecialItemId(),
-        type: addItemType,
-        position: pos,
-      });
-    }
-  };
-
   const handleItemSelect = (id: typeof selectedSpecialItemId) => {
     setSelectedSpecialItem(id);
     // Clear control selection when a special item is selected
@@ -591,7 +551,6 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       onMouseDown={handleStageMouseDown}
       onMouseMove={handleStageMouseMove}
       onMouseUp={handleStageMouseUp}
-      onClick={handleStageClick}
     >
       {/* Render existing items */}
       {visibleItems.map((item) => {

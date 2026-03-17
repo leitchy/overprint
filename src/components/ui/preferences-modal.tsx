@@ -2,10 +2,11 @@
  * Preferences modal — currently just the app interface language selector.
  * Opened from "Preferences…" in the File menu.
  */
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { SUPPORTED_APP_LANGUAGES } from '@/i18n/languages';
 import { useT } from '@/i18n/use-t';
+import { useModalClose } from './use-modal-close';
 
 interface PreferencesModalProps {
   onClose: () => void;
@@ -16,20 +17,7 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
   const appLanguage = useAppSettingsStore((s) => s.appLanguage);
   const setAppLanguage = useAppSettingsStore((s) => s.setAppLanguage);
   const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  // Close on backdrop click
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onClose();
-  };
+  const { handleBackdropClick } = useModalClose(onClose);
 
   return (
     <div

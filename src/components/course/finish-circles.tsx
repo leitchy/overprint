@@ -1,4 +1,5 @@
 import { Circle } from 'react-konva';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 
 interface FinishCirclesProps {
   outerRadius: number;
@@ -7,7 +8,7 @@ interface FinishCirclesProps {
   color?: string;
 }
 
-export function FinishCircles({ outerRadius, innerRadius, lineWidth, color = '#CD59A4' }: FinishCirclesProps) {
+export function FinishCircles({ outerRadius, innerRadius, lineWidth, color = OVERPRINT_PURPLE }: FinishCirclesProps) {
   return (
     <>
       <Circle

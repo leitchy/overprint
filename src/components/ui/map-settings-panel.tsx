@@ -3,8 +3,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { pixelsToMetres } from '@/core/geometry/distance';
 import { useT } from '@/i18n/use-t';
-
-const COMMON_SCALES = [4000, 5000, 7500, 10000, 15000];
+import { SCALE_PRESETS } from '@/core/models/constants';
 
 export function MapSettingsPanel() {
   const t = useT();
@@ -52,7 +51,7 @@ export function MapSettingsPanel() {
     setEditingDpi(false);
   };
 
-  const isPresetScale = COMMON_SCALES.includes(mapFile.scale);
+  const isPresetScale = (SCALE_PRESETS as readonly number[]).includes(mapFile.scale);
 
   return (
     <div className="absolute left-4 top-4 rounded bg-white/90 p-3 text-xs shadow">
@@ -85,7 +84,7 @@ export function MapSettingsPanel() {
           onChange={handleScaleChange}
           className="mb-2 w-full rounded border border-gray-300 px-2 py-1 text-xs"
         >
-          {COMMON_SCALES.map((s) => (
+          {SCALE_PRESETS.map((s) => (
             <option key={s} value={s}>
               1:{s.toLocaleString()}
             </option>

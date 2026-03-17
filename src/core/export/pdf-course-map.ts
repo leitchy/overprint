@@ -66,7 +66,7 @@ export async function generateCoursePdf(
 
     // Draw base map
     if (embeddedMap) {
-      drawEmbeddedMap(page, embeddedMap.image, embeddedMap.renderScale, toPdf, imgWidth, imgHeight);
+      drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
     }
 
     // Draw vector overprint (elements outside page bounds are harmless — PDF clips them)
@@ -149,12 +149,12 @@ async function prepareMapImage(
 
 /**
  * Draw an already-embedded map image onto a page using the given coordinate transform.
- * The renderScale compensates for any downscaling applied during embedding.
+ * pdf-lib handles any downscaling that was applied during embedding internally —
+ * drawImage width/height are in PDF points, not in embedded-image pixels.
  */
 function drawEmbeddedMap(
   page: PDFPage,
   image: EmbeddedMapImage['image'],
-  renderScale: number,
   toPdf: (point: MapPoint) => MapPoint,
   imgWidth: number,
   imgHeight: number,
@@ -163,11 +163,6 @@ function drawEmbeddedMap(
   // pdf-lib drawImage: (x, y) = bottom-left corner of image.
   const topLeft = toPdf({ x: 0, y: 0 });
   const bottomRight = toPdf({ x: imgWidth, y: imgHeight });
-
-  // The embedded image was rendered at renderScale, so its intrinsic size is
-  // smaller. drawImage width/height are in PDF points (screen-independent),
-  // so we pass the full PDF extent — pdf-lib handles the scaling internally.
-  void renderScale; // used during embedding, not needed here
 
   page.drawImage(image, {
     x: topLeft.x,
@@ -271,9 +266,6 @@ function drawScaleBar(
   const scaleTextGap = 2; // pt between labels and scale text
   const scaleTextHeight = SCALE_BAR_FONT_SIZE;
 
-  // Total block height: tick + labelGap + labelHeight + scaleTextGap + scaleTextHeight
-  const blockHeight = tickHeight + labelGap + labelHeight + scaleTextGap + scaleTextHeight;
-
   // Place block at bottom-right of printable area, 4pt inside the margin
   const rightEdge = layout.marginLeft + layout.printableWidth - 4;
   const barLeft = rightEdge - barWidthPt;
@@ -347,9 +339,6 @@ function drawScaleBar(
     font,
     color: BLACK,
   });
-
-  // Suppress unused variable warning for blockHeight (used for documentation)
-  void blockHeight;
 }
 
 // ---------------------------------------------------------------------------

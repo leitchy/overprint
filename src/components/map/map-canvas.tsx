@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Stage, Layer, Image as KonvaImage } from 'react-konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import { useCanvasSize } from './use-canvas-size';
@@ -9,6 +9,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { createControl } from '@/core/models/defaults';
+import type { ControlId } from '@/utils/id';
 import { CourseRenderer } from '@/components/course/course-renderer';
 import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
@@ -37,8 +38,12 @@ export function MapCanvas() {
   const panY = useViewportStore((s) => s.panY);
   const activeTool = useToolStore((s) => s.activeTool);
 
-  // Event store selectors
-  const event = useEventStore((s) => s.event);
+  // Narrow event store selectors — each subscribes only to its slice
+  const courses = useEventStore((s) => s.event?.courses);
+  const controls = useEventStore((s) => s.event?.controls);
+  const settings = useEventStore((s) => s.event?.settings);
+  const mapFile = useEventStore((s) => s.event?.mapFile);
+  const hasEvent = useEventStore((s) => s.event !== null);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
 
@@ -82,19 +87,39 @@ export function MapCanvas() {
     }
   }, [activeTool]);
 
-  // Compute overprint dimensions
-  const dpi = event?.mapFile?.dpi ?? 150;
-  const dimensions = event ? overprintPixelDimensions(event.settings, dpi) : null;
+  // Compute overprint dimensions — only recomputes when settings or dpi change
+  const dpi = mapFile?.dpi ?? 150;
+  const dimensions = useMemo(
+    () => (settings ? overprintPixelDimensions(settings, dpi) : null),
+    [settings, dpi],
+  );
 
-  // Get active course — defensive: treat stale activeCourseId as null
-  const activeCourse = event?.courses.find((c) => c.id === activeCourseId) ?? null;
+  // Derived course collections — memoised to avoid downstream re-renders
+  const activeCourse = useMemo(
+    () => courses?.find((c) => c.id === activeCourseId) ?? null,
+    [courses, activeCourseId],
+  );
+  const backgroundCourses = useMemo(
+    () => courses?.filter((c) => c.id !== activeCourseId) ?? [],
+    [courses, activeCourseId],
+  );
+  const activeControlIds = useMemo(
+    () => new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []),
+    [activeCourse],
+  );
+  const hasControls = useMemo(
+    () => courses?.some((c) => c.controls.length > 0) ?? false,
+    [courses],
+  );
 
-  // Background courses — all courses except the active one
-  const backgroundCourses = event?.courses.filter((c) => c.id !== activeCourseId) ?? [];
+  // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
+  const handleSelectControl = useCallback((id: ControlId) => {
+    useEventStore.getState().setSelectedControl(id);
+  }, []);
 
-  // Control IDs in the active course — used to hide their shapes in background
-  // renderers (legs still draw through them, but shapes are rendered by the active course)
-  const activeControlIds = new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []);
+  const handleDragControlEnd = useCallback((id: ControlId, x: number, y: number) => {
+    useEventStore.getState().updateControlPosition(id, { x, y });
+  }, []);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden">
@@ -122,9 +147,7 @@ export function MapCanvas() {
           {/* Map layer — dimmed when any course has controls for overprint visibility */}
           <Layer
             listening={false}
-            opacity={
-              event?.courses.some((c) => c.controls.length > 0) ? 0.6 : 1
-            }
+            opacity={hasControls ? 0.6 : 1}
           >
             {image && (
               <KonvaImage
@@ -140,21 +163,17 @@ export function MapCanvas() {
               Background controls render AFTER active course so they get hit priority
               for shared control reuse in addControl mode. */}
           <Layer>
-            {activeCourse && dimensions && event && activeCourseId && (
+            {activeCourse && dimensions && controls && activeCourseId && (
               <CourseRenderer
                 course={activeCourse}
-                controls={event.controls}
+                controls={controls}
                 dimensions={dimensions}
                 selectedControlId={selectedControlId}
                 draggable={activeTool.type === 'pan'}
                 allowLegInsert={activeTool.type === 'addControl'}
                 courseId={activeCourseId}
-                onSelectControl={(id) => {
-                  useEventStore.getState().setSelectedControl(id);
-                }}
-                onDragControlEnd={(id, x, y) => {
-                  useEventStore.getState().updateControlPosition(id, { x, y });
-                }}
+                onSelectControl={handleSelectControl}
+                onDragControlEnd={handleDragControlEnd}
                 onNumberDragEnd={(controlIndex, offset) => {
                   if (activeCourseId) {
                     useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
@@ -189,11 +208,11 @@ export function MapCanvas() {
                 for shared control reuse in addControl mode.
                 Exclude controls already in the active course to prevent background
                 shapes from blocking drag/selection on the active version. */}
-            {dimensions && event && backgroundCourses.map((bgCourse) => (
+            {dimensions && controls && backgroundCourses.map((bgCourse) => (
               <CourseRenderer
                 key={bgCourse.id}
                 course={bgCourse}
-                controls={event.controls}
+                controls={controls}
                 hideControlIds={activeControlIds}
                 dimensions={dimensions}
                 selectedControlId={null}
@@ -236,10 +255,10 @@ export function MapCanvas() {
           />
         </>
       )}
-      {event && (
+      {hasEvent && controls && (
         <CoursePanel
           course={activeCourse}
-          controls={event.controls}
+          controls={controls}
           courseId={activeCourseId}
           selectedControlId={selectedControlId}
         />

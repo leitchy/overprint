@@ -1,6 +1,7 @@
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import type { TextItem, SpecialItem } from '@/core/models/types';
+import { mmToMapPixels, mapPixelsToMm } from '@/core/geometry/overprint-dimensions';
 
 const FONT_SIZE_PRESETS = [
   { label: 'S', mm: 3 },
@@ -29,9 +30,8 @@ export function TextFormatToolbar() {
 
   const textItem = item as TextItem;
   const dpi = event.mapFile?.dpi ?? 150;
-  const mmToPixels = (mm: number) => (mm * dpi) / 25.4;
-  const pixelsToMm = (px: number) => (px * 25.4) / dpi;
-  const currentMm = pixelsToMm(textItem.fontSize);
+  const mmToPixels = (mm: number) => mmToMapPixels(mm, dpi);
+  const currentMm = mapPixelsToMm(textItem.fontSize, dpi);
 
   const update = (updates: Partial<TextItem>) => {
     updateSpecialItem(selectedId, updates as Partial<SpecialItem>);

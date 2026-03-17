@@ -1,10 +1,9 @@
-import { useEffect } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { useT } from '@/i18n/use-t';
 import type { PaperSize } from '@/core/models/types';
-
-const PRINT_SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000];
+import { SCALE_PRESETS } from '@/core/models/constants';
+import { useModalClose } from './use-modal-close';
 
 const PAPER_SIZES: Array<{ value: PaperSize; label: string }> = [
   { value: 'A4', label: 'A4 (210 × 297 mm)' },
@@ -22,18 +21,7 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
   const updateSettings = useEventStore((s) => s.updateSettings);
   const showPrintBoundary = useAppSettingsStore((s) => s.showPrintBoundary);
   const setShowPrintBoundary = useAppSettingsStore((s) => s.setShowPrintBoundary);
-
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) onClose();
-  };
+  const { handleBackdropClick } = useModalClose(onClose);
 
   if (!settings) return null;
 
@@ -138,7 +126,7 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               onChange={(e) => updateSettings({ printScale: Number(e.target.value) })}
               className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
             >
-              {PRINT_SCALE_PRESETS.map((s) => (
+              {SCALE_PRESETS.map((s) => (
                 <option key={s} value={s}>1:{s.toLocaleString()}</option>
               ))}
             </select>
