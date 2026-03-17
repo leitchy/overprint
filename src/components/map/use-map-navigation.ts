@@ -1,0 +1,295 @@
+import { useCallback, useEffect, useRef } from 'react';
+import Konva from 'konva';
+import type { Stage as StageType } from 'konva/lib/Stage';
+import { useViewportStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/viewport-store';
+
+// Enable hit detection during drag for correct touch events
+Konva.hitOnDragEnabled = true;
+
+const ZOOM_SENSITIVITY = 1.05;
+const SYNC_DEBOUNCE_MS = 100;
+
+function clampZoom(zoom: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+}
+
+interface UseMapNavigationOptions {
+  stageRef: React.RefObject<StageType | null>;
+}
+
+export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
+  const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const lastTouchDistRef = useRef(0);
+  const lastTouchCenterRef = useRef({ x: 0, y: 0 });
+  const spaceDownRef = useRef(false);
+
+  // Debounced sync to Zustand — only on gesture end
+  const syncToStore = useCallback(() => {
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(() => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      useViewportStore.getState().setViewport({
+        zoom: stage.scaleX(),
+        panX: stage.x(),
+        panY: stage.y(),
+      });
+    }, SYNC_DEBOUNCE_MS);
+  }, [stageRef]);
+
+  // Focal-point zoom — mutate Stage imperatively for performance
+  const applyZoom = useCallback(
+    (newZoom: number, pointerX: number, pointerY: number) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const oldZoom = stage.scaleX();
+      const clamped = clampZoom(newZoom);
+
+      const newX = pointerX - (pointerX - stage.x()) * (clamped / oldZoom);
+      const newY = pointerY - (pointerY - stage.y()) * (clamped / oldZoom);
+
+      stage.scale({ x: clamped, y: clamped });
+      stage.position({ x: newX, y: newY });
+      stage.batchDraw();
+      syncToStore();
+    },
+    [stageRef, syncToStore],
+  );
+
+  // Wheel handler — zoom or scroll
+  const handleWheel = useCallback(
+    (e: Konva.KonvaEventObject<WheelEvent>) => {
+      e.evt.preventDefault();
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      // ctrlKey = trackpad pinch or Ctrl+scroll
+      if (e.evt.ctrlKey || e.evt.metaKey) {
+        const direction = e.evt.deltaY > 0 ? -1 : 1;
+        const factor = Math.pow(ZOOM_SENSITIVITY, direction * 3);
+        applyZoom(stage.scaleX() * factor, pointer.x, pointer.y);
+      } else {
+        // Regular scroll = pan
+        stage.position({
+          x: stage.x() - e.evt.deltaX,
+          y: stage.y() - e.evt.deltaY,
+        });
+        stage.batchDraw();
+        syncToStore();
+      }
+    },
+    [stageRef, applyZoom, syncToStore],
+  );
+
+  // Mouse down — start pan on left click, middle button, or Space+left
+  const handleMouseDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      const isLeft = e.evt.button === 0;
+      const isMiddle = e.evt.button === 1;
+
+      if (isLeft || isMiddle) {
+        e.evt.preventDefault();
+        isPanningRef.current = true;
+        panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      }
+    },
+    [],
+  );
+
+  const handleMouseMove = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (!isPanningRef.current) return;
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const dx = e.evt.clientX - panStartRef.current.x;
+      const dy = e.evt.clientY - panStartRef.current.y;
+      panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+
+      stage.position({
+        x: stage.x() + dx,
+        y: stage.y() + dy,
+      });
+      stage.batchDraw();
+    },
+    [stageRef],
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      syncToStore();
+    }
+  }, [syncToStore]);
+
+  // Touch handlers
+  const handleTouchStart = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      const touches = e.evt.touches;
+      if (touches.length === 1) {
+        // Single finger — start pan
+        const touch = touches[0];
+        if (touch) {
+          isPanningRef.current = true;
+          panStartRef.current = { x: touch.clientX, y: touch.clientY };
+        }
+      } else if (touches.length === 2) {
+        // Two fingers — start pinch
+        isPanningRef.current = false;
+        const t0 = touches[0];
+        const t1 = touches[1];
+        if (t0 && t1) {
+          const dx = t0.clientX - t1.clientX;
+          const dy = t0.clientY - t1.clientY;
+          lastTouchDistRef.current = Math.sqrt(dx * dx + dy * dy);
+          lastTouchCenterRef.current = {
+            x: (t0.clientX + t1.clientX) / 2,
+            y: (t0.clientY + t1.clientY) / 2,
+          };
+        }
+      }
+    },
+    [],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: Konva.KonvaEventObject<TouchEvent>) => {
+      e.evt.preventDefault();
+      const stage = stageRef.current;
+      if (!stage) return;
+      const touches = e.evt.touches;
+
+      if (touches.length === 1 && isPanningRef.current) {
+        // Single finger pan
+        const touch = touches[0];
+        if (touch) {
+          const dx = touch.clientX - panStartRef.current.x;
+          const dy = touch.clientY - panStartRef.current.y;
+          panStartRef.current = { x: touch.clientX, y: touch.clientY };
+          stage.position({ x: stage.x() + dx, y: stage.y() + dy });
+          stage.batchDraw();
+        }
+      } else if (touches.length === 2) {
+        // Two finger pinch zoom
+        const t0 = touches[0];
+        const t1 = touches[1];
+        if (t0 && t1) {
+          const dx = t0.clientX - t1.clientX;
+          const dy = t0.clientY - t1.clientY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const center = {
+            x: (t0.clientX + t1.clientX) / 2,
+            y: (t0.clientY + t1.clientY) / 2,
+          };
+
+          if (lastTouchDistRef.current > 0) {
+            const scale = dist / lastTouchDistRef.current;
+            applyZoom(stage.scaleX() * scale, center.x, center.y);
+          }
+
+          lastTouchDistRef.current = dist;
+          lastTouchCenterRef.current = center;
+        }
+      }
+    },
+    [stageRef, applyZoom],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    isPanningRef.current = false;
+    lastTouchDistRef.current = 0;
+    syncToStore();
+  }, [syncToStore]);
+
+  const ARROW_PAN_STEP = 50;
+
+  // Keyboard: Space tracking + arrow key panning
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        spaceDownRef.current = true;
+        return;
+      }
+
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      let dx = 0;
+      let dy = 0;
+      switch (e.code) {
+        case 'ArrowLeft':  dx = ARROW_PAN_STEP; break;
+        case 'ArrowRight': dx = -ARROW_PAN_STEP; break;
+        case 'ArrowUp':    dy = ARROW_PAN_STEP; break;
+        case 'ArrowDown':  dy = -ARROW_PAN_STEP; break;
+        default: return;
+      }
+
+      e.preventDefault();
+      stage.position({ x: stage.x() + dx, y: stage.y() + dy });
+      stage.batchDraw();
+      syncToStore();
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        spaceDownRef.current = false;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [stageRef, syncToStore]);
+
+  // Cleanup sync timeout
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
+  }, []);
+
+  return {
+    handleWheel,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+  };
+}
+
+/**
+ * Calculate viewport to fit an image within a container.
+ */
+export function fitToView(
+  imageWidth: number,
+  imageHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+  padding = 20,
+): { zoom: number; panX: number; panY: number } {
+  const availWidth = containerWidth - padding * 2;
+  const availHeight = containerHeight - padding * 2;
+
+  if (availWidth <= 0 || availHeight <= 0 || imageWidth <= 0 || imageHeight <= 0) {
+    return { zoom: 1, panX: 0, panY: 0 };
+  }
+
+  const zoom = clampZoom(
+    Math.min(availWidth / imageWidth, availHeight / imageHeight),
+  );
+
+  const panX = (containerWidth - imageWidth * zoom) / 2;
+  const panY = (containerHeight - imageHeight * zoom) / 2;
+
+  return { zoom, panX, panY };
+}
