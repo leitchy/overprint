@@ -1,8 +1,9 @@
 import { useRef } from 'react';
-import { getSymbolName } from '@/core/iof/symbol-db';
+import { getSymbolName, getSymbolSvg } from '@/core/iof/symbol-db';
+import { SymbolIcon } from './symbol-icon';
 
 interface DescriptionCellProps {
-  value?: string;           // IOF symbol ID or text
+  value?: string;           // IOF symbol ID
   isEditable?: boolean;
   isSelected?: boolean;
   onClick?: (cellElement: HTMLElement) => void;
@@ -15,7 +16,7 @@ export function DescriptionCell({
   onClick,
 }: DescriptionCellProps) {
   const cellRef = useRef<HTMLDivElement>(null);
-  const displayText = value ? getSymbolName(value) : '';
+  const hasSvg = value ? !!getSymbolSvg(value) : false;
   const isEmpty = !value;
 
   const handleClick = () => {
@@ -29,7 +30,7 @@ export function DescriptionCell({
       ref={cellRef}
       className={`
         flex items-center justify-center overflow-hidden text-center
-        border border-gray-800 px-0.5 py-0.5
+        border border-gray-800 px-0.5 py-0.5 min-h-[1.5rem]
         ${isEditable ? 'cursor-pointer' : ''}
         ${isEditable && isEmpty ? 'border-dashed border-gray-400' : ''}
         ${isEditable && !isEmpty ? 'hover:bg-violet-50' : ''}
@@ -51,10 +52,14 @@ export function DescriptionCell({
       role={isEditable ? 'button' : undefined}
       title={value ? getSymbolName(value) : isEditable ? 'Click to set' : ''}
     >
-      {displayText && (
-        <span className="truncate text-[10px] leading-tight text-gray-700">
-          {displayText}
-        </span>
+      {value && (
+        hasSvg ? (
+          <SymbolIcon symbolId={value} size={20} />
+        ) : (
+          <span className="truncate text-[9px] leading-tight text-gray-600">
+            {getSymbolName(value)}
+          </span>
+        )
       )}
     </div>
   );
@@ -70,7 +75,7 @@ export function NumberCell({ value, muted = false }: NumberCellProps) {
     <div
       className={`
         flex items-center justify-center
-        border border-gray-800 px-0.5 py-0.5
+        border border-gray-800 px-0.5 py-0.5 min-h-[1.5rem]
         text-xs font-medium
         ${muted ? 'text-gray-500' : 'text-gray-800'}
       `}
