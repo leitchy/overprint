@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0" createTime="2026-03-17T05:35:17.818Z" creator="Overprint">
+  <Event>
+    <Name>Untitled Event</Name>
+  </Event>
+  <RaceCourseData>
+    <Control>
+      <Id>S1</Id>
+      <Type>Start</Type>
+      <MapPosition x="86.786" y="41.036" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>33</Id>
+      <Type>Control</Type>
+      <MapPosition x="167.382" y="78.661" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>34</Id>
+      <Type>Control</Type>
+      <MapPosition x="192.466" y="52.138" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>37</Id>
+      <Type>Control</Type>
+      <MapPosition x="202.232" y="17.803" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>38</Id>
+      <Type>Control</Type>
+      <MapPosition x="133.355" y="24.382" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>39</Id>
+      <Type>Control</Type>
+      <MapPosition x="85.450" y="15.233" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>40</Id>
+      <Type>Control</Type>
+      <MapPosition x="60.469" y="0.000" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>41</Id>
+      <Type>Control</Type>
+      <MapPosition x="50.600" y="19.018" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>42</Id>
+      <Type>Control</Type>
+      <MapPosition x="57.179" y="42.971" unit="mm"/>
+    </Control>
+    <Control>
+      <Id>F1</Id>
+      <Type>Finish</Type>
+      <MapPosition x="74.553" y="75.353" unit="mm"/>
+    </Control>
+    <Course>
+      <Name>Course 1</Name>
+        <Control>
+          <ControlId>S1</ControlId>
+          <LegLength>889</LegLength>
+        </Control>
+        <Control>
+          <ControlId>33</ControlId>
+          <LegLength>365</LegLength>
+        </Control>
+        <Control>
+          <ControlId>34</ControlId>
+          <LegLength>357</LegLength>
+        </Control>
+        <Control>
+          <ControlId>37</ControlId>
+          <LegLength>692</LegLength>
+        </Control>
+        <Control>
+          <ControlId>38</ControlId>
+          <LegLength>488</LegLength>
+        </Control>
+        <Control>
+          <ControlId>39</ControlId>
+          <LegLength>293</LegLength>
+        </Control>
+        <Control>
+          <ControlId>40</ControlId>
+          <LegLength>214</LegLength>
+        </Control>
+        <Control>
+          <ControlId>41</ControlId>
+          <LegLength>248</LegLength>
+        </Control>
+        <Control>
+          <ControlId>42</ControlId>
+          <LegLength>367</LegLength>
+        </Control>
+        <Control>
+          <ControlId>F1</ControlId>
+        </Control>
+    </Course>
+  </RaceCourseData>
+</CourseData>

@@ -22,8 +22,10 @@ interface ControlShapeProps {
   color?: string;
   showNumber?: boolean;
   clickable?: boolean; // shows copy cursor on hover (for background control reuse)
+  numberOffset?: MapPoint; // Current offset for the sequence number label
   onSelect?: () => void;
   onDragEnd?: (x: number, y: number) => void;
+  onNumberDragEnd?: (offset: MapPoint) => void; // Called when the number label is dragged
 }
 
 export function ControlShape({
@@ -37,8 +39,10 @@ export function ControlShape({
   color = '#CD59A4',
   showNumber = true,
   clickable = false,
+  numberOffset,
   onSelect,
   onDragEnd,
+  onNumberDragEnd,
 }: ControlShapeProps) {
   const { x, y } = control.position;
   const { circleRadius, numberSize } = dimensions;
@@ -51,6 +55,14 @@ export function ControlShape({
       : type === 'finish'
         ? dimensions.finishOuterRadius + screenLineWidth * 2
         : circleRadius + screenLineWidth * 2;
+
+  // Default number position (top-right of the shape)
+  const defaultNumX = selectionRadius + screenLineWidth;
+  const defaultNumY = -(numberSize * 0.6);
+
+  // Apply stored offset
+  const numX = defaultNumX + (numberOffset?.x ?? 0);
+  const numY = defaultNumY + (numberOffset?.y ?? 0);
 
   return (
     <Group
@@ -66,6 +78,8 @@ export function ControlShape({
         onSelect?.();
       }}
       onDragEnd={(e) => {
+        // Ignore drag events bubbling up from child nodes (e.g., number text)
+        if (e.target !== e.currentTarget) return;
         onDragEnd?.(e.target.x(), e.target.y());
       }}
       onMouseEnter={(e) => {
@@ -86,10 +100,11 @@ export function ControlShape({
         }
       }}
     >
-      {/* Hit region for background course controls — ensures finish/start
-          types (which have listening={false} on their shapes) are clickable
-          for shared control reuse. Only rendered when clickable. */}
-      {clickable && (
+      {/* Hit region for start/finish controls — their shapes have
+          listening={false}, so the Group needs a hittable child for
+          click, drag, and hover to work. Rendered when draggable
+          (active course) or clickable (background reuse). */}
+      {(type === 'start' || type === 'finish') && (draggable || clickable) && (
         <Rect
           x={-selectionRadius}
           y={-selectionRadius}
@@ -139,12 +154,36 @@ export function ControlShape({
       {showNumber && (
         <Text
           text={String(sequenceNumber)}
-          x={selectionRadius + screenLineWidth}
-          y={-(numberSize * 0.6)}
+          x={numX}
+          y={numY}
           fontSize={numberSize * 1.2}
           fill={color}
           fontStyle="bold"
-          listening={false}
+          draggable={!!onNumberDragEnd}
+          listening={!!onNumberDragEnd}
+          onDragStart={(e) => {
+            // Prevent the parent Group from also starting a drag
+            e.cancelBubble = true;
+          }}
+          onDragEnd={(e) => {
+            // e.target.x()/y() is the Text's new position relative to its
+            // parent Group — already in the correct coordinate space.
+            const newOffset: MapPoint = {
+              x: e.target.x() - defaultNumX,
+              y: e.target.y() - defaultNumY,
+            };
+            onNumberDragEnd?.(newOffset);
+          }}
+          onMouseEnter={(e) => {
+            if (onNumberDragEnd) {
+              const container = e.target.getStage()?.container();
+              if (container) container.style.cursor = 'move';
+            }
+          }}
+          onMouseLeave={(e) => {
+            const container = e.target.getStage()?.container();
+            if (container) container.style.cursor = '';
+          }}
         />
       )}
     </Group>

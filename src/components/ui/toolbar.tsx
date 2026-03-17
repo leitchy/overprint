@@ -174,6 +174,40 @@ export function Toolbar() {
     }
   };
 
+  const handleExportImage = async (format: 'png' | 'jpeg') => {
+    const currentEvent = useEventStore.getState().event;
+    const { getStageInstance } = await import('@/components/map/map-canvas');
+    const stage = getStageInstance();
+    if (!stage) return;
+
+    const ext = format === 'jpeg' ? 'jpg' : 'png';
+    const baseName = currentEvent?.name ?? 'export';
+    const suggestedName = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '')}.${ext}`;
+
+    try {
+      // Capture all visible layers at 2× pixel ratio
+      const canvas = stage.toCanvas({ pixelRatio: 2 });
+      const { generateImageBlob } = await import('@/core/export/image-export');
+      const { blob } = await generateImageBlob(canvas, format);
+
+      if ('showSaveFilePicker' in window) {
+        const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+        const handle = await (window as Window & typeof globalThis).showSaveFilePicker({
+          suggestedName,
+          types: [{ description: format.toUpperCase(), accept: { [mimeType]: [`.${ext}`] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        await saveBlob(blob, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error(`${format.toUpperCase()} export failed:`, err);
+    }
+  };
+
   const handleExportDescriptionPdf = async () => {
     const currentEvent = useEventStore.getState().event;
     if (!currentEvent) return;
@@ -264,8 +298,8 @@ export function Toolbar() {
     { label: t('exportPdfCourseMap'), onClick: handleExportPdf, disabled: !canExport },
     { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf, disabled: !canExport },
     { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
-    { label: t('exportPng'), onClick: () => {}, disabled: true },
-    { label: t('exportJpeg'), onClick: () => {}, disabled: true },
+    { label: t('exportPng'), onClick: () => handleExportImage('png'), disabled: !hasImage },
+    { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
     { separator: true },
     { label: t('importIofXml'), onClick: handleImportIofXml, disabled: !hasEvent },
     { separator: true },
