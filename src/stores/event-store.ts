@@ -10,7 +10,7 @@ import type {
   OverprintEvent,
 } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
-import { createEvent, createCourse, createControl } from '@/core/models/defaults';
+import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
 
 // --- Type derivation helper ---
 
@@ -96,6 +96,10 @@ export const useEventStore = create<EventState & EventActions>()(
         set((state) => {
           if (state.event) {
             state.event.mapFile = mapFile;
+            // Default print scale to match map scale when first loading a map
+            if (state.event.settings.printScale === DEFAULT_EVENT_SETTINGS.printScale) {
+              state.event.settings.printScale = mapFile.scale;
+            }
           }
         });
       },

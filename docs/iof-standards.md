@@ -117,9 +117,9 @@ XML format for exchanging course data between software systems (course setters, 
   - `#B040B0`
   - `#FF00FF` (pure magenta — too bright, not recommended)
 - **Line width**: 0.35mm at print scale
-- **Control circle diameter**: 6.0mm outer at print scale (ISOM); 5.0mm (ISSprOM)
-- **Start triangle**: 7.0mm side at print scale
-- **Finish circles**: Outer 7.0mm, inner 5.0mm diameter; line width 0.35mm
+- **Control circle diameter**: 5.0mm outer at print scale (ISOM 2017-2); 4.0mm (ISSprOM 2019-2)
+- **Start triangle**: 6.0mm side at print scale (ISOM 2017-2); 5.0mm (ISSprOM)
+- **Finish circles**: Outer 5.0mm, inner 3.5mm diameter (ISOM 2017-2); line width 0.35mm
 - **Control numbers**: 4.0mm height at print scale
 - **Gap in circle at leg junction**: ~0.3mm gap where legs enter/exit the circle
 

@@ -27,7 +27,7 @@ describe('createEvent', () => {
   it('uses default settings with IOF-correct values', () => {
     const event = createEvent('Test');
     expect(event.settings.printScale).toBe(15000);
-    expect(event.settings.controlCircleDiameter).toBe(6.0);
+    expect(event.settings.controlCircleDiameter).toBe(5.0);
     expect(event.settings.lineWidth).toBe(0.35);
     expect(event.settings.numberSize).toBe(4.0);
     expect(event.settings.descriptionStandard).toBe('2024');

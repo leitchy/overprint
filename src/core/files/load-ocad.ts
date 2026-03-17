@@ -11,6 +11,7 @@ interface LoadOcadResult {
   width: number;
   height: number;
   scale: number | null; // Map scale extracted from OCAD metadata
+  dpi: number;          // Effective DPI of the rendered image
   arrayBuffer: ArrayBuffer;
 }
 
@@ -72,11 +73,18 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   // Extract map scale from OCAD parameter strings
   const scale = extractMapScale(ocadFile);
 
+  // Compute effective DPI of the rendered image.
+  // OCAD viewBox is in 1/100mm. We scaled to pixelWidth pixels.
+  // DPI = pixels / inches = pixels / (mm / 25.4) = pixels * 25.4 / mm
+  const svgWidthMm = svgWidth / 100;  // Convert 1/100mm to mm
+  const dpi = svgWidthMm > 0 ? (pixelWidth * 25.4) / svgWidthMm : 150;
+
   return {
     image,
     width: image.naturalWidth,
     height: image.naturalHeight,
     scale,
+    dpi,
     arrayBuffer,
   };
 }
@@ -87,14 +95,15 @@ function extractMapScale(ocadFile: any): number | null {
     const params = ocadFile.parameterStrings;
     if (!params) return null;
 
-    // OCAD parameter strings contain scale info
-    // Look for entries with 'm' field (map scale parameter)
-    for (const param of Object.values(params) as Array<Array<Record<string, string>>>) {
-      if (!Array.isArray(param)) continue;
-      for (const entry of param) {
+    // OCAD parameter string 1039 is ScalePar — contains the map scale in 'm' field.
+    // Do NOT scan all parameter strings: other params (e.g. symbol definitions in
+    // param 9) also have 'm' fields that are symbol sizes, not map scales.
+    const scalePar = params[1039] as Array<Record<string, string>> | undefined;
+    if (Array.isArray(scalePar)) {
+      for (const entry of scalePar) {
         if (entry && typeof entry === 'object' && 'm' in entry) {
           const scaleValue = Number(entry['m']);
-          if (scaleValue > 0 && scaleValue < 1_000_000) {
+          if (scaleValue >= 1000 && scaleValue < 1_000_000) {
             return scaleValue;
           }
         }

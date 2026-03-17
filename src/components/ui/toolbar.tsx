@@ -2,12 +2,14 @@ import { useRef, useState } from 'react';
 import { detectMapFileType } from '@/core/files/detect-file-type';
 import { loadRasterImage } from '@/core/files/load-raster';
 import { serializeEvent, deserializeEvent } from '@/core/files/overprint-format';
-import { downloadString } from '@/core/files/download';
+import { saveString } from '@/core/files/download';
 // loadPdfAsImage and loadOcadMap are lazy-imported to avoid loading at module evaluation
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useToolStore } from '@/stores/tool-store';
 import type { Tool } from '@/stores/tool-store';
+import { FileMenu } from './file-menu';
+import type { MenuEntry } from './file-menu';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
 
@@ -23,16 +25,21 @@ export function Toolbar() {
   const hasImage = useMapImageStore((s) => s.image !== null);
   const [loading, setLoading] = useState(false);
 
+  const handleNewEvent = () => {
+    useEventStore.getState().newEvent('Untitled Event');
+    useMapImageStore.getState().clear();
+  };
+
   const handleLoadMap = () => {
     fileInputRef.current?.click();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const currentEvent = useEventStore.getState().event;
     if (!currentEvent) return;
     const json = serializeEvent(currentEvent);
-    const filename = `${currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.overprint`;
-    downloadString(json, filename);
+    const suggestedName = `${currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.overprint`;
+    await saveString(json, suggestedName);
   };
 
   const handleOpenEvent = () => {
@@ -108,11 +115,15 @@ export function Toolbar() {
         const { loadOcadMap } = await import('@/core/files/load-ocad');
         const result = await loadOcadMap(file);
         useMapImageStore.getState().setImage(result.image, result.width, result.height);
+        // For OCAD files the DPI is computed directly from the file's coordinate geometry
+        // and must never be overridden by a stale saved value. The scale embedded in the
+        // OCAD file is also authoritative; fall back to the saved scale only when OCAD
+        // metadata is missing (result.scale === null).
         useEventStore.getState().setMapFile({
           name: file.name,
           type: 'ocad',
           scale: result.scale ?? existingMapFile?.scale ?? 15000,
-          dpi: existingMapFile?.dpi ?? 150,
+          dpi: result.dpi,
         });
       }
     } catch (err) {
@@ -124,6 +135,57 @@ export function Toolbar() {
     // Reset input so the same file can be re-selected
     e.target.value = '';
   };
+
+  const hasEvent = !!event;
+  const hasCourses = (event?.courses.length ?? 0) > 0;
+  const canExport = hasEvent && hasImage && hasCourses;
+
+  const handleExportPdf = async () => {
+    const currentEvent = useEventStore.getState().event;
+    const mapImage = useMapImageStore.getState().image;
+    if (!currentEvent || !mapImage) return;
+
+    try {
+      // Open save dialog FIRST to preserve user gesture, then generate PDF
+      const { saveBlob } = await import('@/core/files/download');
+      const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
+      const courseName = currentEvent.courses[0]?.name ?? 'Course';
+      const suggestedName = `${currentEvent.name} - ${courseName}.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
+
+      if ('showSaveFilePicker' in window) {
+        // Get file handle while gesture is still valid
+        const handle = await window.showSaveFilePicker({ suggestedName });
+        const { blob } = await generateCoursePdf(currentEvent, mapImage);
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        // Fallback: generate then auto-download
+        const { blob } = await generateCoursePdf(currentEvent, mapImage);
+        await saveBlob(blob, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('PDF export failed:', err);
+    }
+  };
+
+  const fileMenuItems: MenuEntry[] = [
+    { label: 'Open Event…', onClick: handleOpenEvent },
+    { label: 'Save Event…', onClick: handleSave, disabled: !hasEvent },
+    { separator: true },
+    { label: 'Load Map…', onClick: handleLoadMap, disabled: loading },
+    { separator: true },
+    { label: 'Export PDF (Course Map)', onClick: handleExportPdf, disabled: !canExport },
+    { label: 'Export PDF (Descriptions)', onClick: () => {}, disabled: true },
+    { label: 'Export IOF XML', onClick: () => {}, disabled: true },
+    { label: 'Export PNG', onClick: () => {}, disabled: true },
+    { label: 'Export JPEG', onClick: () => {}, disabled: true },
+    { separator: true },
+    { label: 'Import IOF XML…', onClick: () => {}, disabled: true },
+    { separator: true },
+    { label: 'New Event', onClick: handleNewEvent },
+  ];
 
   const toolButton = (tool: Tool, label: string) => (
     <button
@@ -168,30 +230,11 @@ export function Toolbar() {
 
       <div className="flex-1" />
 
-      {/* File operations */}
-      <div className="flex gap-1">
-        <button
-          onClick={handleOpenEvent}
-          className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-        >
-          Open
-        </button>
-        {event && (
-          <button
-            onClick={handleSave}
-            className="rounded bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-          >
-            Save
-          </button>
-        )}
-        <button
-          onClick={handleLoadMap}
-          disabled={loading}
-          className="rounded bg-gray-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50"
-        >
-          {loading ? 'Loading...' : 'Load Map'}
-        </button>
-      </div>
+      {loading && (
+        <span className="text-sm text-gray-400">Loading map…</span>
+      )}
+
+      <FileMenu items={fileMenuItems} />
       <input
         ref={fileInputRef}
         type="file"
