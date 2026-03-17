@@ -1,4 +1,5 @@
 import type { EventSettings } from '@/core/models/types';
+import { IOF_OVERPRINT_MM } from '@/core/models/constants';
 
 /**
  * Convert IOF print-scale millimetres to map image pixels.
@@ -9,6 +10,13 @@ import type { EventSettings } from '@/core/models/types';
  */
 export function mmToMapPixels(mm: number, dpi: number): number {
   return (mm * dpi) / 25.4;
+}
+
+/**
+ * Convert map image pixels back to millimetres at the map's print DPI.
+ */
+export function mapPixelsToMm(px: number, dpi: number): number {
+  return (px * 25.4) / dpi;
 }
 
 export interface OverprintPixelDimensions {
@@ -34,10 +42,10 @@ export function overprintPixelDimensions(
     circleRadius: mmToMapPixels(settings.controlCircleDiameter / 2, dpi),
     lineWidth: mmToMapPixels(settings.lineWidth, dpi),
     numberSize: mmToMapPixels(settings.numberSize, dpi),
-    startTriangleSide: mmToMapPixels(6.0, dpi),           // ISOM 2017-2: 6mm side
-    finishOuterRadius: mmToMapPixels(5.0 / 2, dpi),       // ISOM 2017-2: 5mm outer diameter
-    finishInnerRadius: mmToMapPixels(3.5 / 2, dpi),       // ISOM 2017-2: 3.5mm inner diameter
-    circleGap: mmToMapPixels(0.3, dpi),                    // IOF spec: ~0.3mm gap
-    crossingPointArm: mmToMapPixels(3.0, dpi),             // IOF spec: 6mm total, half = 3mm
+    startTriangleSide: mmToMapPixels(IOF_OVERPRINT_MM.startTriangleSide, dpi),
+    finishOuterRadius: mmToMapPixels(IOF_OVERPRINT_MM.finishOuterDiameter / 2, dpi),
+    finishInnerRadius: mmToMapPixels(IOF_OVERPRINT_MM.finishInnerDiameter / 2, dpi),
+    circleGap: mmToMapPixels(IOF_OVERPRINT_MM.circleGap, dpi),
+    crossingPointArm: mmToMapPixels(IOF_OVERPRINT_MM.crossingPointArm, dpi),
   };
 }

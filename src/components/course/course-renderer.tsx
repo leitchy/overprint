@@ -1,10 +1,11 @@
+import { memo } from 'react';
 import type { Course, Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { ControlShape } from './control-shape';
 import { LegLine } from './leg-line';
-
-const SCREEN_LINE_MULTIPLIER = 3;
 
 interface CourseRendererProps {
   course: Course;
@@ -28,31 +29,26 @@ interface CourseRendererProps {
 
 /**
  * Get the shape offset (radius + gap) for a control based on its type.
- * Used to shorten leg lines so they don't enter the shape.
+ * Delegates to the shared computeShapeOffset utility.
  */
 function shapeOffset(
-  type: CourseControlType,
+  type: Parameters<typeof computeShapeOffset>[0],
   dims: OverprintPixelDimensions,
 ): number {
   const screenLineWidth = dims.lineWidth * SCREEN_LINE_MULTIPLIER;
   const gap = dims.circleGap * SCREEN_LINE_MULTIPLIER;
-
-  switch (type) {
-    case 'start':
-    case 'mapExchange':
-      // Triangle circumradius
-      return dims.startTriangleSide / Math.sqrt(3) + gap + screenLineWidth / 2;
-    case 'finish':
-      return dims.finishOuterRadius + gap + screenLineWidth / 2;
-    case 'crossingPoint':
-      // Crossing point is an X — use the arm length as radius approximation
-      return dims.crossingPointArm + gap + screenLineWidth / 2;
-    default:
-      return dims.circleRadius + gap + screenLineWidth / 2;
-  }
+  return computeShapeOffset(
+    type,
+    dims.circleRadius,
+    dims.startTriangleSide,
+    dims.finishOuterRadius,
+    dims.crossingPointArm,
+    gap,
+    screenLineWidth,
+  );
 }
 
-export function CourseRenderer({
+export const CourseRenderer = memo(function CourseRenderer({
   course,
   controls,
   dimensions,
@@ -60,7 +56,7 @@ export function CourseRenderer({
   draggable,
   allowLegInsert,
   courseId,
-  color = '#CD59A4',
+  color = OVERPRINT_PURPLE,
   showNumbers = true,
   clickable = false,
   hideControlIds,
@@ -158,4 +154,4 @@ export function CourseRenderer({
       })}
     </>
   );
-}
+});

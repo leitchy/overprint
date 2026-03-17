@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
 import type {
   Control,
+  ControlDescription,
   Course,
   CourseControl,
   CourseControlType,
@@ -364,10 +365,13 @@ export const useEventStore = create<EventState & EventActions>()(
         set((state) => {
           const control = state.event?.controls[id];
           if (!control) return;
-          const key = `column${column}` as keyof typeof control.description;
-          if (key in control.description || key.startsWith('column')) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (control.description as any)[key] = value;
+          const descKey = `column${column}` as keyof ControlDescription;
+          if (descKey in control.description || descKey.startsWith('column')) {
+            // ControlDescription.columnD is the only required field (string).
+            // All others are optional (string | undefined). We assert via a
+            // type-narrowing write rather than bypassing the type system with any.
+            const desc = control.description as Record<string, string | undefined>;
+            desc[descKey] = value;
           }
         });
       },

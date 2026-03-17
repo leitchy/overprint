@@ -1,16 +1,13 @@
+import { memo } from 'react';
 import { Circle, Rect, Text, Group } from 'react-konva';
 import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
 import { CrossingPoint } from './crossing-point';
 
 const SELECTION_COLOR = '#FFD700';
-
-// On-screen line width multiplier — IOF print spec (0.35mm) is too thin
-// at screen DPI. PurplePen also renders thicker on screen.
-// Exact IOF dimensions will be used for PDF export only.
-const SCREEN_LINE_MULTIPLIER = 3;
 
 interface ControlShapeProps {
   control: Control;
@@ -30,7 +27,7 @@ interface ControlShapeProps {
   onNumberDragEnd?: (offset: MapPoint) => void; // Called when the number label is dragged
 }
 
-export function ControlShape({
+export const ControlShape = memo(function ControlShape({
   control,
   type,
   sequenceNumber,
@@ -38,7 +35,7 @@ export function ControlShape({
   isSelected,
   draggable,
   startTarget,
-  color = '#CD59A4',
+  color = OVERPRINT_PURPLE,
   showNumber = true,
   score,
   clickable = false,
@@ -219,4 +216,4 @@ export function ControlShape({
       )}
     </Group>
   );
-}
+});
