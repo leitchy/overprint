@@ -1,26 +1,25 @@
 import { Circle } from 'react-konva';
 
-const PURPLE = '#CD59A4';
-
 interface FinishCirclesProps {
   outerRadius: number;
   innerRadius: number;
   lineWidth: number;
+  color?: string;
 }
 
-export function FinishCircles({ outerRadius, innerRadius, lineWidth }: FinishCirclesProps) {
+export function FinishCircles({ outerRadius, innerRadius, lineWidth, color = '#CD59A4' }: FinishCirclesProps) {
   return (
     <>
       <Circle
         radius={outerRadius}
-        stroke={PURPLE}
+        stroke={color}
         strokeWidth={lineWidth}
         fill="transparent"
         listening={false}
       />
       <Circle
         radius={innerRadius}
-        stroke={PURPLE}
+        stroke={color}
         strokeWidth={lineWidth}
         fill="transparent"
         listening={false}

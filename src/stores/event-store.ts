@@ -51,6 +51,8 @@ interface EventActions {
 
   // Course management
   addCourse: (name: string) => void;
+  renameCourse: (id: CourseId, name: string) => void;
+  deleteCourse: (id: CourseId) => void;
   setActiveCourse: (id: CourseId | null) => void;
   setSelectedControl: (id: ControlId | null) => void;
 
@@ -146,6 +148,37 @@ export const useEventStore = create<EventState & EventActions>()(
         });
       },
 
+      renameCourse: (id: CourseId, name: string) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, id);
+          if (course) {
+            course.name = name;
+          }
+        });
+      },
+
+      deleteCourse: (id: CourseId) => {
+        set((state) => {
+          if (!state.event) return;
+          const index = state.event.courses.findIndex((c) => c.id === id);
+          if (index === -1) return;
+
+          state.event.courses.splice(index, 1);
+
+          // TODO: orphan control cleanup — controls that belong only to this
+          // course remain in the pool but don't affect display (just nextControlCode)
+
+          // Switch activeCourseId to an adjacent course or null
+          if (state.activeCourseId === id) {
+            const remaining = state.event.courses;
+            const next = remaining[index] ?? remaining[index - 1] ?? null;
+            state.activeCourseId = next?.id ?? null;
+            state.selectedControlId = null;
+          }
+        });
+      },
+
       setActiveCourse: (id: CourseId | null) => {
         set((state) => {
           state.activeCourseId = id;
@@ -238,6 +271,9 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!state.event) return;
           const course = findCourse(state.event, courseId);
           if (!course) return;
+
+          // Duplicate guard — do not insert if control already in course
+          if (course.controls.some((cc) => cc.controlId === controlId)) return;
 
           const courseControl: CourseControl = {
             controlId,

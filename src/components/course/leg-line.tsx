@@ -3,18 +3,17 @@ import type Konva from 'konva';
 import type { MapPoint } from '@/core/models/types';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 
-const PURPLE = '#CD59A4';
-
 interface LegLineProps {
   from: MapPoint;
   to: MapPoint;
   fromOffset: number;
   toOffset: number;
   lineWidth: number;
+  color?: string;
   onInsert?: (position: MapPoint) => void;
 }
 
-export function LegLine({ from, to, fromOffset, toOffset, lineWidth, onInsert }: LegLineProps) {
+export function LegLine({ from, to, fromOffset, toOffset, lineWidth, color = '#CD59A4', onInsert }: LegLineProps) {
   const endpoints = shortenedLeg(from, to, fromOffset, toOffset);
   if (!endpoints) return null;
 
@@ -43,7 +42,7 @@ export function LegLine({ from, to, fromOffset, toOffset, lineWidth, onInsert }:
   return (
     <Line
       points={[start.x, start.y, end.x, end.y]}
-      stroke={PURPLE}
+      stroke={color}
       strokeWidth={lineWidth}
       hitStrokeWidth={20}
       listening={!!onInsert}

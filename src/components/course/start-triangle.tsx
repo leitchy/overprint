@@ -1,12 +1,11 @@
 import { Line } from 'react-konva';
 import type { MapPoint } from '@/core/models/types';
 
-const PURPLE = '#CD59A4';
-
 interface StartTriangleProps {
   sideLength: number;
   lineWidth: number;
   targetPoint?: MapPoint; // First regular control — triangle points toward it
+  color?: string;
 }
 
 /**
@@ -30,14 +29,14 @@ function trianglePoints(side: number, target?: MapPoint): number[] {
   return points;
 }
 
-export function StartTriangle({ sideLength, lineWidth, targetPoint }: StartTriangleProps) {
+export function StartTriangle({ sideLength, lineWidth, targetPoint, color = '#CD59A4' }: StartTriangleProps) {
   const points = trianglePoints(sideLength, targetPoint);
 
   return (
     <Line
       points={points}
       closed
-      stroke={PURPLE}
+      stroke={color}
       strokeWidth={lineWidth}
       fill="transparent"
       listening={false}

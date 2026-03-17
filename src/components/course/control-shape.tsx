@@ -4,7 +4,6 @@ import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensi
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
 
-const PURPLE = '#CD59A4';
 const SELECTION_COLOR = '#FFD700';
 
 // On-screen line width multiplier — IOF print spec (0.35mm) is too thin
@@ -20,6 +19,9 @@ interface ControlShapeProps {
   isSelected: boolean;
   draggable: boolean;
   startTarget?: MapPoint; // For start triangle — direction to point toward
+  color?: string;
+  showNumber?: boolean;
+  clickable?: boolean; // shows copy cursor on hover (for background control reuse)
   onSelect?: () => void;
   onDragEnd?: (x: number, y: number) => void;
 }
@@ -32,6 +34,9 @@ export function ControlShape({
   isSelected,
   draggable,
   startTarget,
+  color = '#CD59A4',
+  showNumber = true,
+  clickable = false,
   onSelect,
   onDragEnd,
 }: ControlShapeProps) {
@@ -65,13 +70,18 @@ export function ControlShape({
       }}
       onMouseEnter={(e) => {
         const container = e.target.getStage()?.container();
-        if (container && draggable) {
-          container.style.cursor = 'pointer';
+        if (container) {
+          if (draggable) {
+            container.style.cursor = 'pointer';
+          } else if (clickable) {
+            container.style.cursor = 'copy';
+          }
         }
       }}
       onMouseLeave={(e) => {
         const container = e.target.getStage()?.container();
         if (container) {
+          // Reset to '' — the map-canvas useEffect restores the tool cursor
           container.style.cursor = '';
         }
       }}
@@ -93,32 +103,36 @@ export function ControlShape({
           sideLength={dimensions.startTriangleSide}
           lineWidth={screenLineWidth}
           targetPoint={startTarget}
+          color={color}
         />
       ) : type === 'finish' ? (
         <FinishCircles
           outerRadius={dimensions.finishOuterRadius}
           innerRadius={dimensions.finishInnerRadius}
           lineWidth={screenLineWidth}
+          color={color}
         />
       ) : (
         <Circle
           radius={circleRadius}
-          stroke={PURPLE}
+          stroke={color}
           strokeWidth={screenLineWidth}
           fill="transparent"
         />
       )}
 
       {/* Control sequence number */}
-      <Text
-        text={String(sequenceNumber)}
-        x={selectionRadius + screenLineWidth}
-        y={-(numberSize * 0.6)}
-        fontSize={numberSize * 1.2}
-        fill={PURPLE}
-        fontStyle="bold"
-        listening={false}
-      />
+      {showNumber && (
+        <Text
+          text={String(sequenceNumber)}
+          x={selectionRadius + screenLineWidth}
+          y={-(numberSize * 0.6)}
+          fontSize={numberSize * 1.2}
+          fill={color}
+          fontStyle="bold"
+          listening={false}
+        />
+      )}
     </Group>
   );
 }
