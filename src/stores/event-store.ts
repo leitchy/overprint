@@ -62,6 +62,9 @@ interface EventActions {
   // Description editing
   updateControlDescription: (id: ControlId, column: string, value: string | undefined) => void;
 
+  // File operations
+  loadEvent: (event: OverprintEvent) => void;
+
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
 }
@@ -245,6 +248,16 @@ export const useEventStore = create<EventState & EventActions>()(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (control.description as any)[key] = value;
           }
+        });
+      },
+
+      // --- File operations ---
+
+      loadEvent: (event: OverprintEvent) => {
+        set((state) => {
+          state.event = event;
+          state.activeCourseId = event.courses[0]?.id ?? null;
+          state.selectedControlId = null;
         });
       },
 
