@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head><title>Generate Test Orienteering Map</title></head>
+<body style="font-family: sans-serif; padding: 20px;">
+<h2>Test Map Generator</h2>
+<p>Click a button to download a test orienteering map image.</p>
+<button onclick="generate(2000, 1400, 'test-map-A4.png')">A4 landscape (2000×1400)</button>
+<button onclick="generate(2800, 2000, 'test-map-A3.png')">A3 landscape (2800×2000)</button>
+
+<script>
+function generate(w, h, filename) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+
+  // Background — white with slight yellow tint (typical orienteering map)
+  ctx.fillStyle = '#FFFDE8';
+  ctx.fillRect(0, 0, w, h);
+
+  // Green vegetation patches
+  const greens = ['#C8E6C0', '#98D090', '#60B858'];
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = greens[Math.floor(Math.random() * greens.length)];
+    ctx.beginPath();
+    const x = Math.random() * w, y = Math.random() * h;
+    const rx = 30 + Math.random() * 120, ry = 20 + Math.random() * 80;
+    ctx.ellipse(x, y, rx, ry, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Contour lines (brown)
+  ctx.strokeStyle = '#C07030';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 15; i++) {
+    ctx.beginPath();
+    const startX = Math.random() * w;
+    const startY = Math.random() * h;
+    ctx.moveTo(startX, startY);
+    for (let j = 0; j < 8; j++) {
+      const cpx = startX + (j + 1) * (w / 10) * (Math.random() - 0.3);
+      const cpy = startY + (Math.random() - 0.5) * 200;
+      const x = startX + (j + 1) * (w / 8);
+      const y = startY + (Math.random() - 0.5) * 150;
+      ctx.quadraticCurveTo(cpx, cpy, x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Paths/tracks (black dashed)
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * w, Math.random() * h);
+    ctx.lineTo(Math.random() * w, Math.random() * h);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Roads (brown fill)
+  ctx.strokeStyle = '#A05020';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.3);
+  ctx.quadraticCurveTo(w * 0.5, h * 0.25, w, h * 0.4);
+  ctx.stroke();
+
+  // Water features (blue)
+  ctx.fillStyle = '#80C0E0';
+  ctx.beginPath();
+  ctx.ellipse(w * 0.7, h * 0.6, 60, 40, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Stream
+  ctx.strokeStyle = '#4090C0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w * 0.7, h * 0.58);
+  ctx.quadraticCurveTo(w * 0.5, h * 0.5, w * 0.2, h * 0.7);
+  ctx.stroke();
+
+  // Boulder/rock symbols
+  ctx.fillStyle = '#333';
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    const x = Math.random() * w, y = Math.random() * h;
+    ctx.arc(x, y, 2 + Math.random() * 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Buildings
+  ctx.fillStyle = '#888';
+  ctx.fillRect(w * 0.1, h * 0.15, 30, 20);
+  ctx.fillRect(w * 0.12, h * 0.12, 25, 15);
+
+  // Scale bar
+  ctx.fillStyle = '#000';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('1:10,000', w - 120, h - 30);
+  ctx.fillRect(w - 120, h - 25, 100, 3);
+  ctx.fillText('0', w - 125, h - 10);
+  ctx.fillText('500m', w - 35, h - 10);
+
+  // Title
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('Test Orienteering Map', 20, 30);
+
+  // Download
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = c.toDataURL('image/png');
+  link.click();
+}
+</script>
+</body>
+</html>
