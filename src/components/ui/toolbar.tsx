@@ -72,10 +72,13 @@ export function Toolbar() {
       return;
     }
 
-    // Create event if none exists
+    // Create event if none exists — but don't overwrite a loaded event
     if (!useEventStore.getState().event) {
       useEventStore.getState().newEvent('Untitled Event');
     }
+
+    // If event already has mapFile metadata (from .overprint load), use its saved scale/dpi
+    const existingMapFile = useEventStore.getState().event?.mapFile;
 
     setLoading(true);
 
@@ -86,19 +89,20 @@ export function Toolbar() {
         useEventStore.getState().setMapFile({
           name: file.name,
           type: 'raster',
-          scale: 15000,
-          dpi: 150,
+          scale: existingMapFile?.scale ?? 15000,
+          dpi: existingMapFile?.dpi ?? 150,
         });
       } else if (fileType === 'pdf') {
         const { loadPdfAsImage } = await import('@/core/files/load-pdf');
-        const result = await loadPdfAsImage(file);
+        const dpi = existingMapFile?.dpi ?? 200;
+        const result = await loadPdfAsImage(file, { dpi });
         useMapImageStore.getState().setImage(result.canvas, result.width, result.height);
         useMapImageStore.getState().setPdfArrayBuffer(result.arrayBuffer);
         useEventStore.getState().setMapFile({
           name: file.name,
           type: 'pdf',
-          scale: 15000,
-          dpi: 200,
+          scale: existingMapFile?.scale ?? 15000,
+          dpi,
         });
       } else if (fileType === 'ocad') {
         const { loadOcadMap } = await import('@/core/files/load-ocad');
@@ -107,8 +111,8 @@ export function Toolbar() {
         useEventStore.getState().setMapFile({
           name: file.name,
           type: 'ocad',
-          scale: result.scale ?? 15000,
-          dpi: 150,
+          scale: result.scale ?? existingMapFile?.scale ?? 15000,
+          dpi: existingMapFile?.dpi ?? 150,
         });
       }
     } catch (err) {
