@@ -100,20 +100,16 @@ describe('translation key completeness', () => {
 // ---------------------------------------------------------------------------
 
 describe('useT hook', () => {
-  // Mock localStorage and navigator.language for the store
-  const originalGetItem = localStorage.getItem.bind(localStorage);
-  const originalSetItem = localStorage.setItem.bind(localStorage);
-
   beforeEach(() => {
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
+    // Ensure localStorage is available and mocked
+    if (typeof globalThis.localStorage !== 'undefined') {
+      vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
+    }
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    // Reset the store state
-    void originalGetItem;
-    void originalSetItem;
   });
 
   it('returns a function that resolves keys', async () => {
