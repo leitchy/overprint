@@ -50,7 +50,6 @@ export async function generateCoursePdf(
   // Create PDF
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
   // Embed the base map image once — pdf-lib allows drawing the same embedded image
   // on multiple pages without re-encoding.
@@ -80,15 +79,17 @@ export async function generateCoursePdf(
     // Draw special items (filter by course: items with no courseIds restriction, or this course)
     renderSpecialItems(page, event.specialItems, course.id, toPdf, font);
 
-    // Title on every page (with page indicator if multi-page)
-    const mapTitleBase = event.settings.mapTitle ?? event.name;
-    const titleText = totalPages > 1
-      ? `${course.name} — ${mapTitleBase} (${pageIndex + 1}/${totalPages})`
-      : `${course.name} — ${mapTitleBase}`;
-    drawCourseTitle(page, layout, titleText, boldFont);
-
-    // Scale bar on every page
-    drawScaleBar(page, layout, printScale, font, event.settings.contourInterval);
+    // Page indicator for multi-page exports (no title/scale bar — the map provides those)
+    if (totalPages > 1) {
+      const pageLabel = `${course.name} (${pageIndex + 1}/${totalPages})`;
+      page.drawText(pageLabel, {
+        x: layout.marginLeft + 4,
+        y: layout.pageHeight - layout.marginTop - 12,
+        size: 8,
+        font,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+    }
   }
 
   const pdfBytes = await pdfDoc.save();
@@ -173,175 +174,6 @@ function drawEmbeddedMap(
 }
 
 // ---------------------------------------------------------------------------
-// Title and scale bar helpers
-// ---------------------------------------------------------------------------
-
-const TITLE_FONT_SIZE = 14; // pt
-const SCALE_BAR_FONT_SIZE = 8; // pt
-const BLACK = rgb(0, 0, 0);
-
-/**
- * Draw the course name as a centred bold title at the top of the printable area.
- *
- * Position: horizontally centred within the printable width; vertically
- * placed just inside the top margin so it sits above the map image.
- */
-function drawCourseTitle(
-  page: PDFPage,
-  layout: PageLayout,
-  courseName: string,
-  boldFont: PDFFont,
-): void {
-  const textWidth = boldFont.widthOfTextAtSize(courseName, TITLE_FONT_SIZE);
-  const x = layout.marginLeft + (layout.printableWidth - textWidth) / 2;
-  // In PDF coordinate space, Y increases upward. The printable top edge is at:
-  //   marginBottom + printableHeight
-  // Place the text baseline a small offset below that top edge.
-  const y = layout.marginBottom + layout.printableHeight - TITLE_FONT_SIZE - 4;
-
-  page.drawText(courseName, {
-    x,
-    y,
-    size: TITLE_FONT_SIZE,
-    font: boldFont,
-    color: BLACK,
-  });
-}
-
-/**
- * Choose a nice round bar length (in metres) and segment count for the given
- * print scale, such that the bar is roughly 40–60 mm wide on paper.
- */
-function chooseScaleBarParams(printScale: number): {
-  segmentMetres: number;
-  segments: number;
-} {
-  // Candidates: segment sizes in metres
-  const candidates = [25, 50, 100, 200, 500, 1000, 2000] as const;
-
-  for (const segmentMetres of candidates) {
-    // mm on paper per segment at this print scale
-    const mmPerSegment = (segmentMetres / printScale) * 1000;
-    // Try 5 segments first, then 4, then 3
-    for (const segments of [5, 4, 3]) {
-      const totalMm = mmPerSegment * segments;
-      if (totalMm >= 30 && totalMm <= 80) {
-        return { segmentMetres, segments };
-      }
-    }
-  }
-
-  // Fallback: 5 × 100m regardless of scale
-  return { segmentMetres: 100, segments: 5 };
-}
-
-/**
- * Draw a horizontal scale bar with tick marks and labels in the bottom-right
- * corner of the printable area.
- *
- * Layout (all in PDF points, Y-up):
- *   - tick height = 6pt
- *   - label baseline: 2pt below tick bottom
- *   - "Scale 1:X" text: 2pt below labels
- */
-function drawScaleBar(
-  page: PDFPage,
-  layout: PageLayout,
-  printScale: number,
-  font: PDFFont,
-  contourInterval?: number,
-): void {
-  const { segmentMetres, segments } = chooseScaleBarParams(printScale);
-
-  // Convert segment length from metres to PDF points
-  // 1m = (1000/printScale) mm on paper = (1000/printScale) * (72/25.4) pt
-  const ptPerMetre = (1000 / printScale) * (72 / 25.4);
-  const segmentPt = segmentMetres * ptPerMetre;
-  const barWidthPt = segmentPt * segments;
-
-  const tickHeight = 6; // pt
-  const labelGap = 2;   // pt between tick bottom and label baseline
-  // Measure approximate label height at SCALE_BAR_FONT_SIZE
-  const labelHeight = SCALE_BAR_FONT_SIZE;
-  const scaleTextGap = 2; // pt between labels and scale text
-  const scaleTextHeight = SCALE_BAR_FONT_SIZE;
-
-  // Place block at bottom-right of printable area, 4pt inside the margin
-  const rightEdge = layout.marginLeft + layout.printableWidth - 4;
-  const barLeft = rightEdge - barWidthPt;
-  const blockBottom = layout.marginBottom + 4;
-  const barLineY = blockBottom + scaleTextHeight + scaleTextGap + labelHeight + labelGap;
-
-  // Draw horizontal bar line
-  page.drawLine({
-    start: { x: barLeft, y: barLineY },
-    end: { x: rightEdge, y: barLineY },
-    thickness: 1,
-    color: BLACK,
-  });
-
-  // Draw tick marks and labels at each segment boundary
-  for (let i = 0; i <= segments; i++) {
-    const tickX = barLeft + i * segmentPt;
-    const labelMetres = i * segmentMetres;
-
-    // Tick
-    page.drawLine({
-      start: { x: tickX, y: barLineY },
-      end: { x: tickX, y: barLineY - tickHeight },
-      thickness: 1,
-      color: BLACK,
-    });
-
-    // Label — format as whole metres; use "k" suffix if ≥ 1000m
-    const labelText =
-      labelMetres >= 1000 ? `${labelMetres / 1000}k` : String(labelMetres);
-    const labelWidth = font.widthOfTextAtSize(labelText, SCALE_BAR_FONT_SIZE);
-    const labelX = tickX - labelWidth / 2;
-    const labelY = barLineY - tickHeight - labelGap - labelHeight;
-
-    page.drawText(labelText, {
-      x: labelX,
-      y: labelY,
-      size: SCALE_BAR_FONT_SIZE,
-      font,
-      color: BLACK,
-    });
-  }
-
-  // Draw alternating filled/empty segments for readability (classic scale bar style)
-  for (let i = 0; i < segments; i++) {
-    const segLeft = barLeft + i * segmentPt;
-    if (i % 2 === 0) {
-      page.drawRectangle({
-        x: segLeft,
-        y: barLineY - tickHeight,
-        width: segmentPt,
-        height: tickHeight,
-        color: BLACK,
-      });
-    }
-    // Odd segments: already white (no fill needed)
-  }
-
-  // Draw "Scale 1:X,XXX [· Contours X m]" text centred under the bar
-  const scaleText = contourInterval
-    ? `Scale 1:${printScale.toLocaleString('en')} \u00b7 Contours ${contourInterval} m`
-    : `Scale 1:${printScale.toLocaleString('en')}`;
-  const scaleTextWidth = font.widthOfTextAtSize(scaleText, SCALE_BAR_FONT_SIZE);
-  const scaleTextX = barLeft + (barWidthPt - scaleTextWidth) / 2;
-  const scaleTextY = blockBottom;
-
-  page.drawText(scaleText, {
-    x: scaleTextX,
-    y: scaleTextY,
-    size: SCALE_BAR_FONT_SIZE,
-    font,
-    color: BLACK,
-  });
-}
-
-// ---------------------------------------------------------------------------
 // Special items rendering
 // ---------------------------------------------------------------------------
 
@@ -366,7 +198,7 @@ function renderSpecialItems(
       continue;
     }
 
-    const colorHex = item.color ?? '#CD59A4';
+    const colorHex = item.color ?? '#C850A0';
     const itemColor = hexToRgb(colorHex);
     const pos = toPdf(item.position);
 
@@ -472,7 +304,7 @@ function renderSpecialItems(
  */
 function hexToRgb(hex: string): ReturnType<typeof rgb> {
   const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
-  if (!match) return rgb(0.804, 0.349, 0.643); // fallback: overprint purple
+  if (!match) return rgb(200 / 255, 80 / 255, 160 / 255); // fallback: overprint purple
   return rgb(
     parseInt(match[1]!, 16) / 255,
     parseInt(match[2]!, 16) / 255,
