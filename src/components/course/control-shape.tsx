@@ -86,6 +86,14 @@ export function ControlShape({
         }
       }}
     >
+      {/* Invisible hit region — ensures all control types (including
+          finish/start with listening={false} shapes) are clickable */}
+      <Circle
+        radius={selectionRadius}
+        fill="transparent"
+        stroke="transparent"
+      />
+
       {/* Selection highlight ring */}
       {isSelected && (
         <Circle
