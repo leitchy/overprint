@@ -4,11 +4,11 @@
  */
 
 /** IOF overprint purple — Pantone 814 approximation */
-export const OVERPRINT_PURPLE = '#CD59A4';
+export const OVERPRINT_PURPLE = '#C850A0';
 
 /** Screen line width multiplier — IOF print spec is too thin at screen DPI.
  *  PurplePen also renders thicker on screen. PDF export does NOT use this. */
-export const SCREEN_LINE_MULTIPLIER = 3;
+export const SCREEN_LINE_MULTIPLIER = 2;
 
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;

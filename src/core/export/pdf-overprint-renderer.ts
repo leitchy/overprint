@@ -13,8 +13,8 @@ import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { IOF_OVERPRINT_MM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
-/** IOF purple: Pantone 814 approximation */
-const PURPLE = rgb(205 / 255, 89 / 255, 164 / 255);
+/** IOF purple: Pantone 814 approximation — #C850A0 */
+const PURPLE = rgb(200 / 255, 80 / 255, 160 / 255);
 
 interface PdfOverprintContext {
   page: PDFPage;
