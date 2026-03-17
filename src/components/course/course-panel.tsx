@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Course, Control } from '@/core/models/types';
+import type { Course, Control, CourseControlType } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
 import { calculateCourseLength } from '@/core/geometry/course-length';
@@ -12,6 +12,26 @@ interface CoursePanelProps {
   controls: Record<ControlId, Control>;
   courseId: CourseId | null;
   selectedControlId: ControlId | null;
+}
+
+/** Middle-control types that can be cycled through. */
+const MIDDLE_CONTROL_TYPES: CourseControlType[] = ['control', 'crossingPoint', 'mapExchange'];
+
+/** Display label for each control type in the panel. */
+function typeLabel(type: CourseControlType, index: number): string {
+  switch (type) {
+    case 'start': return 'S';
+    case 'finish': return 'F';
+    case 'crossingPoint': return 'X';
+    case 'mapExchange': return 'ME';
+    default: return String(index + 1);
+  }
+}
+
+/** Next type in the cycle for middle controls. */
+function nextMiddleType(current: CourseControlType): CourseControlType {
+  const idx = MIDDLE_CONTROL_TYPES.indexOf(current);
+  return MIDDLE_CONTROL_TYPES[(idx + 1) % MIDDLE_CONTROL_TYPES.length] ?? 'control';
 }
 
 export function CoursePanel({
@@ -28,15 +48,22 @@ export function CoursePanel({
   const moveControlInCourse = useEventStore((s) => s.moveControlInCourse);
   const removeControlFromCourse = useEventStore((s) => s.removeControlFromCourse);
   const setControlCode = useEventStore((s) => s.setControlCode);
+  const setCourseControlType = useEventStore((s) => s.setCourseControlType);
+  const setCourseType = useEventStore((s) => s.setCourseType);
+  const setControlScore = useEventStore((s) => s.setControlScore);
 
   const [editingCodeId, setEditingCodeId] = useState<ControlId | null>(null);
   const [codeDraft, setCodeDraft] = useState(0);
+  const [editingScoreIndex, setEditingScoreIndex] = useState<number | null>(null);
+  const [scoreDraft, setScoreDraft] = useState(0);
 
   const lengthMetres =
     course && mapFile
       ? calculateCourseLength(course.controls, controls, mapFile.scale, mapFile.dpi)
       : 0;
   const lengthKm = (lengthMetres / 1000).toFixed(1);
+
+  const isScoreCourse = course?.courseType === 'score';
 
   return (
     <div className="absolute right-4 top-4 w-56 rounded bg-white/90 shadow">
@@ -46,11 +73,24 @@ export function CoursePanel({
       {/* Active course details */}
       {course && courseId && (
         <>
-          {/* Course stats */}
+          {/* Course stats + course type toggle */}
           <div className="border-b border-gray-200 px-3 py-1.5">
-            <div className="text-xs text-gray-400">
-              {course.controls.length} {course.controls.length !== 1 ? t('controls') : t('control')}
-              {course.controls.length >= 2 && ` \u00B7 ${lengthKm} ${t('km')}`}
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-400">
+                {course.controls.length} {course.controls.length !== 1 ? t('controls') : t('control')}
+                {!isScoreCourse && course.controls.length >= 2 && ` \u00B7 ${lengthKm} ${t('km')}`}
+              </div>
+              <button
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                  isScoreCourse
+                    ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                }`}
+                title={t('courseType')}
+                onClick={() => setCourseType(courseId, isScoreCourse ? 'normal' : 'score')}
+              >
+                {isScoreCourse ? t('scoreCourse') : t('normalCourse')}
+              </button>
             </div>
           </div>
 
@@ -68,11 +108,8 @@ export function CoursePanel({
                 const isSelected = cc.controlId === selectedControlId;
                 const isFirst = index === 0;
                 const isLast = index === course.controls.length - 1;
-
-                const typeLabel =
-                  cc.type === 'start' ? 'S' :
-                  cc.type === 'finish' ? 'F' :
-                  String(index + 1);
+                const isMiddle = !isFirst && !isLast;
+                const label = typeLabel(cc.type, index);
 
                 return (
                   <li
@@ -82,9 +119,24 @@ export function CoursePanel({
                     }`}
                     onClick={() => setSelectedControl(cc.controlId)}
                   >
-                    <span className="w-5 text-center font-medium text-gray-500">
-                      {typeLabel}
-                    </span>
+                    {/* Type indicator — clickable to cycle for middle controls */}
+                    {isMiddle ? (
+                      <button
+                        className="w-6 shrink-0 text-center font-medium text-violet-500 hover:text-violet-700 rounded hover:bg-violet-50"
+                        title={t('courseControlType')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCourseControlType(courseId, index, nextMiddleType(cc.type));
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ) : (
+                      <span className="w-6 shrink-0 text-center font-medium text-gray-500">
+                        {label}
+                      </span>
+                    )}
+
                     {editingCodeId === cc.controlId ? (
                       <input
                         autoFocus
@@ -122,6 +174,49 @@ export function CoursePanel({
                         #{control.code}
                       </span>
                     )}
+
+                    {/* Score value — shown for score courses, editable */}
+                    {isScoreCourse && (
+                      editingScoreIndex === index ? (
+                        <input
+                          autoFocus
+                          type="number"
+                          min={0}
+                          value={scoreDraft}
+                          className="w-10 font-mono text-gray-700 border-b border-violet-400 bg-transparent outline-none px-1 text-xs text-right"
+                          onChange={(e) => setScoreDraft(Number(e.target.value))}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter' || e.key === 'Escape') {
+                              if (e.key === 'Enter' && scoreDraft >= 0) {
+                                setControlScore(courseId, index, scoreDraft || undefined);
+                              }
+                              setEditingScoreIndex(null);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (scoreDraft >= 0) {
+                              setControlScore(courseId, index, scoreDraft || undefined);
+                            }
+                            setEditingScoreIndex(null);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span
+                          className="w-10 text-right font-mono text-violet-600 cursor-pointer hover:text-violet-800 shrink-0"
+                          title={t('scoreLabel')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingScoreIndex(index);
+                            setScoreDraft(cc.score ?? 0);
+                          }}
+                        >
+                          {cc.score ?? '—'}
+                        </span>
+                      )
+                    )}
+
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

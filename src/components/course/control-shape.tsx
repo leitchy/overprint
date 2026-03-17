@@ -3,6 +3,7 @@ import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
+import { CrossingPoint } from './crossing-point';
 
 const SELECTION_COLOR = '#FFD700';
 
@@ -21,6 +22,7 @@ interface ControlShapeProps {
   startTarget?: MapPoint; // For start triangle — direction to point toward
   color?: string;
   showNumber?: boolean;
+  score?: number; // For score courses — displayed beside the control
   clickable?: boolean; // shows copy cursor on hover (for background control reuse)
   numberOffset?: MapPoint; // Current offset for the sequence number label
   onSelect?: () => void;
@@ -38,6 +40,7 @@ export function ControlShape({
   startTarget,
   color = '#CD59A4',
   showNumber = true,
+  score,
   clickable = false,
   numberOffset,
   onSelect,
@@ -50,11 +53,13 @@ export function ControlShape({
 
   // Selection ring radius varies by shape type
   const selectionRadius =
-    type === 'start'
+    type === 'start' || type === 'mapExchange'
       ? dimensions.startTriangleSide / Math.sqrt(3) + screenLineWidth * 2
       : type === 'finish'
         ? dimensions.finishOuterRadius + screenLineWidth * 2
-        : circleRadius + screenLineWidth * 2;
+        : type === 'crossingPoint'
+          ? dimensions.crossingPointArm * Math.SQRT2 + screenLineWidth * 2
+          : circleRadius + screenLineWidth * 2;
 
   // Default number position (top-right of the shape)
   const defaultNumX = selectionRadius + screenLineWidth;
@@ -100,11 +105,11 @@ export function ControlShape({
         }
       }}
     >
-      {/* Hit region for start/finish controls — their shapes have
+      {/* Hit region for start/finish/mapExchange controls — their shapes have
           listening={false}, so the Group needs a hittable child for
           click, drag, and hover to work. Rendered when draggable
           (active course) or clickable (background reuse). */}
-      {(type === 'start' || type === 'finish') && (draggable || clickable) && (
+      {(type === 'start' || type === 'finish' || type === 'mapExchange' || type === 'crossingPoint') && (draggable || clickable) && (
         <Rect
           x={-selectionRadius}
           y={-selectionRadius}
@@ -141,12 +146,38 @@ export function ControlShape({
           lineWidth={screenLineWidth}
           color={color}
         />
+      ) : type === 'crossingPoint' ? (
+        <CrossingPoint
+          armLength={dimensions.crossingPointArm * 2}
+          lineWidth={screenLineWidth}
+          color={color}
+        />
+      ) : type === 'mapExchange' ? (
+        <StartTriangle
+          sideLength={dimensions.startTriangleSide}
+          lineWidth={screenLineWidth}
+          targetPoint={startTarget}
+          extraRotation={Math.PI}
+          color={color}
+        />
       ) : (
         <Circle
           radius={circleRadius}
           stroke={color}
           strokeWidth={screenLineWidth}
           fill="transparent"
+        />
+      )}
+
+      {/* Score value (score courses only) — shown below the sequence number */}
+      {score !== undefined && (
+        <Text
+          text={String(score)}
+          x={numX}
+          y={numY + numberSize * 1.4}
+          fontSize={numberSize}
+          fill={color}
+          listening={false}
         />
       )}
 

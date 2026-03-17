@@ -1,8 +1,9 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import type { PDFFont, PDFPage } from 'pdf-lib';
 import type { OverprintEvent, Course } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
-import type { PageLayout } from './pdf-page-layout';
-import { computePageLayout, computeCourseBounds, computeMapViewport } from './pdf-page-layout';
+import type { PageLayout, MapViewport } from './pdf-page-layout';
+import { computePageLayout, computeCourseBounds, computeMultiPageViewports } from './pdf-page-layout';
 import { renderOverprint } from './pdf-overprint-renderer';
 
 export interface PdfExportOptions {
@@ -13,6 +14,9 @@ export interface PdfExportOptions {
 /**
  * Generate a course map PDF as a Blob. Does not trigger a save dialog.
  * Call saveBlob() separately from a user gesture handler.
+ *
+ * When the course is too large to fit on one page at the desired print scale,
+ * multiple pages are generated automatically with 15mm overlap between them.
  */
 export async function generateCoursePdf(
   event: OverprintEvent,
@@ -36,40 +40,51 @@ export async function generateCoursePdf(
   const bounds = computeCourseBounds(course, event.controls);
   if (!bounds) throw new Error('Course has no controls');
 
-  // Compute viewport: what portion of the map fits on the page at correct scale
-  const viewport = computeMapViewport(layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds);
-
-  // Coordinate transform: map pixel → PDF point
-  // Map: (0,0) = top-left, Y down. PDF: (0,0) = bottom-left, Y up.
-  const toPdf = (point: MapPoint): MapPoint => ({
-    x: layout.marginLeft + (point.x - viewport.left) * viewport.effectivePPP,
-    y: layout.marginBottom + (viewport.top + viewport.heightPx - point.y) * viewport.effectivePPP,
-  });
+  // Compute viewport grid (1×1 for single-page, n×m for multi-page)
+  const multiPage = computeMultiPageViewports(
+    layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds,
+  );
+  const totalPages = multiPage.viewports.length;
 
   // Create PDF
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-  // Embed base map
-  await embedMap(pdfDoc, page, mapImage, toPdf, imgWidth, imgHeight);
-
-  // Draw vector overprint
-  renderOverprint(
-    { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
-    course,
-    event.controls,
-    font,
-  );
-
-  // Embed bold font for title
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-  // Draw course title (top of page, centered within printable area)
-  drawCourseTitle(page, layout, course.name, boldFont);
+  // Embed the base map image once — pdf-lib allows drawing the same embedded image
+  // on multiple pages without re-encoding.
+  const embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight);
 
-  // Draw scale bar (bottom-right of page, within printable area)
-  drawScaleBar(page, layout, printScale, font);
+  for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+    const viewport = multiPage.viewports[pageIndex]!;
+
+    // Coordinate transform for this page's viewport
+    const toPdf = viewportToPdf(layout, viewport);
+
+    const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+
+    // Draw base map
+    if (embeddedMap) {
+      drawEmbeddedMap(page, embeddedMap.image, embeddedMap.renderScale, toPdf, imgWidth, imgHeight);
+    }
+
+    // Draw vector overprint (elements outside page bounds are harmless — PDF clips them)
+    renderOverprint(
+      { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
+      course,
+      event.controls,
+      font,
+    );
+
+    // Title on every page (with page indicator if multi-page)
+    const titleText = totalPages > 1
+      ? `${course.name} (${pageIndex + 1}/${totalPages})`
+      : course.name;
+    drawCourseTitle(page, layout, titleText, boldFont);
+
+    // Scale bar on every page
+    drawScaleBar(page, layout, printScale, font);
+  }
 
   const pdfBytes = await pdfDoc.save();
   const blob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
@@ -78,21 +93,34 @@ export async function generateCoursePdf(
 }
 
 /**
- * Embed the base map onto the PDF page.
- * Uses the same toPdf coordinate transform as the overprint renderer so
- * the image and vector elements share a single consistent coordinate system.
+ * Build a coordinate transform function for a given viewport.
+ * Map: (0,0) = top-left, Y down. PDF: (0,0) = bottom-left, Y up.
  */
-async function embedMap(
+function viewportToPdf(layout: PageLayout, viewport: MapViewport): (point: MapPoint) => MapPoint {
+  return (point: MapPoint): MapPoint => ({
+    x: layout.marginLeft + (point.x - viewport.left) * viewport.effectivePPP,
+    y: layout.marginBottom + (viewport.top + viewport.heightPx - point.y) * viewport.effectivePPP,
+  });
+}
+
+interface EmbeddedMapImage {
+  image: Awaited<ReturnType<PDFDocument['embedPng']>>;
+  renderScale: number;
+}
+
+/**
+ * Prepare the map image for embedding — scales it down if needed and embeds it
+ * into the PDF document. Returns null if the canvas context is unavailable.
+ */
+async function prepareMapImage(
   pdfDoc: PDFDocument,
-  page: ReturnType<PDFDocument['addPage']>,
   mapImage: HTMLCanvasElement | HTMLImageElement,
-  toPdf: (point: MapPoint) => MapPoint,
   imgWidth: number,
   imgHeight: number,
-): Promise<void> {
+): Promise<EmbeddedMapImage | null> {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return null;
 
   // Cap at 4096px on longest side to keep PDF size reasonable
   const maxDim = 4096;
@@ -110,15 +138,33 @@ async function embedMap(
   });
 
   const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
-  const pngImage = await pdfDoc.embedPng(pngBytes);
+  const image = await pdfDoc.embedPng(pngBytes);
+  return { image, renderScale };
+}
 
-  // Position the map using the same toPdf transform as the overprint.
+/**
+ * Draw an already-embedded map image onto a page using the given coordinate transform.
+ * The renderScale compensates for any downscaling applied during embedding.
+ */
+function drawEmbeddedMap(
+  page: PDFPage,
+  image: EmbeddedMapImage['image'],
+  renderScale: number,
+  toPdf: (point: MapPoint) => MapPoint,
+  imgWidth: number,
+  imgHeight: number,
+): void {
   // Map pixel (0,0) = top-left, (imgWidth, imgHeight) = bottom-right.
   // pdf-lib drawImage: (x, y) = bottom-left corner of image.
   const topLeft = toPdf({ x: 0, y: 0 });
   const bottomRight = toPdf({ x: imgWidth, y: imgHeight });
 
-  page.drawImage(pngImage, {
+  // The embedded image was rendered at renderScale, so its intrinsic size is
+  // smaller. drawImage width/height are in PDF points (screen-independent),
+  // so we pass the full PDF extent — pdf-lib handles the scaling internally.
+  void renderScale; // used during embedding, not needed here
+
+  page.drawImage(image, {
     x: topLeft.x,
     y: bottomRight.y,
     width: bottomRight.x - topLeft.x,
@@ -141,10 +187,10 @@ const BLACK = rgb(0, 0, 0);
  * placed just inside the top margin so it sits above the map image.
  */
 function drawCourseTitle(
-  page: ReturnType<PDFDocument['addPage']>,
+  page: PDFPage,
   layout: PageLayout,
   courseName: string,
-  boldFont: ReturnType<PDFDocument['embedFont']> extends Promise<infer F> ? F : never,
+  boldFont: PDFFont,
 ): void {
   const textWidth = boldFont.widthOfTextAtSize(courseName, TITLE_FONT_SIZE);
   const x = layout.marginLeft + (layout.printableWidth - textWidth) / 2;
@@ -199,10 +245,10 @@ function chooseScaleBarParams(printScale: number): {
  *   - "Scale 1:X" text: 2pt below labels
  */
 function drawScaleBar(
-  page: ReturnType<PDFDocument['addPage']>,
+  page: PDFPage,
   layout: PageLayout,
   printScale: number,
-  font: ReturnType<PDFDocument['embedFont']> extends Promise<infer F> ? F : never,
+  font: PDFFont,
 ): void {
   const { segmentMetres, segments } = chooseScaleBarParams(printScale);
 

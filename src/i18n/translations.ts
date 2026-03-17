@@ -87,6 +87,15 @@ const en = {
   mapScaleLabel: 'Scale',
   customScale: 'Custom\u2026',
   clickToEditDpi: 'Click to edit DPI',
+
+  // Control types
+  crossingPoint: 'Crossing point',
+  mapExchange: 'Map exchange',
+  courseControlType: 'Click to change type',
+  scoreLabel: 'Score',
+  normalCourse: 'Normal',
+  scoreCourse: 'Score',
+  courseType: 'Course type',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -148,6 +157,13 @@ const fr: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: '\xc9chelle',
   customScale: 'Personnalis\xe9\u2026',
   clickToEditDpi: 'Cliquer pour modifier le DPI',
+  crossingPoint: 'Point de passage oblig\xe9',
+  mapExchange: '\xc9change de carte',
+  courseControlType: 'Cliquer pour changer le type',
+  scoreLabel: 'Points',
+  normalCourse: 'Normal',
+  scoreCourse: 'Score',
+  courseType: 'Type de circuit',
 };
 
 // ---------------------------------------------------------------------------
@@ -207,6 +223,13 @@ const de: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: 'Ma\xdfstab',
   customScale: 'Benutzerdefiniert\u2026',
   clickToEditDpi: 'Klicken um DPI zu bearbeiten',
+  crossingPoint: 'Pflichtp\xe4ssierung',
+  mapExchange: 'Kartentausch',
+  courseControlType: 'Klicken, um den Typ zu \xe4ndern',
+  scoreLabel: 'Punkte',
+  normalCourse: 'Normal',
+  scoreCourse: 'Score',
+  courseType: 'Bahntyp',
 };
 
 // ---------------------------------------------------------------------------
@@ -266,6 +289,13 @@ const es: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: 'Escala',
   customScale: 'Personalizado\u2026',
   clickToEditDpi: 'Clic para editar DPI',
+  crossingPoint: 'Punto de paso obligatorio',
+  mapExchange: 'Cambio de mapa',
+  courseControlType: 'Clic para cambiar el tipo',
+  scoreLabel: 'Puntos',
+  normalCourse: 'Normal',
+  scoreCourse: 'Score',
+  courseType: 'Tipo de recorrido',
 };
 
 // ---------------------------------------------------------------------------
@@ -325,6 +355,13 @@ const fi: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: 'Mittakaava',
   customScale: 'Mukautettu\u2026',
   clickToEditDpi: 'Napsauta muokataksesi DPI',
+  crossingPoint: 'Pakollinen v\xe4lil\xe4pikulku',
+  mapExchange: 'Karttavaihto',
+  courseControlType: 'Napsauta vaihtaaksesi tyyppi\xe4',
+  scoreLabel: 'Pisteet',
+  normalCourse: 'Normaali',
+  scoreCourse: 'Pistejuoksu',
+  courseType: 'Ratatyyppi',
 };
 
 // ---------------------------------------------------------------------------
@@ -384,6 +421,13 @@ const it: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: 'Scala',
   customScale: 'Personalizzato\u2026',
   clickToEditDpi: 'Clicca per modificare DPI',
+  crossingPoint: 'Punto di passaggio obbligatorio',
+  mapExchange: 'Cambio mappa',
+  courseControlType: 'Clicca per cambiare il tipo',
+  scoreLabel: 'Punteggio',
+  normalCourse: 'Normale',
+  scoreCourse: 'Score',
+  courseType: 'Tipo di percorso',
 };
 
 // ---------------------------------------------------------------------------
@@ -443,6 +487,13 @@ const sv: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: 'Skala',
   customScale: 'Anpassad\u2026',
   clickToEditDpi: 'Klicka f\xf6r att redigera DPI',
+  crossingPoint: 'Tv\xe5ngsp\xe5ssering',
+  mapExchange: 'Kartbyte',
+  courseControlType: 'Klicka f\xf6r att \xe4ndra typ',
+  scoreLabel: 'Po\xe4ng',
+  normalCourse: 'Normal',
+  scoreCourse: 'Po\xe4ng',
+  courseType: 'Banatyp',
 };
 
 // ---------------------------------------------------------------------------
@@ -502,6 +553,13 @@ const ja: Partial<Record<TranslationKey, string>> = {
   mapScaleLabel: '縮尺',
   customScale: 'カスタム\u2026',
   clickToEditDpi: 'クリックしてDPIを編集',
+  crossingPoint: '通過義務地点',
+  mapExchange: '地図交換',
+  courseControlType: 'クリックしてタイプを変更',
+  scoreLabel: 'スコア',
+  normalCourse: '通常',
+  scoreCourse: 'スコア',
+  courseType: 'コースタイプ',
 };
 
 // ---------------------------------------------------------------------------

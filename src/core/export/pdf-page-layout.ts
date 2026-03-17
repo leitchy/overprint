@@ -119,6 +119,13 @@ export interface MapViewport {
   effectivePPP: number;
 }
 
+export interface MultiPageLayout {
+  rows: number;
+  cols: number;
+  /** One viewport per page, in reading order (left-to-right, top-to-bottom). */
+  viewports: MapViewport[];
+}
+
 /**
  * Compute the map viewport that fits on the page at correct print scale,
  * centered on the course controls.
@@ -180,4 +187,101 @@ export function computeMapViewport(
   }
 
   return { left, top, widthPx: viewportWidthPx, heightPx: viewportHeightPx, effectivePPP };
+}
+
+/**
+ * Compute a grid of viewports for multi-page PDF export.
+ *
+ * If the padded course bounding box fits within a single page viewport the
+ * result is a 1×1 grid (identical behaviour to a single-page export).
+ * Otherwise the course extent is divided into a rows×cols grid with an
+ * `overlapMm` overlap between adjacent pages so the reader can orient
+ * themselves when flipping pages.
+ *
+ * All viewports share the same `effectivePPP` (scale factor).
+ *
+ * @param overlapMm - Overlap between adjacent pages in mm at print scale (default 15mm)
+ */
+export function computeMultiPageViewports(
+  layout: PageLayout,
+  mapScale: number,
+  printScale: number,
+  dpi: number,
+  imgWidth: number,
+  imgHeight: number,
+  bounds: CourseBounds,
+  paddingMm = 30,
+  overlapMm = 15,
+): MultiPageLayout {
+  // PDF points per map pixel at correct print scale
+  const effectivePPP = (72 / dpi) * (mapScale / printScale);
+
+  // Convert padding and overlap from mm at print scale to map pixels
+  const paddingPx = (paddingMm / 25.4) * dpi * (printScale / mapScale);
+  const overlapPx = (overlapMm / 25.4) * dpi * (printScale / mapScale);
+
+  // How many map pixels fit in the printable area (one page)
+  const pageWidthPx = layout.printableWidth / effectivePPP;
+  const pageHeightPx = layout.printableHeight / effectivePPP;
+
+  // Padded course extent
+  const extentLeft = bounds.minX - paddingPx;
+  const extentTop = bounds.minY - paddingPx;
+  const extentWidth = (bounds.maxX - bounds.minX) + paddingPx * 2;
+  const extentHeight = (bounds.maxY - bounds.minY) + paddingPx * 2;
+
+  // If the extent fits in a single page, fall back to single viewport
+  if (extentWidth <= pageWidthPx && extentHeight <= pageHeightPx) {
+    const singleViewport = computeMapViewport(
+      layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds, paddingMm,
+    );
+    return { rows: 1, cols: 1, viewports: [singleViewport] };
+  }
+
+  // Usable tile size per page (subtract overlap so adjacent tiles can share border area)
+  const tileWidthPx = pageWidthPx - overlapPx;
+  const tileHeightPx = pageHeightPx - overlapPx;
+
+  const cols = Math.max(1, Math.ceil(extentWidth / tileWidthPx));
+  const rows = Math.max(1, Math.ceil(extentHeight / tileHeightPx));
+
+  // Total grid extent (may be slightly larger than course extent due to rounding)
+  const gridWidth = cols * tileWidthPx + overlapPx;
+  const gridHeight = rows * tileHeightPx + overlapPx;
+
+  // Center the grid on the course extent
+  const gridLeft = extentLeft + extentWidth / 2 - gridWidth / 2;
+  const gridTop = extentTop + extentHeight / 2 - gridHeight / 2;
+
+  const viewports: MapViewport[] = [];
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      let left = gridLeft + col * tileWidthPx;
+      let top = gridTop + row * tileHeightPx;
+
+      // Clamp to map image boundaries
+      if (pageWidthPx < imgWidth) {
+        left = Math.max(0, Math.min(left, imgWidth - pageWidthPx));
+      } else {
+        left = -(pageWidthPx - imgWidth) / 2;
+      }
+
+      if (pageHeightPx < imgHeight) {
+        top = Math.max(0, Math.min(top, imgHeight - pageHeightPx));
+      } else {
+        top = -(pageHeightPx - imgHeight) / 2;
+      }
+
+      viewports.push({
+        left,
+        top,
+        widthPx: pageWidthPx,
+        heightPx: pageHeightPx,
+        effectivePPP,
+      });
+    }
+  }
+
+  return { rows, cols, viewports };
 }
