@@ -14,6 +14,7 @@ import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 import { PrintBoundary } from '@/components/map/print-boundary';
+import { SpecialItemsLayer } from '@/components/map/special-items-layer';
 
 // Module-level stage reference — allows toolbar and export utilities to access
 // the Konva stage without prop drilling.
@@ -73,7 +74,11 @@ export function MapCanvas() {
   useEffect(() => {
     const container = stageRef.current?.container();
     if (!container) return;
-    container.style.cursor = activeTool === 'addControl' ? 'crosshair' : 'default';
+    if (activeTool.type === 'addControl' || activeTool.type === 'addSpecialItem') {
+      container.style.cursor = 'crosshair';
+    } else {
+      container.style.cursor = 'default';
+    }
   }, [activeTool]);
 
   // Compute overprint dimensions
@@ -140,8 +145,8 @@ export function MapCanvas() {
                 controls={event.controls}
                 dimensions={dimensions}
                 selectedControlId={selectedControlId}
-                draggable={activeTool === 'pan'}
-                allowLegInsert={activeTool === 'addControl'}
+                draggable={activeTool.type === 'pan'}
+                allowLegInsert={activeTool.type === 'addControl'}
                 courseId={activeCourseId}
                 onSelectControl={(id) => {
                   useEventStore.getState().setSelectedControl(id);
@@ -195,7 +200,7 @@ export function MapCanvas() {
                 allowLegInsert={false}
                 color="#C0C0C0"
                 showNumbers={false}
-                clickable={activeTool === 'addControl'}
+                clickable={activeTool.type === 'addControl'}
                 onSelectControl={(controlId) => {
                   const store = useEventStore.getState();
                   if (!store.activeCourseId || !activeCourse) return;
@@ -209,9 +214,13 @@ export function MapCanvas() {
               />
             ))}
 
-            {/* Print boundary — dashed rectangle showing the printable area at
-                the current print scale. Non-interactive; rendered on top of all
-                course shapes so it is always visible. */}
+          </Layer>
+
+          {/* Special items layer — interactive annotations above the overprint */}
+          <SpecialItemsLayer />
+
+          {/* Print boundary layer — non-interactive, always on top */}
+          <Layer listening={false}>
             <PrintBoundary />
           </Layer>
         </Stage>

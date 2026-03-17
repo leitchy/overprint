@@ -96,6 +96,24 @@ const en = {
   normalCourse: 'Normal',
   scoreCourse: 'Score',
   courseType: 'Course type',
+
+  // Special items toolbar
+  specialItems: 'Special Items',
+  addText: 'Text',
+  addLine: 'Line',
+  addRectangle: 'Rectangle',
+  outOfBounds: 'Out of Bounds',
+  dangerousArea: 'Dangerous Area',
+  waterLocation: 'Water Location',
+  firstAid: 'First Aid',
+  forbiddenRoute: 'Forbidden Route',
+
+  // Map metadata (Page Setup)
+  mapTitleLabel: 'Map title',
+  mapTitlePlaceholder: 'e.g. Red Hill North',
+  mapAuthorLabel: 'Map author',
+  contourIntervalLabel: 'Contour interval',
+  contourIntervalPlaceholder: 'e.g. 5',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -164,6 +182,20 @@ const fr: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normal',
   scoreCourse: 'Score',
   courseType: 'Type de circuit',
+  specialItems: '\xc9l\xe9ments sp\xe9ciaux',
+  addText: 'Texte',
+  addLine: 'Ligne',
+  addRectangle: 'Rectangle',
+  outOfBounds: 'Zone hors limites',
+  dangerousArea: 'Zone dangereuse',
+  waterLocation: 'Point d\u2019eau',
+  firstAid: 'Premiers secours',
+  forbiddenRoute: 'Itin\xe9raire interdit',
+  mapTitleLabel: 'Titre de la carte',
+  mapTitlePlaceholder: 'ex. Colline rouge nord',
+  mapAuthorLabel: 'Auteur de la carte',
+  contourIntervalLabel: '\xc9quidistance',
+  contourIntervalPlaceholder: 'ex. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -230,6 +262,20 @@ const de: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normal',
   scoreCourse: 'Score',
   courseType: 'Bahntyp',
+  specialItems: 'Sonderelemente',
+  addText: 'Text',
+  addLine: 'Linie',
+  addRectangle: 'Rechteck',
+  outOfBounds: 'Gesperrtes Gebiet',
+  dangerousArea: 'Gef\xe4hrliches Gebiet',
+  waterLocation: 'Wasserposten',
+  firstAid: 'Erste Hilfe',
+  forbiddenRoute: 'Gesperrte Route',
+  mapTitleLabel: 'Kartentitel',
+  mapTitlePlaceholder: 'z.B. Roter H\xfcgel Nord',
+  mapAuthorLabel: 'Kartenautor',
+  contourIntervalLabel: '\xc4quidistanz',
+  contourIntervalPlaceholder: 'z.B. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -296,6 +342,20 @@ const es: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normal',
   scoreCourse: 'Score',
   courseType: 'Tipo de recorrido',
+  specialItems: 'Elementos especiales',
+  addText: 'Texto',
+  addLine: 'L\xednea',
+  addRectangle: 'Rect\xe1ngulo',
+  outOfBounds: 'Fuera de l\xedmites',
+  dangerousArea: '\xc1rea peligrosa',
+  waterLocation: 'Punto de agua',
+  firstAid: 'Primeros auxilios',
+  forbiddenRoute: 'Ruta prohibida',
+  mapTitleLabel: 'T\xedtulo del mapa',
+  mapTitlePlaceholder: 'ej. Colina Roja Norte',
+  mapAuthorLabel: 'Autor del mapa',
+  contourIntervalLabel: 'Equidistancia',
+  contourIntervalPlaceholder: 'ej. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -362,6 +422,20 @@ const fi: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normaali',
   scoreCourse: 'Pistejuoksu',
   courseType: 'Ratatyyppi',
+  specialItems: 'Erikoiselementit',
+  addText: 'Teksti',
+  addLine: 'Viiva',
+  addRectangle: 'Suorakulmio',
+  outOfBounds: 'Kielletty alue',
+  dangerousArea: 'Vaarallinen alue',
+  waterLocation: 'Vesiasema',
+  firstAid: 'Ensiapu',
+  forbiddenRoute: 'Kielletty reitti',
+  mapTitleLabel: 'Kartan otsikko',
+  mapTitlePlaceholder: 'esim. Punainen m\xe4ki pohjoinen',
+  mapAuthorLabel: 'Kartan tekij\xe4',
+  contourIntervalLabel: 'K\xe4yr\xe4v\xe4li',
+  contourIntervalPlaceholder: 'esim. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -428,6 +502,20 @@ const it: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normale',
   scoreCourse: 'Score',
   courseType: 'Tipo di percorso',
+  specialItems: 'Elementi speciali',
+  addText: 'Testo',
+  addLine: 'Linea',
+  addRectangle: 'Rettangolo',
+  outOfBounds: 'Zona fuori limiti',
+  dangerousArea: 'Zona pericolosa',
+  waterLocation: 'Punto acqua',
+  firstAid: 'Primo soccorso',
+  forbiddenRoute: 'Percorso vietato',
+  mapTitleLabel: 'Titolo mappa',
+  mapTitlePlaceholder: 'es. Collina Rossa Nord',
+  mapAuthorLabel: 'Autore mappa',
+  contourIntervalLabel: 'Equidistanza',
+  contourIntervalPlaceholder: 'es. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -494,6 +582,20 @@ const sv: Partial<Record<TranslationKey, string>> = {
   normalCourse: 'Normal',
   scoreCourse: 'Po\xe4ng',
   courseType: 'Banatyp',
+  specialItems: 'Speciella element',
+  addText: 'Text',
+  addLine: 'Linje',
+  addRectangle: 'Rektangel',
+  outOfBounds: 'Utanf\xf6r gr\xe4ns',
+  dangerousArea: 'Farligt omr\xe5de',
+  waterLocation: 'Vattenstation',
+  firstAid: 'F\xf6rsta hj\xe4lpen',
+  forbiddenRoute: 'F\xf6rbjuden v\xe4g',
+  mapTitleLabel: 'Karttitel',
+  mapTitlePlaceholder: 'ex. R\xf6da kullen nord',
+  mapAuthorLabel: 'Kartf\xf6rfattare',
+  contourIntervalLabel: 'Ekvidistans',
+  contourIntervalPlaceholder: 'ex. 5',
 };
 
 // ---------------------------------------------------------------------------
@@ -560,6 +662,20 @@ const ja: Partial<Record<TranslationKey, string>> = {
   normalCourse: '通常',
   scoreCourse: 'スコア',
   courseType: 'コースタイプ',
+  specialItems: '特殊アイテム',
+  addText: 'テキスト',
+  addLine: '直線',
+  addRectangle: '四角形',
+  outOfBounds: '立入禁止区域',
+  dangerousArea: '危険区域',
+  waterLocation: '給水ポスト',
+  firstAid: '救護所',
+  forbiddenRoute: '通行禁止路',
+  mapTitleLabel: '地図タイトル',
+  mapTitlePlaceholder: '例：赤丘北部',
+  mapAuthorLabel: '地図作成者',
+  contourIntervalLabel: '等高線間隔',
+  contourIntervalPlaceholder: '例：5',
 };
 
 // ---------------------------------------------------------------------------

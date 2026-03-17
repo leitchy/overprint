@@ -113,20 +113,21 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
 
       const activeTool = useToolStore.getState().activeTool;
 
-      if (activeTool === 'addControl') {
+      if (activeTool.type === 'addControl') {
         // Add control at click position (in map-image coordinates)
         e.evt.preventDefault();
         const pos = stage.getRelativePointerPosition();
         if (pos) {
           useEventStore.getState().addControlToCourse({ x: pos.x, y: pos.y });
         }
-      } else {
+      } else if (activeTool.type === 'pan') {
         // Pan mode — start panning, deselect any selected control
         e.evt.preventDefault();
         isPanningRef.current = true;
         panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
         useEventStore.getState().setSelectedControl(null);
       }
+      // addSpecialItem mode: let SpecialItemsLayer handle the click
     },
     [stageRef],
   );

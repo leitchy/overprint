@@ -47,6 +47,7 @@ export function createEvent(name: string, language = 'en'): OverprintEvent {
     mapFile: null,
     courses: [],
     controls: {},
+    specialItems: [],
     settings: { ...DEFAULT_EVENT_SETTINGS, language },
     version: FILE_FORMAT_VERSION,
   };

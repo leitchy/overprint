@@ -1,7 +1,8 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { PDFFont, PDFPage } from 'pdf-lib';
-import type { OverprintEvent, Course } from '@/core/models/types';
+import type { OverprintEvent, Course, SpecialItem } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
+import type { CourseId } from '@/utils/id';
 import type { PageLayout, MapViewport } from './pdf-page-layout';
 import { computePageLayout, computeCourseBounds, computeMultiPageViewports } from './pdf-page-layout';
 import { renderOverprint } from './pdf-overprint-renderer';
@@ -76,14 +77,18 @@ export async function generateCoursePdf(
       font,
     );
 
+    // Draw special items (filter by course: items with no courseIds restriction, or this course)
+    renderSpecialItems(page, event.specialItems, course.id, toPdf, font);
+
     // Title on every page (with page indicator if multi-page)
+    const mapTitleBase = event.settings.mapTitle ?? event.name;
     const titleText = totalPages > 1
-      ? `${course.name} (${pageIndex + 1}/${totalPages})`
-      : course.name;
+      ? `${course.name} — ${mapTitleBase} (${pageIndex + 1}/${totalPages})`
+      : `${course.name} — ${mapTitleBase}`;
     drawCourseTitle(page, layout, titleText, boldFont);
 
     // Scale bar on every page
-    drawScaleBar(page, layout, printScale, font);
+    drawScaleBar(page, layout, printScale, font, event.settings.contourInterval);
   }
 
   const pdfBytes = await pdfDoc.save();
@@ -249,6 +254,7 @@ function drawScaleBar(
   layout: PageLayout,
   printScale: number,
   font: PDFFont,
+  contourInterval?: number,
 ): void {
   const { segmentMetres, segments } = chooseScaleBarParams(printScale);
 
@@ -326,8 +332,10 @@ function drawScaleBar(
     // Odd segments: already white (no fill needed)
   }
 
-  // Draw "Scale 1:X,XXX" text centred under the bar
-  const scaleText = `Scale 1:${printScale.toLocaleString('en')}`;
+  // Draw "Scale 1:X,XXX [· Contours X m]" text centred under the bar
+  const scaleText = contourInterval
+    ? `Scale 1:${printScale.toLocaleString('en')} \u00b7 Contours ${contourInterval} m`
+    : `Scale 1:${printScale.toLocaleString('en')}`;
   const scaleTextWidth = font.widthOfTextAtSize(scaleText, SCALE_BAR_FONT_SIZE);
   const scaleTextX = barLeft + (barWidthPt - scaleTextWidth) / 2;
   const scaleTextY = blockBottom;
@@ -342,4 +350,143 @@ function drawScaleBar(
 
   // Suppress unused variable warning for blockHeight (used for documentation)
   void blockHeight;
+}
+
+// ---------------------------------------------------------------------------
+// Special items rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Render all special items for a course onto the PDF page.
+ * Items with no courseIds restriction are always rendered.
+ * Items with courseIds are only rendered if courseId is in the list.
+ */
+function renderSpecialItems(
+  page: PDFPage,
+  specialItems: SpecialItem[],
+  courseId: CourseId,
+  toPdf: (point: MapPoint) => MapPoint,
+  font: PDFFont,
+): void {
+  const MM_TO_PT = 72 / 25.4;
+  const IOF_SYMBOL_PT = 12; // pt half-size for IOF symbols in PDF
+
+  for (const item of specialItems) {
+    // Filter by course
+    if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) {
+      continue;
+    }
+
+    const colorHex = item.color ?? '#CD59A4';
+    const itemColor = hexToRgb(colorHex);
+    const pos = toPdf(item.position);
+
+    switch (item.type) {
+      case 'text': {
+        const fontSizePt = item.fontSize * MM_TO_PT;
+        page.drawText(item.text, {
+          x: pos.x,
+          y: pos.y,
+          size: fontSizePt,
+          font,
+          color: itemColor,
+        });
+        break;
+      }
+
+      case 'line': {
+        const endPos = toPdf(item.endPosition);
+        page.drawLine({
+          start: { x: pos.x, y: pos.y },
+          end: { x: endPos.x, y: endPos.y },
+          thickness: 1.5,
+          color: itemColor,
+        });
+        break;
+      }
+
+      case 'rectangle': {
+        const endPos = toPdf(item.endPosition);
+        const rectX = Math.min(pos.x, endPos.x);
+        const rectY = Math.min(pos.y, endPos.y);
+        page.drawRectangle({
+          x: rectX,
+          y: rectY,
+          width: Math.abs(endPos.x - pos.x),
+          height: Math.abs(endPos.y - pos.y),
+          borderColor: itemColor,
+          borderWidth: 1.5,
+        });
+        break;
+      }
+
+      case 'outOfBounds': {
+        // Hatched square
+        const s = IOF_SYMBOL_PT;
+        page.drawRectangle({
+          x: pos.x - s, y: pos.y - s,
+          width: s * 2, height: s * 2,
+          borderColor: itemColor, borderWidth: 1,
+        });
+        for (let i = -2; i <= 2; i++) {
+          const ox = i * (s / 2);
+          page.drawLine({
+            start: { x: pos.x + ox - s, y: pos.y - s },
+            end: { x: pos.x + ox + s, y: pos.y + s },
+            thickness: 0.7,
+            color: itemColor,
+          });
+        }
+        break;
+      }
+
+      case 'dangerousArea': {
+        const s = IOF_SYMBOL_PT;
+        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: 1, color: itemColor });
+        break;
+      }
+
+      case 'waterLocation': {
+        // Circle with wave inside
+        const s = IOF_SYMBOL_PT;
+        page.drawCircle({ x: pos.x, y: pos.y, size: s, borderColor: itemColor, borderWidth: 1 });
+        page.drawLine({
+          start: { x: pos.x - s * 0.5, y: pos.y },
+          end: { x: pos.x + s * 0.5, y: pos.y },
+          thickness: 1, color: itemColor,
+        });
+        break;
+      }
+
+      case 'firstAid': {
+        const s = IOF_SYMBOL_PT * 0.7;
+        page.drawLine({ start: { x: pos.x, y: pos.y - s }, end: { x: pos.x, y: pos.y + s }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s, y: pos.y }, end: { x: pos.x + s, y: pos.y }, thickness: 2, color: itemColor });
+        break;
+      }
+
+      case 'forbiddenRoute': {
+        const s = IOF_SYMBOL_PT * 0.7;
+        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: 2, color: itemColor });
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Convert a CSS hex colour string (e.g. '#CD59A4') to a pdf-lib rgb() value.
+ * Falls back to purple overprint colour if parsing fails.
+ */
+function hexToRgb(hex: string): ReturnType<typeof rgb> {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!match) return rgb(0.804, 0.349, 0.643); // fallback: overprint purple
+  return rgb(
+    parseInt(match[1]!, 16) / 255,
+    parseInt(match[2]!, 16) / 255,
+    parseInt(match[3]!, 16) / 255,
+  );
 }
