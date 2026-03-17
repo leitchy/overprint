@@ -14,6 +14,7 @@ import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 import { PrintBoundary } from '@/components/map/print-boundary';
+import { TextFormatToolbar } from '@/components/map/text-format-toolbar';
 import { SpecialItemsLayer } from '@/components/map/special-items-layer';
 
 // Module-level stage reference — allows toolbar and export utilities to access
@@ -225,6 +226,7 @@ export function MapCanvas() {
           </Layer>
         </Stage>
       )}
+      <TextFormatToolbar />
       {image && (
         <>
           <MapSettingsPanel />
