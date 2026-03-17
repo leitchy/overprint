@@ -1,9 +1,16 @@
 import { Circle, Text, Group } from 'react-konva';
-import type { Control, CourseControlType } from '@/core/models/types';
+import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { StartTriangle } from './start-triangle';
+import { FinishCircles } from './finish-circles';
 
 const PURPLE = '#CD59A4';
 const SELECTION_COLOR = '#FFD700';
+
+// On-screen line width multiplier — IOF print spec (0.35mm) is too thin
+// at screen DPI. PurplePen also renders thicker on screen.
+// Exact IOF dimensions will be used for PDF export only.
+const SCREEN_LINE_MULTIPLIER = 3;
 
 interface ControlShapeProps {
   control: Control;
@@ -12,6 +19,7 @@ interface ControlShapeProps {
   dimensions: OverprintPixelDimensions;
   isSelected: boolean;
   draggable: boolean;
+  startTarget?: MapPoint; // For start triangle — direction to point toward
   onSelect?: () => void;
   onDragEnd?: (x: number, y: number) => void;
 }
@@ -23,15 +31,21 @@ export function ControlShape({
   dimensions,
   isSelected,
   draggable,
+  startTarget,
   onSelect,
   onDragEnd,
 }: ControlShapeProps) {
   const { x, y } = control.position;
-  const { circleRadius, lineWidth, numberSize } = dimensions;
+  const { circleRadius, numberSize } = dimensions;
+  const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
-  // For now, render all types as circles (start triangle + finish circles in Step 4)
-  const isRegularControl = type === 'control';
-  const showCode = isRegularControl || type === 'start' || type === 'finish';
+  // Selection ring radius varies by shape type
+  const selectionRadius =
+    type === 'start'
+      ? dimensions.startTriangleSide / Math.sqrt(3) + screenLineWidth * 2
+      : type === 'finish'
+        ? dimensions.finishOuterRadius + screenLineWidth * 2
+        : circleRadius + screenLineWidth * 2;
 
   return (
     <Group
@@ -65,34 +79,46 @@ export function ControlShape({
       {/* Selection highlight ring */}
       {isSelected && (
         <Circle
-          radius={circleRadius + lineWidth * 3}
+          radius={selectionRadius}
           stroke={SELECTION_COLOR}
-          strokeWidth={lineWidth}
+          strokeWidth={screenLineWidth}
           dash={[6, 4]}
           listening={false}
         />
       )}
 
-      {/* Control circle */}
-      <Circle
-        radius={circleRadius}
-        stroke={PURPLE}
-        strokeWidth={lineWidth}
-        fill="transparent"
-      />
-
-      {/* Control code number */}
-      {showCode && (
-        <Text
-          text={String(sequenceNumber)}
-          x={circleRadius + lineWidth * 2}
-          y={-(numberSize / 2)}
-          fontSize={numberSize}
-          fill={PURPLE}
-          fontStyle="bold"
-          listening={false}
+      {/* Shape based on control type */}
+      {type === 'start' ? (
+        <StartTriangle
+          sideLength={dimensions.startTriangleSide}
+          lineWidth={screenLineWidth}
+          targetPoint={startTarget}
+        />
+      ) : type === 'finish' ? (
+        <FinishCircles
+          outerRadius={dimensions.finishOuterRadius}
+          innerRadius={dimensions.finishInnerRadius}
+          lineWidth={screenLineWidth}
+        />
+      ) : (
+        <Circle
+          radius={circleRadius}
+          stroke={PURPLE}
+          strokeWidth={screenLineWidth}
+          fill="transparent"
         />
       )}
+
+      {/* Control sequence number */}
+      <Text
+        text={String(sequenceNumber)}
+        x={selectionRadius + screenLineWidth}
+        y={-(numberSize * 0.6)}
+        fontSize={numberSize * 1.2}
+        fill={PURPLE}
+        fontStyle="bold"
+        listening={false}
+      />
     </Group>
   );
 }

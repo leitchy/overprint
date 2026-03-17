@@ -250,6 +250,16 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
       const stage = stageRef.current;
       if (!stage) return;
 
+      // Delete/Backspace — remove selected control from active course
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        const { selectedControlId, activeCourseId } = useEventStore.getState();
+        if (selectedControlId && activeCourseId) {
+          e.preventDefault();
+          useEventStore.getState().removeControlFromCourse(activeCourseId, selectedControlId);
+        }
+        return;
+      }
+
       let dx = 0;
       let dy = 0;
       switch (e.code) {

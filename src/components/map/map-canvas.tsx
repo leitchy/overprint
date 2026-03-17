@@ -8,7 +8,7 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
-import { ControlShape } from '@/components/course/control-shape';
+import { CourseRenderer } from '@/components/course/course-renderer';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 
@@ -88,8 +88,11 @@ export function MapCanvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Map layer — no event listening for performance */}
-          <Layer listening={false}>
+          {/* Map layer — dimmed when course has controls for overprint visibility */}
+          <Layer
+            listening={false}
+            opacity={activeCourse && activeCourse.controls.length > 0 ? 0.6 : 1}
+          >
             {image && (
               <KonvaImage
                 image={image}
@@ -102,28 +105,21 @@ export function MapCanvas() {
 
           {/* Course overprint layer */}
           <Layer>
-            {activeCourse && dimensions && event &&
-              activeCourse.controls.map((cc, index) => {
-                const control = event.controls[cc.controlId];
-                if (!control) return null;
-                return (
-                  <ControlShape
-                    key={control.id}
-                    control={control}
-                    type={cc.type}
-                    sequenceNumber={index + 1}
-                    dimensions={dimensions}
-                    isSelected={control.id === selectedControlId}
-                    draggable={activeTool === 'pan'}
-                    onSelect={() => {
-                      useEventStore.getState().setSelectedControl(control.id);
-                    }}
-                    onDragEnd={(x, y) => {
-                      useEventStore.getState().updateControlPosition(control.id, { x, y });
-                    }}
-                  />
-                );
-              })}
+            {activeCourse && dimensions && event && (
+              <CourseRenderer
+                course={activeCourse}
+                controls={event.controls}
+                dimensions={dimensions}
+                selectedControlId={selectedControlId}
+                draggable={activeTool === 'pan'}
+                onSelectControl={(id) => {
+                  useEventStore.getState().setSelectedControl(id);
+                }}
+                onDragControlEnd={(id, x, y) => {
+                  useEventStore.getState().updateControlPosition(id, { x, y });
+                }}
+              />
+            )}
           </Layer>
         </Stage>
       )}
