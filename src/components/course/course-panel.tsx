@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Course, Control } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
@@ -26,6 +27,10 @@ export function CoursePanel({
   const setSelectedControl = useEventStore((s) => s.setSelectedControl);
   const moveControlInCourse = useEventStore((s) => s.moveControlInCourse);
   const removeControlFromCourse = useEventStore((s) => s.removeControlFromCourse);
+  const setControlCode = useEventStore((s) => s.setControlCode);
+
+  const [editingCodeId, setEditingCodeId] = useState<ControlId | null>(null);
+  const [codeDraft, setCodeDraft] = useState(0);
 
   const lengthMetres =
     course && mapFile
@@ -80,9 +85,43 @@ export function CoursePanel({
                     <span className="w-5 text-center font-medium text-gray-500">
                       {typeLabel}
                     </span>
-                    <span className="flex-1 font-mono text-gray-700">
-                      #{control.code}
-                    </span>
+                    {editingCodeId === cc.controlId ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        min={31}
+                        value={codeDraft}
+                        className="w-14 flex-1 font-mono text-gray-700 border-b border-violet-400 bg-transparent outline-none px-1 text-xs"
+                        onChange={(e) => setCodeDraft(Number(e.target.value))}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            if (codeDraft > 30) setControlCode(cc.controlId, codeDraft);
+                            setEditingCodeId(null);
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingCodeId(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (codeDraft > 30) setControlCode(cc.controlId, codeDraft);
+                          setEditingCodeId(null);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span
+                        className="flex-1 font-mono text-gray-700 cursor-pointer hover:text-violet-600"
+                        title={t('clickToEditCode')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingCodeId(cc.controlId);
+                          setCodeDraft(control.code);
+                        }}
+                      >
+                        #{control.code}
+                      </span>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -111,7 +150,7 @@ export function CoursePanel({
                         removeControlFromCourse(courseId, cc.controlId);
                       }}
                       className="rounded px-1 text-red-300 hover:text-red-600"
-                      title="Remove"
+                      title={t('removeFromCourse')}
                     >
                       &times;
                     </button>

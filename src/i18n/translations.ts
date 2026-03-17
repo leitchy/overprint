@@ -62,6 +62,11 @@ const en = {
   showPrintBoundaryLabel: 'Show print boundary',
   showPrintBoundaryDescription: 'Displays the printable area on the map at the current print scale',
 
+  // Inline editing tooltips
+  clickToEditEventName: 'Click to edit event name',
+  clickToEditCode: 'Click to edit control code',
+  removeFromCourse: 'Remove from course',
+
   // Page setup modal
   pageSetup: 'Page Setup\u2026',
   pageSetupTitle: 'Page Setup',
@@ -85,6 +90,9 @@ export type TranslationKey = keyof typeof en;
 // ---------------------------------------------------------------------------
 
 const fr: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Cliquer pour modifier le nom de l\u2019\xe9v\xe9nement',
+  clickToEditCode: 'Cliquer pour modifier le code du poste',
+  removeFromCourse: 'Retirer du circuit',
   file: 'Fichier',
   openEvent: 'Ouvrir l\u2019\xe9v\xe9nement\u2026',
   saveEvent: 'Enregistrer l\u2019\xe9v\xe9nement\u2026',
@@ -137,6 +145,9 @@ const fr: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const de: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Klicken, um den Wettkampfnamen zu bearbeiten',
+  clickToEditCode: 'Klicken, um den Postencode zu bearbeiten',
+  removeFromCourse: 'Aus der Bahn entfernen',
   file: 'Datei',
   openEvent: 'Wettkampf \xf6ffnen\u2026',
   saveEvent: 'Wettkampf speichern\u2026',
@@ -189,6 +200,9 @@ const de: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const es: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Clic para editar el nombre del evento',
+  clickToEditCode: 'Clic para editar el c\xf3digo del control',
+  removeFromCourse: 'Quitar del recorrido',
   file: 'Archivo',
   openEvent: 'Abrir evento\u2026',
   saveEvent: 'Guardar evento\u2026',
@@ -241,6 +255,9 @@ const es: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const fi: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Napsauta muokataksesi kilpailun nime\xe4',
+  clickToEditCode: 'Napsauta muokataksesi rastikoodia',
+  removeFromCourse: 'Poista radalta',
   file: 'Tiedosto',
   openEvent: 'Avaa kilpailu\u2026',
   saveEvent: 'Tallenna kilpailu\u2026',
@@ -293,6 +310,9 @@ const fi: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const it: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Clicca per modificare il nome dell\u2019evento',
+  clickToEditCode: 'Clicca per modificare il codice della lanterna',
+  removeFromCourse: 'Rimuovi dal percorso',
   file: 'File',
   openEvent: 'Apri evento\u2026',
   saveEvent: 'Salva evento\u2026',
@@ -345,6 +365,9 @@ const it: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const sv: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'Klicka f\xf6r att redigera t\xe4vlingsnamnet',
+  clickToEditCode: 'Klicka f\xf6r att redigera kontrollkoden',
+  removeFromCourse: 'Ta bort fr\xe5n banan',
   file: 'Arkiv',
   openEvent: '\xd6ppna t\xe4vling\u2026',
   saveEvent: 'Spara t\xe4vling\u2026',
@@ -397,6 +420,9 @@ const sv: Partial<Record<TranslationKey, string>> = {
 // ---------------------------------------------------------------------------
 
 const ja: Partial<Record<TranslationKey, string>> = {
+  clickToEditEventName: 'クリックしてイベント名を編集',
+  clickToEditCode: 'クリックしてコントロールコードを編集',
+  removeFromCourse: 'コースから削除',
   file: 'ファイル',
   openEvent: 'イベントを開く\u2026',
   saveEvent: 'イベントを保存\u2026',
