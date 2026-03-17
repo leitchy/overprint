@@ -11,6 +11,7 @@ import type { Tool } from '@/stores/tool-store';
 import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
+import { PrintSettingsModal } from './print-settings';
 import { useT } from '@/i18n/use-t';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
@@ -29,6 +30,7 @@ export function Toolbar() {
   const hasImage = useMapImageStore((s) => s.image !== null);
   const [loading, setLoading] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [pageSetupOpen, setPageSetupOpen] = useState(false);
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -303,6 +305,7 @@ export function Toolbar() {
     { separator: true },
     { label: t('importIofXml'), onClick: handleImportIofXml, disabled: !hasEvent },
     { separator: true },
+    { label: t('pageSetup'), onClick: () => setPageSetupOpen(true), disabled: !hasEvent },
     { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
     { separator: true },
     { label: t('newEvent'), onClick: handleNewEvent },
@@ -359,6 +362,9 @@ export function Toolbar() {
 
       {preferencesOpen && (
         <PreferencesModal onClose={() => setPreferencesOpen(false)} />
+      )}
+      {pageSetupOpen && (
+        <PrintSettingsModal onClose={() => setPageSetupOpen(false)} />
       )}
       <input
         ref={fileInputRef}
