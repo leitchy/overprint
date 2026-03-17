@@ -114,6 +114,11 @@ const en = {
   mapAuthorLabel: 'Map author',
   contourIntervalLabel: 'Contour interval',
   contourIntervalPlaceholder: 'e.g. 5',
+
+  // All controls view
+  allControls: 'All controls',
+  viewingAllControls: 'Viewing all controls',
+  addControlDisabledInAllControls: 'Switch to a course to add controls',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -196,6 +201,9 @@ const fr: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Auteur de la carte',
   contourIntervalLabel: '\xc9quidistance',
   contourIntervalPlaceholder: 'ex. 5',
+  allControls: 'Tous les postes',
+  viewingAllControls: 'Affichage de tous les postes',
+  addControlDisabledInAllControls: 'Passez \xe0 un circuit pour ajouter des postes',
 };
 
 // ---------------------------------------------------------------------------
@@ -276,6 +284,9 @@ const de: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Kartenautor',
   contourIntervalLabel: '\xc4quidistanz',
   contourIntervalPlaceholder: 'z.B. 5',
+  allControls: 'Alle Posten',
+  viewingAllControls: 'Alle Posten werden angezeigt',
+  addControlDisabledInAllControls: 'Wechseln Sie zu einer Bahn, um Posten hinzuzuf\xfcgen',
 };
 
 // ---------------------------------------------------------------------------
@@ -356,6 +367,9 @@ const es: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Autor del mapa',
   contourIntervalLabel: 'Equidistancia',
   contourIntervalPlaceholder: 'ej. 5',
+  allControls: 'Todos los controles',
+  viewingAllControls: 'Viendo todos los controles',
+  addControlDisabledInAllControls: 'Cambia a un recorrido para a\xf1adir controles',
 };
 
 // ---------------------------------------------------------------------------
@@ -436,6 +450,9 @@ const fi: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Kartan tekij\xe4',
   contourIntervalLabel: 'K\xe4yr\xe4v\xe4li',
   contourIntervalPlaceholder: 'esim. 5',
+  allControls: 'Kaikki rastit',
+  viewingAllControls: 'N\xe4ytet\xe4\xe4n kaikki rastit',
+  addControlDisabledInAllControls: 'Vaihda radalle lis\xe4t\xe4ksesi rasteja',
 };
 
 // ---------------------------------------------------------------------------
@@ -516,6 +533,9 @@ const it: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Autore mappa',
   contourIntervalLabel: 'Equidistanza',
   contourIntervalPlaceholder: 'es. 5',
+  allControls: 'Tutti i punti',
+  viewingAllControls: 'Visualizzazione di tutti i punti',
+  addControlDisabledInAllControls: 'Passa a un percorso per aggiungere punti',
 };
 
 // ---------------------------------------------------------------------------
@@ -596,6 +616,9 @@ const sv: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: 'Kartf\xf6rfattare',
   contourIntervalLabel: 'Ekvidistans',
   contourIntervalPlaceholder: 'ex. 5',
+  allControls: 'Alla kontroller',
+  viewingAllControls: 'Visar alla kontroller',
+  addControlDisabledInAllControls: 'Byt till en bana f\xf6r att l\xe4gga till kontroller',
 };
 
 // ---------------------------------------------------------------------------
@@ -676,6 +699,9 @@ const ja: Partial<Record<TranslationKey, string>> = {
   mapAuthorLabel: '地図作成者',
   contourIntervalLabel: '等高線間隔',
   contourIntervalPlaceholder: '例：5',
+  allControls: '全コントロール',
+  viewingAllControls: '全コントロールを表示中',
+  addControlDisabledInAllControls: 'コントロールを追加するにはコースに切り替えてください',
 };
 
 // ---------------------------------------------------------------------------

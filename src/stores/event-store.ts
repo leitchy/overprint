@@ -18,6 +18,8 @@ import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from
 import { useAppSettingsStore } from './app-settings-store';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
 
+export type ViewMode = 'allControls' | 'course';
+
 // --- Type derivation helper ---
 
 function deriveCourseControlTypes(controls: CourseControl[]): void {
@@ -47,6 +49,7 @@ interface EventState {
   // UI state — not undoable (excluded from partialize)
   activeCourseId: CourseId | null;
   selectedControlId: ControlId | null;
+  viewMode: ViewMode;
 }
 
 interface EventActions {
@@ -61,6 +64,7 @@ interface EventActions {
   renameCourse: (id: CourseId, name: string) => void;
   deleteCourse: (id: CourseId) => void;
   setActiveCourse: (id: CourseId | null) => void;
+  showAllControls: () => void;
   setSelectedControl: (id: ControlId | null) => void;
 
   // Control-to-course operations (public API)
@@ -121,6 +125,7 @@ export const useEventStore = create<EventState & EventActions>()(
       event: null,
       activeCourseId: null,
       selectedControlId: null,
+      viewMode: 'course',
 
       newEvent: (name: string) => {
         set((state) => {
@@ -129,6 +134,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.event = createEvent(name, iofLang);
           state.activeCourseId = null;
           state.selectedControlId = null;
+          state.viewMode = 'course';
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -178,6 +184,7 @@ export const useEventStore = create<EventState & EventActions>()(
           const course = createCourse(name);
           state.event.courses.push(course);
           state.activeCourseId = course.id;
+          state.viewMode = 'course';
         });
       },
 
@@ -208,6 +215,10 @@ export const useEventStore = create<EventState & EventActions>()(
             const next = remaining[index] ?? remaining[index - 1] ?? null;
             state.activeCourseId = next?.id ?? null;
             state.selectedControlId = null;
+            // If no courses remain, switch to all-controls view
+            if (!state.activeCourseId) {
+              state.viewMode = 'allControls';
+            }
           }
         });
       },
@@ -215,6 +226,14 @@ export const useEventStore = create<EventState & EventActions>()(
       setActiveCourse: (id: CourseId | null) => {
         set((state) => {
           state.activeCourseId = id;
+          state.selectedControlId = null;
+          state.viewMode = 'course';
+        });
+      },
+
+      showAllControls: () => {
+        set((state) => {
+          state.viewMode = 'allControls';
           state.selectedControlId = null;
         });
       },
@@ -383,6 +402,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.event = event;
           state.activeCourseId = event.courses[0]?.id ?? null;
           state.selectedControlId = null;
+          state.viewMode = event.courses.length > 0 ? 'course' : 'allControls';
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());

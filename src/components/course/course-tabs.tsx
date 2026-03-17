@@ -3,6 +3,7 @@ import { useEventStore } from '@/stores/event-store';
 import type { CourseId } from '@/utils/id';
 import { useT } from '@/i18n/use-t';
 
+
 /**
  * Course list for the side panel — click a course to make it active,
  * with inline rename, delete, and add new course.
@@ -11,7 +12,9 @@ export function CourseList() {
   const t = useT();
   const courses = useEventStore((s) => s.event?.courses ?? []);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
+  const viewMode = useEventStore((s) => s.viewMode);
   const setActiveCourse = useEventStore((s) => s.setActiveCourse);
+  const showAllControls = useEventStore((s) => s.showAllControls);
   const addCourse = useEventStore((s) => s.addCourse);
   const renameCourse = useEventStore((s) => s.renameCourse);
   const deleteCourse = useEventStore((s) => s.deleteCourse);
@@ -73,6 +76,23 @@ export function CourseList() {
 
   return (
     <div className="border-b border-gray-200">
+      {/* All controls entry */}
+      <div
+        className={`flex items-center px-3 py-1.5 text-sm italic ${
+          viewMode === 'allControls'
+            ? 'border-l-2 border-l-gray-400 bg-gray-50 font-medium text-gray-700'
+            : 'cursor-pointer border-l-2 border-l-transparent text-gray-400 hover:bg-gray-50'
+        }`}
+        onClick={() => showAllControls()}
+      >
+        {t('allControls')}
+      </div>
+
+      {/* Thin separator between all-controls entry and course list */}
+      {courses.length > 0 && (
+        <div className="mx-3 border-t border-gray-100" />
+      )}
+
       {/* Course list */}
       {courses.map((course) => {
         const isActive = course.id === activeCourseId;

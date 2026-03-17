@@ -13,6 +13,9 @@ interface DescriptionSheetProps {
   selectedControlId: ControlId | null;
   onCellClick?: (controlId: ControlId, column: string, cellElement: HTMLElement) => void;
   onSelectControl?: (id: ControlId) => void;
+  /** Rendering mode: 'course' (default) shows full course with sequence numbers;
+   *  'allControls' shows all controls sorted by code with no sequence numbers. */
+  mode?: 'course' | 'allControls';
 }
 
 const GRID_COLS = 'grid-cols-[1.5rem_2rem_repeat(6,1fr)]';
@@ -28,28 +31,42 @@ export function DescriptionSheet({
   selectedControlId,
   onCellClick,
   onSelectControl,
+  mode = 'course',
 }: DescriptionSheetProps) {
   const lengthMetres = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
   const lengthKm = (lengthMetres / 1000).toFixed(1);
 
+  const isAllControls = mode === 'allControls';
+
+  // In all-controls mode, sort the controls by code number
+  const displayControls = isAllControls
+    ? [...course.controls].sort((a, b) => {
+        const ca = controls[a.controlId];
+        const cb = controls[b.controlId];
+        return (ca?.code ?? 0) - (cb?.code ?? 0);
+      })
+    : course.controls;
+
   return (
     <div className="description-sheet select-none">
-      {/* Header — course name */}
+      {/* Header — course name or "All controls" label */}
       <div className={`grid ${GRID_COLS}`}>
         <div className="col-span-full border border-gray-800 bg-white px-2 py-1 text-center text-sm font-bold text-gray-800">
           {course.name}
         </div>
       </div>
 
-      {/* Info row — length and climb */}
-      <div className={`grid ${GRID_COLS}`}>
-        <div className="col-span-2 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
-          {lengthKm} km
+      {/* Info row — length and climb (hidden in all-controls mode) */}
+      {!isAllControls && (
+        <div className={`grid ${GRID_COLS}`}>
+          <div className="col-span-2 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
+            {lengthKm} km
+          </div>
+          <div className="col-span-6 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
+            {course.climb ? `↑ ${course.climb}m` : ''}
+          </div>
         </div>
-        <div className="col-span-6 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
-          {course.climb ? `↑ ${course.climb}m` : ''}
-        </div>
-      </div>
+      )}
 
       {/* Column headers */}
       <div className={`grid ${GRID_COLS}`}>
@@ -64,13 +81,13 @@ export function DescriptionSheet({
       </div>
 
       {/* Control rows */}
-      {course.controls.map((cc, index) => {
+      {displayControls.map((cc, index) => {
         const control = controls[cc.controlId];
         if (!control) return null;
 
         const isSelected = cc.controlId === selectedControlId;
-        const isStart = cc.type === 'start';
-        const isFinish = cc.type === 'finish';
+        const isStart = !isAllControls && cc.type === 'start';
+        const isFinish = !isAllControls && cc.type === 'finish';
 
         return (
           <div
@@ -78,9 +95,9 @@ export function DescriptionSheet({
             className={`grid ${GRID_COLS} ${isSelected ? 'bg-yellow-50' : ''}`}
             onClick={() => onSelectControl?.(cc.controlId)}
           >
-            {/* Column A — sequence number */}
+            {/* Column A — sequence number (empty in all-controls mode) */}
             <NumberCell
-              value={isStart ? 'S' : isFinish ? 'F' : index + 1}
+              value={isAllControls ? '' : (isStart ? 'S' : isFinish ? 'F' : index + 1)}
               muted
             />
 
@@ -95,7 +112,7 @@ export function DescriptionSheet({
                   key={col}
                   value={control.description[col]}
                   lang={lang}
-                  isEditable
+                  isEditable={!isAllControls}
                   isSelected={isSelected}
                   onClick={(el) => onCellClick?.(cc.controlId, colLetter, el)}
                 />
@@ -106,7 +123,7 @@ export function DescriptionSheet({
       })}
 
       {/* Empty state */}
-      {course.controls.length === 0 && (
+      {displayControls.length === 0 && (
         <div className={`grid ${GRID_COLS}`}>
           <div className="col-span-full border border-dashed border-gray-300 px-2 py-4 text-center text-xs text-gray-400">
             Add controls to the map
