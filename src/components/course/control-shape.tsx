@@ -1,4 +1,4 @@
-import { Circle, Text, Group } from 'react-konva';
+import { Circle, Rect, Text, Group } from 'react-konva';
 import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { StartTriangle } from './start-triangle';
@@ -86,13 +86,19 @@ export function ControlShape({
         }
       }}
     >
-      {/* Invisible hit region — ensures all control types (including
-          finish/start with listening={false} shapes) are clickable */}
-      <Circle
-        radius={selectionRadius}
-        fill="transparent"
-        stroke="transparent"
-      />
+      {/* Hit region for background course controls — ensures finish/start
+          types (which have listening={false} on their shapes) are clickable
+          for shared control reuse. Only rendered when clickable. */}
+      {clickable && (
+        <Rect
+          x={-selectionRadius}
+          y={-selectionRadius}
+          width={selectionRadius * 2}
+          height={selectionRadius * 2}
+          fill="#000"
+          opacity={0.001}
+        />
+      )}
 
       {/* Selection highlight ring */}
       {isSelected && (
