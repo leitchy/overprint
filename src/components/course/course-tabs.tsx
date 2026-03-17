@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import type { CourseId } from '@/utils/id';
+import { useT } from '@/i18n/use-t';
 
 /**
  * Course list for the side panel — click a course to make it active,
  * with inline rename, delete, and add new course.
  */
 export function CourseList() {
+  const t = useT();
   const courses = useEventStore((s) => s.event?.courses ?? []);
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const setActiveCourse = useEventStore((s) => s.setActiveCourse);
@@ -55,7 +57,7 @@ export function CourseList() {
   }
 
   function handleAddCourse() {
-    const name = window.prompt('Course name:', `Course ${courses.length + 1}`);
+    const name = window.prompt(t('courseNamePrompt'), `Course ${courses.length + 1}`);
     if (name && name.trim()) {
       addCourse(name.trim());
     }
@@ -140,15 +142,15 @@ export function CourseList() {
 
       {/* Add course button */}
       <button
-        aria-label="Add course"
-        title="Add course"
+        aria-label={t('addCourse')}
+        title={t('addCourse')}
         className="flex w-full items-center gap-1 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-700"
         onClick={handleAddCourse}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
           <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
         </svg>
-        Add course
+        {t('addCourse')}
       </button>
     </div>
   );

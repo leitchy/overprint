@@ -29,16 +29,25 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   descriptionStandard: '2024',
   mapStandard: 'ISOM2017',
   pageSetup: DEFAULT_PAGE_SETUP,
+  language: 'en',
 };
 
-export function createEvent(name: string): OverprintEvent {
+/**
+ * Create a new OverprintEvent with default settings.
+ *
+ * @param name     - Display name for the event
+ * @param language - BCP 47 language tag for the default description language.
+ *                   Defaults to 'en'. Pass the current app language so new
+ *                   events inherit the user's preferred description language.
+ */
+export function createEvent(name: string, language = 'en'): OverprintEvent {
   return {
     id: generateEventId(),
     name,
     mapFile: null,
     courses: [],
     controls: {},
-    settings: DEFAULT_EVENT_SETTINGS,
+    settings: { ...DEFAULT_EVENT_SETTINGS, language },
     version: FILE_FORMAT_VERSION,
   };
 }

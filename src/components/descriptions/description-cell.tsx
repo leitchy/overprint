@@ -4,6 +4,7 @@ import { SymbolIcon } from './symbol-icon';
 
 interface DescriptionCellProps {
   value?: string;           // IOF symbol ID
+  lang?: string;            // BCP 47 language tag for symbol name/tooltip
   isEditable?: boolean;
   isSelected?: boolean;
   onClick?: (cellElement: HTMLElement) => void;
@@ -11,6 +12,7 @@ interface DescriptionCellProps {
 
 export function DescriptionCell({
   value,
+  lang = 'en',
   isEditable = false,
   isSelected = false,
   onClick,
@@ -50,14 +52,14 @@ export function DescriptionCell({
           : undefined
       }
       role={isEditable ? 'button' : undefined}
-      title={value ? getSymbolName(value) : isEditable ? 'Click to set' : ''}
+      title={value ? getSymbolName(value, lang) : isEditable ? 'Click to set' : ''}
     >
       {value && (
         hasSvg ? (
           <SymbolIcon symbolId={value} size={20} />
         ) : (
           <span className="truncate text-[9px] leading-tight text-gray-600">
-            {getSymbolName(value)}
+            {getSymbolName(value, lang)}
           </span>
         )
       )}

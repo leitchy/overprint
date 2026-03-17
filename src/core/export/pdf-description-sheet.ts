@@ -15,7 +15,7 @@ import type { Control, Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { calculateCourseLength } from '@/core/geometry/course-length';
-import { getSymbolSvg } from '@/core/iof/symbol-db';
+import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
 // ---------------------------------------------------------------------------
 // Layout constants
@@ -104,6 +104,7 @@ export async function generateDescriptionSheetPdf(
   const course: Course | undefined = event.courses[courseIndex];
   if (!course) throw new Error('No course to export');
 
+  const lang = event.settings.language ?? 'en';
   const dpi = event.mapFile?.dpi ?? 96;
   const scale = event.mapFile?.scale ?? event.settings.printScale;
 
@@ -295,10 +296,12 @@ export async function generateDescriptionSheetPdf(
     // Column B: control code (blank for start/finish)
     const colB: string | null = isStart || isFinish ? null : String(ctrl.code);
 
-    // Columns C-H: description symbols (or text)
+    // Columns C-H: description symbols (SVG preferred) or localised text fallback
     const desc = ctrl.description;
-    const symOrText = (v: string | undefined): string | null =>
-      v ? `sym:${v}` : null;
+    const symOrText = (v: string | undefined): string | null => {
+      if (!v) return null;
+      return getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
+    };
 
     const cells: Array<string | null> = [
       colA,

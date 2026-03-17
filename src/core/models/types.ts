@@ -84,6 +84,8 @@ export interface EventSettings {
   descriptionStandard: DescriptionStandard;
   mapStandard: MapStandard;
   pageSetup: PageSetup;
+  /** BCP 47 language tag for IOF control description output. Default: 'en'. */
+  language: string;
 }
 
 export interface OverprintEvent {
