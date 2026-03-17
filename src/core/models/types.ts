@@ -7,7 +7,7 @@ export interface MapPoint {
 
 export interface MapFile {
   name: string;
-  type: 'raster' | 'pdf';
+  type: 'raster' | 'pdf' | 'ocad';
   scale: number;  // e.g. 10000 for 1:10000
   dpi: number;    // Resolution for coordinate mapping
 }

@@ -5,7 +5,7 @@ import { loadRasterImage } from '@/core/files/load-raster';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf';
+const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
 
 export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +54,16 @@ export function Toolbar() {
           type: 'pdf',
           scale: 15000,
           dpi: 200,
+        });
+      } else if (fileType === 'ocad') {
+        const { loadOcadMap } = await import('@/core/files/load-ocad');
+        const result = await loadOcadMap(file);
+        useMapImageStore.getState().setImage(result.image, result.width, result.height);
+        useEventStore.getState().setMapFile({
+          name: file.name,
+          type: 'ocad',
+          scale: result.scale ?? 15000,
+          dpi: 150, // SVG rasterized at screen resolution
         });
       }
     } catch (err) {

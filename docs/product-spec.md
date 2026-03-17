@@ -57,6 +57,7 @@ A free, web-based orienteering course setting tool that runs on any device with 
 ### Phase 1 — Core Course Setting
 **Goal**: Place controls, see courses, get descriptions.
 
+- [ ] Map loading: OCAD files via ocad2geojson (see ADR-010)
 - [ ] Control placement: click to add control at map position
 - [ ] Start triangle rendering
 - [ ] Finish circle rendering (double circle, IOF spec)
@@ -102,11 +103,10 @@ A free, web-based orienteering course setting tool that runs on any device with 
 - [ ] Competitor load calculation per control/leg
 
 ### Phase 5 — Map Format Support
-**Goal**: Native orienteering map file support.
+**Goal**: Native orienteering map file support beyond OCAD.
 
 - [ ] OpenOrienteering Mapper (.omap) file loading — XML format, render map layers to canvas
 - [ ] OpenOrienteering Mapper (.xmap) support
-- [ ] OCAD file loading (binary format — stretch goal, may need WASM)
 - [ ] Map layer visibility toggles
 
 ### Phase 6 — Polish & Community

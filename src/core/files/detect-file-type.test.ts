@@ -46,6 +46,14 @@ describe('detectMapFileType', () => {
     expect(detectMapFileType(mockFile('map.bmp', ''))).toBe('raster');
   });
 
+  it('detects OCAD by extension', () => {
+    expect(detectMapFileType(mockFile('map.ocd', ''))).toBe('ocad');
+  });
+
+  it('detects OCAD case-insensitive', () => {
+    expect(detectMapFileType(mockFile('MAP.OCD', ''))).toBe('ocad');
+  });
+
   it('returns unknown for unsupported types', () => {
     expect(detectMapFileType(mockFile('data.csv', 'text/csv'))).toBe('unknown');
   });
