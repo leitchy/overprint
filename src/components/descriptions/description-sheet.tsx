@@ -9,7 +9,7 @@ interface DescriptionSheetProps {
   mapScale: number;
   mapDpi: number;
   selectedControlId: ControlId | null;
-  onCellClick?: (controlId: ControlId, column: string) => void;
+  onCellClick?: (controlId: ControlId, column: string, cellElement: HTMLElement) => void;
   onSelectControl?: (id: ControlId) => void;
 }
 
@@ -93,7 +93,7 @@ export function DescriptionSheet({
                   value={control.description[col]}
                   isEditable
                   isSelected={isSelected}
-                  onClick={() => onCellClick?.(cc.controlId, colLetter)}
+                  onClick={(el) => onCellClick?.(cc.controlId, colLetter, el)}
                 />
               );
             })}

@@ -59,6 +59,9 @@ interface EventActions {
   moveControlInCourse: (courseId: CourseId, fromIndex: number, toIndex: number) => void;
   insertControlInCourse: (courseId: CourseId, controlId: ControlId, atIndex: number) => void;
 
+  // Description editing
+  updateControlDescription: (id: ControlId, column: string, value: string | undefined) => void;
+
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
 }
@@ -228,6 +231,20 @@ export const useEventStore = create<EventState & EventActions>()(
           };
           course.controls.splice(atIndex, 0, courseControl);
           deriveCourseControlTypes(course.controls);
+        });
+      },
+
+      // --- Description editing ---
+
+      updateControlDescription: (id: ControlId, column: string, value: string | undefined) => {
+        set((state) => {
+          const control = state.event?.controls[id];
+          if (!control) return;
+          const key = `column${column}` as keyof typeof control.description;
+          if (key in control.description || key.startsWith('column')) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (control.description as any)[key] = value;
+          }
         });
       },
 
