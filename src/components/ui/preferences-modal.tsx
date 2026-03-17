@@ -15,8 +15,6 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
   const t = useT();
   const appLanguage = useAppSettingsStore((s) => s.appLanguage);
   const setAppLanguage = useAppSettingsStore((s) => s.setAppLanguage);
-  const showPrintBoundary = useAppSettingsStore((s) => s.showPrintBoundary);
-  const setShowPrintBoundary = useAppSettingsStore((s) => s.setShowPrintBoundary);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -82,26 +80,6 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
                 </option>
               ))}
             </select>
-          </div>
-
-          {/* Print boundary overlay */}
-          <div>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showPrintBoundary}
-                onChange={(e) => setShowPrintBoundary(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-400"
-              />
-              <span>
-                <span className="block text-sm font-medium text-gray-700">
-                  {t('showPrintBoundaryLabel')}
-                </span>
-                <span className="block mt-0.5 text-xs text-gray-400">
-                  {t('showPrintBoundaryDescription')}
-                </span>
-              </span>
-            </label>
           </div>
         </div>
 

@@ -293,6 +293,10 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
   // Keyboard: Space tracking + arrow key panning
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when typing in form elements
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
       if (e.code === 'Space') {
         e.preventDefault();
         spaceDownRef.current = true;
