@@ -183,7 +183,8 @@ const LineItemShape = memo(function LineItemShape({
   draggable,
   onSelect,
   onDragEnd,
-}: ItemProps<LineItem>) {
+  onUpdate,
+}: ItemProps<LineItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
   const color = item.color ?? ITEM_COLOR;
   const dx = item.endPosition.x - item.position.x;
   const dy = item.endPosition.y - item.position.y;
@@ -208,8 +209,46 @@ const LineItemShape = memo(function LineItemShape({
       />
       {isSelected && (
         <>
-          <Circle x={0} y={0} radius={5} fill={SELECTION_COLOR} listening={false} />
-          <Circle x={dx} y={dy} radius={5} fill={SELECTION_COLOR} listening={false} />
+          {/* Start handle — drag to move start point */}
+          <Circle
+            x={0} y={0} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: 0, y: 0 });
+              onUpdate?.({ position: newPos } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = 'move';
+            }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = '';
+            }}
+          />
+          {/* End handle — drag to move end point */}
+          <Circle
+            x={dx} y={dy} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: dx, y: dy });
+              onUpdate?.({ endPosition: newEnd } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = 'move';
+            }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = '';
+            }}
+          />
         </>
       )}
     </Group>
@@ -222,30 +261,31 @@ const RectangleItemShape = memo(function RectangleItemShape({
   draggable,
   onSelect,
   onDragEnd,
-}: ItemProps<RectangleItem>) {
+  onUpdate,
+}: ItemProps<RectangleItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
   const color = item.color ?? ITEM_COLOR;
-  const minX = Math.min(item.position.x, item.endPosition.x);
-  const minY = Math.min(item.position.y, item.endPosition.y);
-  const width = Math.abs(item.endPosition.x - item.position.x);
-  const height = Math.abs(item.endPosition.y - item.position.y);
+  const w = item.endPosition.x - item.position.x;
+  const h = item.endPosition.y - item.position.y;
+  const minX = Math.min(0, w);
+  const minY = Math.min(0, h);
+  const absW = Math.abs(w);
+  const absH = Math.abs(h);
   return (
     <Group
+      x={item.position.x}
+      y={item.position.y}
       draggable={draggable}
       onClick={(e: KonvaEventObject<MouseEvent>) => { e.cancelBubble = true; onSelect(); }}
       onTap={(e: KonvaEventObject<TouchEvent>) => { e.cancelBubble = true; onSelect(); }}
       onDragEnd={(e: KonvaEventObject<DragEvent>) => {
-        // For rectangle, track drag by offset from minX/minY
-        const deltaX = e.target.x();
-        const deltaY = e.target.y();
-        onDragEnd({ x: minX + deltaX, y: minY + deltaY });
-        e.target.position({ x: 0, y: 0 }); // reset group position
+        onDragEnd({ x: e.target.x(), y: e.target.y() });
       }}
     >
       <Rect
         x={minX}
         y={minY}
-        width={width}
-        height={height}
+        width={absW}
+        height={absH}
         stroke={color}
         strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
         fill="transparent"
@@ -253,14 +293,34 @@ const RectangleItemShape = memo(function RectangleItemShape({
       />
       {isSelected && (
         <>
-          {[
-            [minX, minY],
-            [minX + width, minY],
-            [minX, minY + height],
-            [minX + width, minY + height],
-          ].map(([cx, cy], i) => (
-            <Circle key={i} x={cx} y={cy} radius={5} fill={SELECTION_COLOR} listening={false} />
-          ))}
+          {/* Position corner (top-left of the defined rect) */}
+          <Circle
+            x={0} y={0} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: 0, y: 0 });
+              onUpdate?.({ position: newPos } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
+          {/* EndPosition corner (opposite corner) */}
+          <Circle
+            x={w} y={h} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: w, y: h });
+              onUpdate?.({ endPosition: newEnd } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
         </>
       )}
     </Group>
@@ -560,13 +620,14 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                 item={item}
                 {...commonProps}
                 onDragEnd={(pos) => {
-                  const dx = item.endPosition.x - item.position.x;
-                  const dy = item.endPosition.y - item.position.y;
+                  const ldx = item.endPosition.x - item.position.x;
+                  const ldy = item.endPosition.y - item.position.y;
                   updateSpecialItem(item.id, {
                     position: pos,
-                    endPosition: { x: pos.x + dx, y: pos.y + dy },
+                    endPosition: { x: pos.x + ldx, y: pos.y + ldy },
                   } as Partial<SpecialItem>);
                 }}
+                onUpdate={(updates) => updateSpecialItem(item.id, updates)}
               />
             );
           case 'rectangle':
@@ -576,13 +637,14 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                 item={item}
                 {...commonProps}
                 onDragEnd={(pos) => {
-                  const width = item.endPosition.x - item.position.x;
-                  const height = item.endPosition.y - item.position.y;
+                  const rw = item.endPosition.x - item.position.x;
+                  const rh = item.endPosition.y - item.position.y;
                   updateSpecialItem(item.id, {
                     position: pos,
-                    endPosition: { x: pos.x + width, y: pos.y + height },
+                    endPosition: { x: pos.x + rw, y: pos.y + rh },
                   } as Partial<SpecialItem>);
                 }}
+                onUpdate={(updates) => updateSpecialItem(item.id, updates)}
               />
             );
           default:
