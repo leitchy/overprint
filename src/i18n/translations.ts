@@ -81,6 +81,12 @@ const en = {
   right: 'Right',
   bottom: 'Bottom',
   left: 'Left',
+
+  // Map settings panel
+  mapSettingsTitle: 'Map Settings',
+  mapScaleLabel: 'Scale',
+  customScale: 'Custom\u2026',
+  clickToEditDpi: 'Click to edit DPI',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -138,6 +144,10 @@ const fr: Partial<Record<TranslationKey, string>> = {
   right: 'Droite',
   bottom: 'Bas',
   left: 'Gauche',
+  mapSettingsTitle: 'Param\xe8tres de carte',
+  mapScaleLabel: '\xc9chelle',
+  customScale: 'Personnalis\xe9\u2026',
+  clickToEditDpi: 'Cliquer pour modifier le DPI',
 };
 
 // ---------------------------------------------------------------------------
@@ -193,6 +203,10 @@ const de: Partial<Record<TranslationKey, string>> = {
   right: 'Rechts',
   bottom: 'Unten',
   left: 'Links',
+  mapSettingsTitle: 'Karteneinstellungen',
+  mapScaleLabel: 'Ma\xdfstab',
+  customScale: 'Benutzerdefiniert\u2026',
+  clickToEditDpi: 'Klicken um DPI zu bearbeiten',
 };
 
 // ---------------------------------------------------------------------------
@@ -248,6 +262,10 @@ const es: Partial<Record<TranslationKey, string>> = {
   right: 'Derecho',
   bottom: 'Inferior',
   left: 'Izquierdo',
+  mapSettingsTitle: 'Ajustes del mapa',
+  mapScaleLabel: 'Escala',
+  customScale: 'Personalizado\u2026',
+  clickToEditDpi: 'Clic para editar DPI',
 };
 
 // ---------------------------------------------------------------------------
@@ -303,6 +321,10 @@ const fi: Partial<Record<TranslationKey, string>> = {
   right: 'Oikea',
   bottom: 'Ala',
   left: 'Vasen',
+  mapSettingsTitle: 'Kartta-asetukset',
+  mapScaleLabel: 'Mittakaava',
+  customScale: 'Mukautettu\u2026',
+  clickToEditDpi: 'Napsauta muokataksesi DPI',
 };
 
 // ---------------------------------------------------------------------------
@@ -358,6 +380,10 @@ const it: Partial<Record<TranslationKey, string>> = {
   right: 'Destro',
   bottom: 'Inferiore',
   left: 'Sinistro',
+  mapSettingsTitle: 'Impostazioni mappa',
+  mapScaleLabel: 'Scala',
+  customScale: 'Personalizzato\u2026',
+  clickToEditDpi: 'Clicca per modificare DPI',
 };
 
 // ---------------------------------------------------------------------------
@@ -413,6 +439,10 @@ const sv: Partial<Record<TranslationKey, string>> = {
   right: 'H\xf6ger',
   bottom: 'Nedre',
   left: 'V\xe4nster',
+  mapSettingsTitle: 'Kartinst\xe4llningar',
+  mapScaleLabel: 'Skala',
+  customScale: 'Anpassad\u2026',
+  clickToEditDpi: 'Klicka f\xf6r att redigera DPI',
 };
 
 // ---------------------------------------------------------------------------
@@ -468,6 +498,10 @@ const ja: Partial<Record<TranslationKey, string>> = {
   right: '右',
   bottom: '下',
   left: '左',
+  mapSettingsTitle: '地図設定',
+  mapScaleLabel: '縮尺',
+  customScale: 'カスタム\u2026',
+  clickToEditDpi: 'クリックしてDPIを編集',
 };
 
 // ---------------------------------------------------------------------------
