@@ -32,6 +32,9 @@ importers:
       react-konva:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)(konva@10.2.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      svg-control-descriptions:
+        specifier: ^2.1.0
+        version: 2.1.0
       zustand:
         specifier: ^5.0.12
         version: 5.0.12(@types/react@19.2.14)(immer@11.1.4)(react@19.2.4)
@@ -1084,6 +1087,9 @@ packages:
   strip-indent@3.0.0:
     resolution: {integrity: sha512-laJTa3Jb+VQpaC6DseHhF7dXVqHTfJPCRDaEbid/drOhgitgYku/letMUqOXFoWV0zIIUbjpdH2t+tYj4bQMRQ==}
     engines: {node: '>=8'}
+
+  svg-control-descriptions@2.1.0:
+    resolution: {integrity: sha512-u1vkJWHTZWp98u7/Wmthde+Wq0mOQKs9fdou3Jieu8WohOG6GEOU9NsGH0yZAxQ2QnYOfNH2vBB1iE1AgNE9bQ==}
 
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
@@ -2173,6 +2179,8 @@ snapshots:
   strip-indent@3.0.0:
     dependencies:
       min-indent: 1.0.1
+
+  svg-control-descriptions@2.1.0: {}
 
   symbol-tree@3.2.4: {}
 
