@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getSymbolsForColumn } from '@/core/iof/symbol-db';
+import { getSymbolsForColumn, getSymbolName } from '@/core/iof/symbol-db';
 import type { SymbolColumn } from '@/core/iof/symbol-db';
 import { SymbolIcon } from './symbol-icon';
 
@@ -8,6 +8,8 @@ interface SymbolPickerProps {
   column: SymbolColumn;
   anchorRect: DOMRect;
   currentValue?: string;
+  /** BCP 47 language tag for symbol names and search. Default: 'en'. */
+  lang?: string;
   onSelect: (symbolId: string | undefined) => void;
   onClose: () => void;
 }
@@ -16,6 +18,7 @@ export function SymbolPicker({
   column,
   anchorRect,
   currentValue,
+  lang = 'en',
   onSelect,
   onClose,
 }: SymbolPickerProps) {
@@ -26,7 +29,7 @@ export function SymbolPicker({
   const symbols = getSymbolsForColumn(column);
   const filtered = filter
     ? symbols.filter((s) =>
-        s.name.toLowerCase().includes(filter.toLowerCase()),
+        getSymbolName(s.id, lang).toLowerCase().includes(filter.toLowerCase()),
       )
     : symbols;
 
@@ -108,7 +111,7 @@ export function SymbolPicker({
               }`}
             >
               <SymbolIcon symbolId={symbol.id} size={24} className="shrink-0" />
-              <span className="truncate text-gray-700">{symbol.name}</span>
+              <span className="truncate text-gray-700">{getSymbolName(symbol.id, lang)}</span>
             </button>
           ))
         )}

@@ -1,0 +1,336 @@
+/**
+ * UI translations for Overprint app chrome.
+ *
+ * English is the source of truth — all keys are defined here as a `const`
+ * object so that `TranslationKey` is a strict union of the real keys.
+ * Other locales are `Partial<Record<TranslationKey, string>>`; missing keys
+ * fall back to English via the `useT()` hook.
+ */
+
+// ---------------------------------------------------------------------------
+// English — source of truth
+// ---------------------------------------------------------------------------
+
+const en = {
+  // File menu trigger
+  file: 'File',
+
+  // File menu items
+  openEvent: 'Open Event\u2026',
+  saveEvent: 'Save Event\u2026',
+  loadMap: 'Load Map\u2026',
+  newEvent: 'New Event',
+  preferences: 'Preferences\u2026',
+  exportPdfCourseMap: 'Export PDF (Course Map)',
+  exportPdfDescriptions: 'Export PDF (Descriptions)',
+  exportIofXml: 'Export IOF XML',
+  exportPng: 'Export PNG',
+  exportJpeg: 'Export JPEG',
+  importIofXml: 'Import IOF XML\u2026',
+
+  // Toolbar tool buttons
+  toolPan: 'Pan',
+  toolAddControl: 'Add Control',
+  toolDescriptions: 'Descriptions',
+
+  // Loading state
+  loadingMap: 'Loading map\u2026',
+
+  // Course panel
+  controls: 'controls',
+  control: 'control',
+  km: 'km',
+  noControlsYet: 'No controls yet',
+  addCourseToStart: 'Add a course to get started',
+
+  // Course tabs
+  addCourse: 'Add course',
+  courseNamePrompt: 'Course name:',
+
+  // Description panel
+  descriptions: 'Descriptions',
+
+  // Preferences modal
+  preferencesTitle: 'Preferences',
+  appLanguageLabel: 'App language',
+  appLanguageDescription: 'Controls the interface language',
+  descriptionLanguageLabel: 'Description language',
+  descriptionLanguageDescription: 'Language used for IOF control descriptions',
+  close: 'Close',
+} as const;
+
+export type TranslationKey = keyof typeof en;
+
+// ---------------------------------------------------------------------------
+// French
+// ---------------------------------------------------------------------------
+
+const fr: Partial<Record<TranslationKey, string>> = {
+  file: 'Fichier',
+  openEvent: 'Ouvrir l\u2019\xe9v\xe9nement\u2026',
+  saveEvent: 'Enregistrer l\u2019\xe9v\xe9nement\u2026',
+  loadMap: 'Charger la carte\u2026',
+  newEvent: 'Nouvel \xe9v\xe9nement',
+  preferences: 'Pr\xe9f\xe9rences\u2026',
+  exportPdfCourseMap: 'Exporter PDF (carte de circuit)',
+  exportPdfDescriptions: 'Exporter PDF (descriptions)',
+  exportIofXml: 'Exporter IOF XML',
+  exportPng: 'Exporter PNG',
+  exportJpeg: 'Exporter JPEG',
+  importIofXml: 'Importer IOF XML\u2026',
+  toolPan: 'D\xe9placer',
+  toolAddControl: 'Ajouter un poste',
+  toolDescriptions: 'Descriptions',
+  loadingMap: 'Chargement de la carte\u2026',
+  controls: 'postes',
+  control: 'poste',
+  km: 'km',
+  noControlsYet: 'Aucun poste pour l\u2019instant',
+  addCourseToStart: 'Ajoutez un circuit pour commencer',
+  addCourse: 'Ajouter un circuit',
+  courseNamePrompt: 'Nom du circuit\u00a0:',
+  descriptions: 'Descriptions',
+  preferencesTitle: 'Pr\xe9f\xe9rences',
+  appLanguageLabel: 'Langue de l\u2019interface',
+  appLanguageDescription: 'Contr\xf4le la langue de l\u2019interface',
+  descriptionLanguageLabel: 'Langue des descriptions',
+  descriptionLanguageDescription: 'Langue utilis\xe9e pour les descriptions IOF',
+  close: 'Fermer',
+};
+
+// ---------------------------------------------------------------------------
+// German
+// ---------------------------------------------------------------------------
+
+const de: Partial<Record<TranslationKey, string>> = {
+  file: 'Datei',
+  openEvent: 'Wettkampf \xf6ffnen\u2026',
+  saveEvent: 'Wettkampf speichern\u2026',
+  loadMap: 'Karte laden\u2026',
+  newEvent: 'Neuer Wettkampf',
+  preferences: 'Einstellungen\u2026',
+  exportPdfCourseMap: 'PDF exportieren (Laufkarte)',
+  exportPdfDescriptions: 'PDF exportieren (Beschreibungen)',
+  exportIofXml: 'IOF XML exportieren',
+  exportPng: 'PNG exportieren',
+  exportJpeg: 'JPEG exportieren',
+  importIofXml: 'IOF XML importieren\u2026',
+  toolPan: 'Verschieben',
+  toolAddControl: 'Posten setzen',
+  toolDescriptions: 'Beschreibungen',
+  loadingMap: 'Karte wird geladen\u2026',
+  controls: 'Posten',
+  control: 'Posten',
+  km: 'km',
+  noControlsYet: 'Noch keine Posten',
+  addCourseToStart: 'Bahn hinzuf\xfcgen, um zu beginnen',
+  addCourse: 'Bahn hinzuf\xfcgen',
+  courseNamePrompt: 'Bahnname:',
+  descriptions: 'Beschreibungen',
+  preferencesTitle: 'Einstellungen',
+  appLanguageLabel: 'Oberfl\xe4chensprache',
+  appLanguageDescription: 'Bestimmt die Sprache der Benutzeroberfl\xe4che',
+  descriptionLanguageLabel: 'Beschreibungssprache',
+  descriptionLanguageDescription: 'Sprache f\xfcr IOF-Postenbeschreibungen',
+  close: 'Schlie\xdfen',
+};
+
+// ---------------------------------------------------------------------------
+// Spanish
+// ---------------------------------------------------------------------------
+
+const es: Partial<Record<TranslationKey, string>> = {
+  file: 'Archivo',
+  openEvent: 'Abrir evento\u2026',
+  saveEvent: 'Guardar evento\u2026',
+  loadMap: 'Cargar mapa\u2026',
+  newEvent: 'Nuevo evento',
+  preferences: 'Preferencias\u2026',
+  exportPdfCourseMap: 'Exportar PDF (mapa de recorrido)',
+  exportPdfDescriptions: 'Exportar PDF (descripciones)',
+  exportIofXml: 'Exportar IOF XML',
+  exportPng: 'Exportar PNG',
+  exportJpeg: 'Exportar JPEG',
+  importIofXml: 'Importar IOF XML\u2026',
+  toolPan: 'Desplazar',
+  toolAddControl: 'A\xf1adir control',
+  toolDescriptions: 'Descripciones',
+  loadingMap: 'Cargando mapa\u2026',
+  controls: 'controles',
+  control: 'control',
+  km: 'km',
+  noControlsYet: 'Sin controles a\xfan',
+  addCourseToStart: 'A\xf1ade un recorrido para empezar',
+  addCourse: 'A\xf1adir recorrido',
+  courseNamePrompt: 'Nombre del recorrido:',
+  descriptions: 'Descripciones',
+  preferencesTitle: 'Preferencias',
+  appLanguageLabel: 'Idioma de la interfaz',
+  appLanguageDescription: 'Controla el idioma de la interfaz',
+  descriptionLanguageLabel: 'Idioma de descripciones',
+  descriptionLanguageDescription: 'Idioma para las descripciones IOF',
+  close: 'Cerrar',
+};
+
+// ---------------------------------------------------------------------------
+// Finnish
+// ---------------------------------------------------------------------------
+
+const fi: Partial<Record<TranslationKey, string>> = {
+  file: 'Tiedosto',
+  openEvent: 'Avaa kilpailu\u2026',
+  saveEvent: 'Tallenna kilpailu\u2026',
+  loadMap: 'Lataa kartta\u2026',
+  newEvent: 'Uusi kilpailu',
+  preferences: 'Asetukset\u2026',
+  exportPdfCourseMap: 'Vie PDF (ratakartta)',
+  exportPdfDescriptions: 'Vie PDF (rastiselitykset)',
+  exportIofXml: 'Vie IOF XML',
+  exportPng: 'Vie PNG',
+  exportJpeg: 'Vie JPEG',
+  importIofXml: 'Tuo IOF XML\u2026',
+  toolPan: 'Selaa',
+  toolAddControl: 'Lis\xe4\xe4 rasti',
+  toolDescriptions: 'Rastiselitykset',
+  loadingMap: 'Ladataan karttaa\u2026',
+  controls: 'rastiamerkki\xe4',
+  control: 'rastimerkki',
+  km: 'km',
+  noControlsYet: 'Ei rasteja viel\xe4',
+  addCourseToStart: 'Lis\xe4\xe4 rata aloittaaksesi',
+  addCourse: 'Lis\xe4\xe4 rata',
+  courseNamePrompt: 'Radan nimi:',
+  descriptions: 'Rastiselitykset',
+  preferencesTitle: 'Asetukset',
+  appLanguageLabel: 'K\xe4ytt\xf6liittym\xe4n kieli',
+  appLanguageDescription: 'M\xe4\xe4ritt\xe4\xe4 k\xe4ytt\xf6liittym\xe4n kielen',
+  descriptionLanguageLabel: 'Rastiselitysten kieli',
+  descriptionLanguageDescription: 'Kieli IOF-rastiselityksille',
+  close: 'Sulje',
+};
+
+// ---------------------------------------------------------------------------
+// Italian
+// ---------------------------------------------------------------------------
+
+const it: Partial<Record<TranslationKey, string>> = {
+  file: 'File',
+  openEvent: 'Apri evento\u2026',
+  saveEvent: 'Salva evento\u2026',
+  loadMap: 'Carica mappa\u2026',
+  newEvent: 'Nuovo evento',
+  preferences: 'Preferenze\u2026',
+  exportPdfCourseMap: 'Esporta PDF (mappa di gara)',
+  exportPdfDescriptions: 'Esporta PDF (descrizioni)',
+  exportIofXml: 'Esporta IOF XML',
+  exportPng: 'Esporta PNG',
+  exportJpeg: 'Esporta JPEG',
+  importIofXml: 'Importa IOF XML\u2026',
+  toolPan: 'Sposta',
+  toolAddControl: 'Aggiungi lanterna',
+  toolDescriptions: 'Descrizioni',
+  loadingMap: 'Caricamento mappa\u2026',
+  controls: 'lanterne',
+  control: 'lanterna',
+  km: 'km',
+  noControlsYet: 'Nessuna lanterna ancora',
+  addCourseToStart: 'Aggiungi un percorso per iniziare',
+  addCourse: 'Aggiungi percorso',
+  courseNamePrompt: 'Nome del percorso:',
+  descriptions: 'Descrizioni',
+  preferencesTitle: 'Preferenze',
+  appLanguageLabel: 'Lingua interfaccia',
+  appLanguageDescription: "Controlla la lingua dell'interfaccia",
+  descriptionLanguageLabel: 'Lingua descrizioni',
+  descriptionLanguageDescription: 'Lingua per le descrizioni IOF',
+  close: 'Chiudi',
+};
+
+// ---------------------------------------------------------------------------
+// Swedish
+// ---------------------------------------------------------------------------
+
+const sv: Partial<Record<TranslationKey, string>> = {
+  file: 'Arkiv',
+  openEvent: '\xd6ppna t\xe4vling\u2026',
+  saveEvent: 'Spara t\xe4vling\u2026',
+  loadMap: 'Ladda karta\u2026',
+  newEvent: 'Ny t\xe4vling',
+  preferences: 'Inst\xe4llningar\u2026',
+  exportPdfCourseMap: 'Exportera PDF (banakarta)',
+  exportPdfDescriptions: 'Exportera PDF (kontrollbeskrivningar)',
+  exportIofXml: 'Exportera IOF XML',
+  exportPng: 'Exportera PNG',
+  exportJpeg: 'Exportera JPEG',
+  importIofXml: 'Importera IOF XML\u2026',
+  toolPan: 'Flytta',
+  toolAddControl: 'L\xe4gg till kontroll',
+  toolDescriptions: 'Kontrollbeskrivningar',
+  loadingMap: 'Laddar karta\u2026',
+  controls: 'kontroller',
+  control: 'kontroll',
+  km: 'km',
+  noControlsYet: 'Inga kontroller \xe4nnu',
+  addCourseToStart: 'L\xe4gg till en bana f\xf6r att b\xf6rja',
+  addCourse: 'L\xe4gg till bana',
+  courseNamePrompt: 'Bananamn:',
+  descriptions: 'Kontrollbeskrivningar',
+  preferencesTitle: 'Inst\xe4llningar',
+  appLanguageLabel: 'Gr\xe4nssnittspr\xe5k',
+  appLanguageDescription: 'Styr spr\xe5ket i anv\xe4ndargr\xe4nssnittet',
+  descriptionLanguageLabel: 'Beskrivningsspr\xe5k',
+  descriptionLanguageDescription: 'Spr\xe5k f\xf6r IOF-kontrollbeskrivningar',
+  close: 'St\xe4ng',
+};
+
+// ---------------------------------------------------------------------------
+// Japanese
+// ---------------------------------------------------------------------------
+
+const ja: Partial<Record<TranslationKey, string>> = {
+  file: 'ファイル',
+  openEvent: 'イベントを開く\u2026',
+  saveEvent: 'イベントを保存\u2026',
+  loadMap: 'マップを読み込む\u2026',
+  newEvent: '新規イベント',
+  preferences: '環境設定\u2026',
+  exportPdfCourseMap: 'PDF書き出し（コースマップ）',
+  exportPdfDescriptions: 'PDF書き出し（コントロール説明）',
+  exportIofXml: 'IOF XMLをエクスポート',
+  exportPng: 'PNGをエクスポート',
+  exportJpeg: 'JPEGをエクスポート',
+  importIofXml: 'IOF XMLをインポート\u2026',
+  toolPan: '移動',
+  toolAddControl: 'コントロールを追加',
+  toolDescriptions: 'コントロール説明',
+  loadingMap: 'マップを読み込み中\u2026',
+  controls: 'コントロール',
+  control: 'コントロール',
+  km: 'km',
+  noControlsYet: 'コントロールがありません',
+  addCourseToStart: 'コースを追加して開始してください',
+  addCourse: 'コースを追加',
+  courseNamePrompt: 'コース名：',
+  descriptions: 'コントロール説明',
+  preferencesTitle: '環境設定',
+  appLanguageLabel: 'アプリ言語',
+  appLanguageDescription: 'インターフェースの言語を設定します',
+  descriptionLanguageLabel: '説明言語',
+  descriptionLanguageDescription: 'IOFコントロール説明の言語',
+  close: '閉じる',
+};
+
+// ---------------------------------------------------------------------------
+// Translation map export
+// ---------------------------------------------------------------------------
+
+export const translations: Record<string, Partial<Record<TranslationKey, string>>> = {
+  en,
+  fr,
+  de,
+  es,
+  fi,
+  it,
+  sv,
+  ja,
+};

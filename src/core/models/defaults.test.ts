@@ -32,6 +32,7 @@ describe('createEvent', () => {
     expect(event.settings.numberSize).toBe(4.0);
     expect(event.settings.descriptionStandard).toBe('2024');
     expect(event.settings.mapStandard).toBe('ISOM2017');
+    expect(event.settings.language).toBe('en');
   });
 
   it('uses A4 portrait as default page setup', () => {

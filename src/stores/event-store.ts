@@ -12,6 +12,8 @@ import type {
 } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
+import { useAppSettingsStore } from './app-settings-store';
+import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
 
 // --- Type derivation helper ---
 
@@ -95,7 +97,11 @@ export const useEventStore = create<EventState & EventActions>()(
 
       newEvent: (name: string) => {
         set((state) => {
-          state.event = createEvent(name);
+          // Inherit the app language as the default description language if it
+          // is in the IOF language list; otherwise fall back to 'en'.
+          const appLang = useAppSettingsStore.getState().appLanguage;
+          const iofLang = SUPPORTED_IOF_LANGUAGES.find((l) => l.code === appLang)?.code ?? 'en';
+          state.event = createEvent(name, iofLang);
           state.activeCourseId = null;
           state.selectedControlId = null;
         });

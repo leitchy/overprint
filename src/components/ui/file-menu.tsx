@@ -15,9 +15,11 @@ export type MenuEntry = MenuItem | MenuSeparator;
 
 interface FileMenuProps {
   items: MenuEntry[];
+  /** Button label. Defaults to "File" if not provided. */
+  label?: string;
 }
 
-export function FileMenu({ items }: FileMenuProps) {
+export function FileMenu({ items, label = 'File' }: FileMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +53,7 @@ export function FileMenu({ items }: FileMenuProps) {
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         }`}
       >
-        File
+        {label}
       </button>
       {open && (
         <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">

@@ -17,6 +17,8 @@ export function DescriptionPanel() {
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
   const isOpen = useToolStore((s) => s.descriptionsPanelOpen);
+  // Description language is per-event (stored in .overprint), not a global pref
+  const descriptionLang = event?.settings.language ?? 'en';
 
   const [picker, setPicker] = useState<PickerState | null>(null);
 
@@ -79,6 +81,7 @@ export function DescriptionPanel() {
           controls={event.controls}
           mapScale={mapFile.scale}
           mapDpi={mapFile.dpi}
+          lang={descriptionLang}
           selectedControlId={selectedControlId}
           onSelectControl={(id) => {
             useEventStore.getState().setSelectedControl(id);
@@ -93,6 +96,7 @@ export function DescriptionPanel() {
           column={picker.column}
           anchorRect={picker.anchorRect}
           currentValue={pickerCurrentValue}
+          lang={descriptionLang}
           onSelect={handleSymbolSelect}
           onClose={() => setPicker(null)}
         />

@@ -8,6 +8,8 @@ interface DescriptionSheetProps {
   controls: Record<ControlId, Control>;
   mapScale: number;
   mapDpi: number;
+  /** BCP 47 language tag for IOF symbol names and tooltips. Default: 'en'. */
+  lang?: string;
   selectedControlId: ControlId | null;
   onCellClick?: (controlId: ControlId, column: string, cellElement: HTMLElement) => void;
   onSelectControl?: (id: ControlId) => void;
@@ -22,6 +24,7 @@ export function DescriptionSheet({
   controls,
   mapScale,
   mapDpi,
+  lang = 'en',
   selectedControlId,
   onCellClick,
   onSelectControl,
@@ -91,6 +94,7 @@ export function DescriptionSheet({
                 <DescriptionCell
                   key={col}
                   value={control.description[col]}
+                  lang={lang}
                   isEditable
                   isSelected={isSelected}
                   onClick={(el) => onCellClick?.(cc.controlId, colLetter, el)}

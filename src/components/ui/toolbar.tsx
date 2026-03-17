@@ -10,10 +10,13 @@ import { useToolStore } from '@/stores/tool-store';
 import type { Tool } from '@/stores/tool-store';
 import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
+import { PreferencesModal } from './preferences-modal';
+import { useT } from '@/i18n/use-t';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
 
 export function Toolbar() {
+  const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventFileInputRef = useRef<HTMLInputElement>(null);
   const iofXmlInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +28,7 @@ export function Toolbar() {
   const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
   const hasImage = useMapImageStore((s) => s.image !== null);
   const [loading, setLoading] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -252,20 +256,22 @@ export function Toolbar() {
   };
 
   const fileMenuItems: MenuEntry[] = [
-    { label: 'Open Event…', onClick: handleOpenEvent },
-    { label: 'Save Event…', onClick: handleSave, disabled: !hasEvent },
+    { label: t('openEvent'), onClick: handleOpenEvent },
+    { label: t('saveEvent'), onClick: handleSave, disabled: !hasEvent },
     { separator: true },
-    { label: 'Load Map…', onClick: handleLoadMap, disabled: loading },
+    { label: t('loadMap'), onClick: handleLoadMap, disabled: loading },
     { separator: true },
-    { label: 'Export PDF (Course Map)', onClick: handleExportPdf, disabled: !canExport },
-    { label: 'Export PDF (Descriptions)', onClick: handleExportDescriptionPdf, disabled: !canExport },
-    { label: 'Export IOF XML', onClick: handleExportIofXml, disabled: !canExport },
-    { label: 'Export PNG', onClick: () => {}, disabled: true },
-    { label: 'Export JPEG', onClick: () => {}, disabled: true },
+    { label: t('exportPdfCourseMap'), onClick: handleExportPdf, disabled: !canExport },
+    { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf, disabled: !canExport },
+    { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
+    { label: t('exportPng'), onClick: () => {}, disabled: true },
+    { label: t('exportJpeg'), onClick: () => {}, disabled: true },
     { separator: true },
-    { label: 'Import IOF XML…', onClick: handleImportIofXml, disabled: !hasEvent },
+    { label: t('importIofXml'), onClick: handleImportIofXml, disabled: !hasEvent },
     { separator: true },
-    { label: 'New Event', onClick: handleNewEvent },
+    { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
+    { separator: true },
+    { label: t('newEvent'), onClick: handleNewEvent },
   ];
 
   const toolButton = (tool: Tool, label: string) => (
@@ -291,8 +297,8 @@ export function Toolbar() {
       {/* Tool buttons — only show when a map is loaded */}
       {hasImage && (
         <div className="flex gap-1">
-          {toolButton('pan', 'Pan')}
-          {toolButton('addControl', 'Add Control')}
+          {toolButton('pan', t('toolPan'))}
+          {toolButton('addControl', t('toolAddControl'))}
         </div>
       )}
 
@@ -305,17 +311,21 @@ export function Toolbar() {
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
-          Descriptions
+          {t('toolDescriptions')}
         </button>
       )}
 
       <div className="flex-1" />
 
       {loading && (
-        <span className="text-sm text-gray-400">Loading map…</span>
+        <span className="text-sm text-gray-400">{t('loadingMap')}</span>
       )}
 
-      <FileMenu items={fileMenuItems} />
+      <FileMenu items={fileMenuItems} label={t('file')} />
+
+      {preferencesOpen && (
+        <PreferencesModal onClose={() => setPreferencesOpen(false)} />
+      )}
       <input
         ref={fileInputRef}
         type="file"
