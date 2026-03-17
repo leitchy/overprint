@@ -1,10 +1,11 @@
+import { useRef } from 'react';
 import { getSymbolName } from '@/core/iof/symbol-db';
 
 interface DescriptionCellProps {
   value?: string;           // IOF symbol ID or text
   isEditable?: boolean;
   isSelected?: boolean;
-  onClick?: () => void;
+  onClick?: (cellElement: HTMLElement) => void;
 }
 
 export function DescriptionCell({
@@ -13,11 +14,19 @@ export function DescriptionCell({
   isSelected = false,
   onClick,
 }: DescriptionCellProps) {
+  const cellRef = useRef<HTMLDivElement>(null);
   const displayText = value ? getSymbolName(value) : '';
   const isEmpty = !value;
 
+  const handleClick = () => {
+    if (isEditable && cellRef.current) {
+      onClick?.(cellRef.current);
+    }
+  };
+
   return (
     <div
+      ref={cellRef}
       className={`
         flex items-center justify-center overflow-hidden text-center
         border border-gray-800 px-0.5 py-0.5
@@ -27,14 +36,14 @@ export function DescriptionCell({
         ${isEditable && isEmpty ? 'hover:bg-gray-50' : ''}
         ${isSelected ? 'bg-violet-100 ring-2 ring-violet-500 ring-inset' : ''}
       `}
-      onClick={isEditable ? onClick : undefined}
+      onClick={handleClick}
       tabIndex={isEditable ? 0 : undefined}
       onKeyDown={
         isEditable
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                onClick?.();
+                handleClick();
               }
             }
           : undefined

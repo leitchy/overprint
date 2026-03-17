@@ -1,6 +1,16 @@
+import { useState, useCallback } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { DescriptionSheet } from './description-sheet';
+import { SymbolPicker } from './symbol-picker';
+import type { ControlId } from '@/utils/id';
+import type { SymbolColumn } from '@/core/iof/symbol-db';
+
+interface PickerState {
+  controlId: ControlId;
+  column: SymbolColumn;
+  anchorRect: DOMRect;
+}
 
 export function DescriptionPanel() {
   const event = useEventStore((s) => s.event);
@@ -8,10 +18,45 @@ export function DescriptionPanel() {
   const selectedControlId = useEventStore((s) => s.selectedControlId);
   const isOpen = useToolStore((s) => s.descriptionsPanelOpen);
 
+  const [picker, setPicker] = useState<PickerState | null>(null);
+
   const activeCourse = event?.courses.find((c) => c.id === activeCourseId);
   const mapFile = event?.mapFile;
 
+  const handleCellClick = useCallback(
+    (controlId: ControlId, column: string, cellElement: HTMLElement) => {
+      const rect = cellElement.getBoundingClientRect();
+      setPicker({
+        controlId,
+        column: column as SymbolColumn,
+        anchorRect: rect,
+      });
+    },
+    [],
+  );
+
+  const handleSymbolSelect = useCallback(
+    (symbolId: string | undefined) => {
+      if (!picker) return;
+      useEventStore
+        .getState()
+        .updateControlDescription(picker.controlId, picker.column, symbolId);
+      setPicker(null);
+    },
+    [picker],
+  );
+
   if (!isOpen || !activeCourse || !event || !mapFile) return null;
+
+  // Get current value for picker
+  const pickerCurrentValue = picker
+    ? (() => {
+        const control = event.controls[picker.controlId];
+        if (!control) return undefined;
+        const key = `column${picker.column}` as keyof typeof control.description;
+        return control.description[key];
+      })()
+    : undefined;
 
   return (
     <div className="h-full w-[280px] shrink-0 border-l border-gray-200 bg-white">
@@ -38,12 +83,20 @@ export function DescriptionPanel() {
           onSelectControl={(id) => {
             useEventStore.getState().setSelectedControl(id);
           }}
-          onCellClick={(controlId, column) => {
-            // Symbol picker will be wired here in Step 4
-            console.log('Edit cell:', controlId, column);
-          }}
+          onCellClick={handleCellClick}
         />
       </div>
+
+      {/* Symbol picker popover */}
+      {picker && (
+        <SymbolPicker
+          column={picker.column}
+          anchorRect={picker.anchorRect}
+          currentValue={pickerCurrentValue}
+          onSelect={handleSymbolSelect}
+          onClose={() => setPicker(null)}
+        />
+      )}
     </div>
   );
 }
