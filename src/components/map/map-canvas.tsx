@@ -13,6 +13,7 @@ import { CourseRenderer } from '@/components/course/course-renderer';
 import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
+import { PrintBoundary } from '@/components/map/print-boundary';
 
 // Module-level stage reference — allows toolbar and export utilities to access
 // the Konva stage without prop drilling.
@@ -207,6 +208,11 @@ export function MapCanvas() {
                 onDragControlEnd={() => { /* no-op */ }}
               />
             ))}
+
+            {/* Print boundary — dashed rectangle showing the printable area at
+                the current print scale. Non-interactive; rendered on top of all
+                course shapes so it is always visible. */}
+            <PrintBoundary />
           </Layer>
         </Stage>
       )}
