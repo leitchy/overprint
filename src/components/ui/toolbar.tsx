@@ -21,6 +21,7 @@ export function Toolbar() {
     if (!file) return;
 
     const fileType = detectMapFileType(file);
+    console.log('File selected:', file.name, 'type:', file.type, 'detected:', fileType);
 
     if (fileType === 'unknown') {
       console.error('Unsupported file type:', file.name);

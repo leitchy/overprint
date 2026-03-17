@@ -8,7 +8,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Polyfill Node.js Buffer for ocad2geojson (uses Buffer internally)
+      buffer: 'buffer/',
     },
+  },
+  define: {
+    // Make Buffer globally available for ocad2geojson
+    'globalThis.Buffer': 'globalThis.Buffer',
   },
   test: {
     globals: true,

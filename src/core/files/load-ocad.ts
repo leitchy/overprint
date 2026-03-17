@@ -1,3 +1,11 @@
+// ocad2geojson uses Node.js Buffer internally — polyfill for browser
+import { Buffer } from 'buffer';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+if (typeof (globalThis as any).Buffer === 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (globalThis as any).Buffer = Buffer;
+}
+
 interface LoadOcadResult {
   image: HTMLImageElement;
   width: number;
@@ -11,7 +19,8 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   const ocad2geojson = await import('ocad2geojson');
 
   const arrayBuffer = await file.arrayBuffer();
-  const ocadFile = await ocad2geojson.readOcad(arrayBuffer);
+  const buffer = Buffer.from(arrayBuffer);
+  const ocadFile = await ocad2geojson.readOcad(buffer);
 
   // Generate SVG from OCAD data
   const svgResult = ocad2geojson.ocadToSvg(ocadFile, {});
@@ -23,14 +32,28 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
 
   const svgEl = svgResult;
 
-  // Ensure SVG has explicit width/height (required for <img> rasterization)
-  if (!svgEl.getAttribute('width')) {
-    const viewBox = svgEl.getAttribute('viewBox')?.split(' ');
-    if (viewBox && viewBox.length === 4) {
-      svgEl.setAttribute('width', viewBox[2]!);
-      svgEl.setAttribute('height', viewBox[3]!);
-    }
+  // Parse viewBox to get OCAD coordinate dimensions
+  const viewBox = svgEl.getAttribute('viewBox')?.split(/[\s,]+/);
+  let svgWidth = 0;
+  let svgHeight = 0;
+
+  if (viewBox && viewBox.length === 4) {
+    svgWidth = parseFloat(viewBox[2]!);
+    svgHeight = parseFloat(viewBox[3]!);
   }
+
+  // OCAD coordinates are in 1/100mm — these can be huge numbers.
+  // Scale to a reasonable pixel size for rendering (target ~4000px on longest side
+  // for good quality without hitting canvas limits).
+  const TARGET_LONG_SIDE = 4000;
+  const longestSide = Math.max(svgWidth, svgHeight);
+  const renderScale = longestSide > 0 ? TARGET_LONG_SIDE / longestSide : 1;
+  const pixelWidth = Math.round(svgWidth * renderScale);
+  const pixelHeight = Math.round(svgHeight * renderScale);
+
+  // Set explicit pixel dimensions on SVG (required for <img> rasterization)
+  svgEl.setAttribute('width', String(pixelWidth));
+  svgEl.setAttribute('height', String(pixelHeight));
 
   // Convert SVG to image via Blob URL
   const svgStr = new XMLSerializer().serializeToString(svgEl);

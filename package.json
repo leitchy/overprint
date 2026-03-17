@@ -22,6 +22,7 @@
   "author": "Jim Cresswell",
   "license": "AGPL-3.0-only",
   "dependencies": {
+    "buffer": "^6.0.3",
     "immer": "^11.1.4",
     "konva": "^10.2.3",
     "ocad2geojson": "^2.1.20",
