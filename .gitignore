@@ -21,5 +21,7 @@ Thumbs.db
 # Test coverage
 coverage/
 
-# Test map files (large binaries)
+# Test fixtures — large binaries and generated outputs
 tests/fixtures/maps/
+tests/fixtures/exports/
+tests/fixtures/events/

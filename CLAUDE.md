@@ -22,18 +22,20 @@ Overprint is a side project / fun build. The goal is to bring orienteering cours
 
 ## Tech Stack
 
-- **Frontend**: React + TypeScript, Vite build
-- **Map rendering**: HTML5 Canvas (via Konva.js or Fabric.js) for map display and course overlay
-- **State management**: Zustand
-- **File handling**: Client-side file processing (no server required for MVP)
+- **Frontend**: React 19 + TypeScript, Vite build
+- **Map rendering**: HTML5 Canvas via Konva.js (react-konva) for map display and course overlay
+- **State management**: Zustand + Immer + zundo (undo/redo)
+- **File handling**: Client-side file processing (no server required)
 - **IOF XML**: Custom parser/writer for IOF XML v3 data standard
 - **PDF generation**: pdf-lib for client-side PDF export
-- **Map file support (progressive)**:
-  - Phase 0: Raster images (PNG, JPEG, TIFF, GIF)
-  - Phase 1: PDF (via PDF.js) + OCAD files (via ocad2geojson — see ADR-010)
-  - Phase 5: OpenOrienteering Mapper (.omap/.xmap) — XML-based, parseable in browser
-- **Deployment**: Static site (Cloudflare Pages, Vercel, or Netlify) — no backend needed for MVP
+- **PDF reading**: PDF.js for loading PDF map files
+- **OCAD support**: ocad2geojson for loading .ocd files
+- **IOF symbols**: svg-control-descriptions package (22 languages)
+- **i18n**: Custom useT() hook with type-safe translation keys (8 UI languages)
+- **CSS**: Tailwind CSS v4
+- **Package manager**: pnpm
 - **Testing**: Vitest + React Testing Library
+- **Deployment**: Static site (Cloudflare Pages, Vercel, or Netlify) — no backend needed
 
 ## Project Structure
 
@@ -46,27 +48,28 @@ overprint/
 │   ├── iof-standards.md       # IOF standard references and notes
 │   ├── adrs/                  # Architecture Decision Records
 │   ├── guides/                # Developer onboarding, workflows
-│   ├── plans/                 # Implementation plans
 │   ├── reference/             # Standards, specs
-│   ├── research/              # Exploration, spikes
-│   └── archive/               # Superseded docs
+│   └── research/              # Exploration, spikes
 ├── src/
-│   ├── app/                   # App shell, routing, layout
+│   ├── app/                   # App shell, keyboard shortcuts
 │   ├── components/
-│   │   ├── map/               # Map canvas, pan/zoom, layers
-│   │   ├── course/            # Course editor, control placement
-│   │   ├── descriptions/      # Control description sheet renderer
-│   │   └── ui/                # Shared UI components
+│   │   ├── map/               # Map canvas, pan/zoom, print boundary
+│   │   ├── course/            # Course editor, control shapes, course list
+│   │   ├── descriptions/      # Control description sheet renderer + picker
+│   │   └── ui/                # Toolbar, file menu, modals, settings panels
 │   ├── core/
 │   │   ├── models/            # Domain types: Course, Control, Event, etc.
-│   │   ├── iof/               # IOF XML import/export
-│   │   ├── files/             # Map file loaders (PDF, raster, omap)
-│   │   └── geometry/          # Distance calc, coordinate transforms
-│   ├── stores/                # Zustand stores
-│   └── utils/                 # Shared utilities
-├── public/
-│   └── symbols/               # IOF control description symbol SVGs
+│   │   ├── iof/               # IOF XML import/export, symbol database
+│   │   ├── files/             # Map file loaders (PDF, raster, OCAD), save/load
+│   │   ├── geometry/          # Distance calc, coordinate transforms, overprint dimensions
+│   │   └── export/            # PDF course map, description sheet, image export
+│   ├── stores/                # Zustand stores (event, map-image, viewport, tool, app-settings)
+│   ├── i18n/                  # Translations, language lists, useT() hook
+│   └── utils/                 # Branded ID types
+├── tests/
+│   └── fixtures/              # Test data (maps/, events/, exports/ — gitignored)
 ├── package.json
+├── pnpm-lock.yaml
 ├── tsconfig.json
 ├── vite.config.ts
 └── index.html
@@ -87,51 +90,75 @@ overprint/
 ## Key Domain Concepts
 
 - **Event**: A container for an orienteering competition — has a map and one or more courses
-- **Map**: The base orienteering map (loaded from file). Has a scale (e.g., 1:10000, 1:15000)
-- **Course**: An ordered sequence of controls forming a route. Has a name and class assignments
+- **Map**: The base orienteering map (loaded from file). Has a scale (e.g., 1:10000, 1:15000) and DPI
+- **Course**: An ordered sequence of controls forming a route. Has a name and optional per-course print scale
 - **Control**: A point on the map with a code (>30), position, and IOF description columns A-H
+- **CourseControl**: A reference from a course to a control — carries type (start/finish/control) and number offset
 - **Leg**: The connection between two consecutive controls — drawn as a line
 - **Control Description**: The 8-column IOF standard grid describing what's at each control
 - **Overprint**: The purple/violet layer drawn on top of the base map showing the course
 - **Start Triangle / Finish Circle**: Special symbols at course start/end (double circle for finish)
+- **Shared Controls**: Controls can be reused across multiple courses in an event
 
 ## IOF Standards We Follow
 
 - **IOF Control Description Standard 2024** (backwards-compatible with 2018)
 - **IOF XML Data Standard v3** for course data interchange
-- **ISOM 2017-2** / **ISSprOM 2019-2** for map symbol cross-referencing
-- **Purple overprint colour**: Defined in IOF printing standards — Pantone 814, or RGB approximation
+- **ISOM 2017-2**: Control circle 5.0mm, start triangle 6.0mm side, finish 5.0mm/3.5mm
+- **ISSprOM 2019-2**: Sprint map symbol set (smaller overprint dimensions)
+- **Purple overprint colour**: Pantone 814 approximation — `#CD59A4` / `rgb(205, 89, 164)`
 
-## Competitive Landscape
+## Current Status
 
-- **PurplePen** (free, open source, Windows only) — the gold standard for course setting. Our primary inspiration.
-- **Condes** (commercial, Windows only) — full-featured, used by larger events. Paid licence.
-- **OCAD** (commercial, Windows + Mac) — primarily a map editor, has course setting module. Expensive.
-- **OpenOrienteering Mapper** (free, cross-platform) — map editor with basic course setting. Not focused on it.
-
-There is **no serious web-based course setting tool** in the orienteering ecosystem. This is our niche.
-
-## Current Phase
-
-**Phase 0 — Foundation** (where we are now)
-- Project scaffolding and tooling
-- Map loading (raster + PDF)
+**Implemented features:**
+- Map loading: raster images (PNG, JPEG, TIFF, GIF), PDF, OCAD (.ocd)
 - Pan/zoom canvas with map display
-- Basic control placement (click to add)
-- Simple course model
+- Control placement (click to add), drag to move, delete
+- Multi-course management: add, rename, delete, switch courses
+- Shared controls across courses (background layer rendering, click to reuse)
+- IOF control description sheet (interactive, with symbol picker)
+- Draggable control sequence numbers
+- Save/load .overprint JSON format
+- PDF export: course map (correct print scale, course-centered, title + scale bar)
+- PDF export: description sheet (IOF 8-column grid with SVG symbols)
+- IOF XML v3 export and import
+- PNG/JPEG image export
+- Print settings: page size, orientation, margins, print scale
+- Print boundary overlay (optional, shows page extent on canvas)
+- Multi-language: 8 app UI languages, 22 IOF description languages
+- Undo/redo (Cmd/Ctrl+Z)
+- Editable event name, control codes
+- showSaveFilePicker save dialogs with fallback
 
-## Getting Started (for Claude Code)
+**Not yet implemented:**
+- OpenOrienteering Mapper (.omap/.xmap) file support
+- Multi-page PDF export
+- Crossing points and map exchange symbols
+- Score course support
+- Batch export (all courses at once)
+
+## Getting Started
 
 ```bash
 cd /Users/jim/Development/Personal/Overprint
-# After scaffolding:
-npm install
-npm run dev
+pnpm install
+pnpm dev
+```
+
+## Build & Test
+
+```bash
+pnpm build          # TypeScript check + Vite production build
+pnpm test           # Run all tests (vitest)
+pnpm test:watch     # Watch mode
+pnpm typecheck      # TypeScript only (no emit)
 ```
 
 ## Notes
 
 - This is Jim's side project. Keep it fun, keep it clean, ship incrementally.
 - PurplePen source is on GitHub (C#/.NET) — useful for understanding algorithms and IOF symbol rendering.
-- The orienteering community is international — i18n will matter eventually, but not for MVP.
+- The orienteering community is international — i18n is implemented with 8 UI + 22 IOF languages.
 - Accessibility: canvas-based apps are inherently tricky for a11y. Acknowledge this but don't let it block progress.
+- OCAD files use 1/100mm internal coordinates. DPI is computed from viewBox geometry. Scale is from param string 1039.
+- License: AGPL-3.0-only
