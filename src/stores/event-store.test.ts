@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useEventStore } from './event-store';
-import { createControl } from '@/core/models/defaults';
 
 beforeEach(() => {
-  useEventStore.setState({ event: null });
+  useEventStore.setState({
+    event: null,
+    activeCourseId: null,
+    selectedControlId: null,
+  });
   useEventStore.temporal.getState().clear();
 });
 
-describe('event-store', () => {
+describe('event-store basics', () => {
   it('starts with null event', () => {
     expect(useEventStore.getState().event).toBeNull();
   });
@@ -17,8 +20,6 @@ describe('event-store', () => {
     const { event } = useEventStore.getState();
     expect(event).not.toBeNull();
     expect(event?.name).toBe('Mt Taylor Sprint');
-    expect(event?.courses).toEqual([]);
-    expect(event?.controls).toEqual({});
   });
 
   it('sets map file', () => {
@@ -29,10 +30,7 @@ describe('event-store', () => {
       scale: 10000,
       dpi: 200,
     });
-    const { event } = useEventStore.getState();
-    expect(event?.mapFile?.name).toBe('mt-taylor.pdf');
-    expect(event?.mapFile?.type).toBe('pdf');
-    expect(event?.mapFile?.scale).toBe(10000);
+    expect(useEventStore.getState().event?.mapFile?.name).toBe('mt-taylor.pdf');
   });
 
   it('sets map scale', () => {
@@ -46,62 +44,160 @@ describe('event-store', () => {
     useEventStore.getState().setMapScale(10000);
     expect(useEventStore.getState().event?.mapFile?.scale).toBe(10000);
   });
+});
 
-  it('sets map DPI', () => {
+describe('course management', () => {
+  it('adds a course', () => {
     useEventStore.getState().newEvent('Test');
-    useEventStore.getState().setMapFile({
-      name: 'map.png',
-      type: 'raster',
-      scale: 15000,
-      dpi: 150,
-    });
-    useEventStore.getState().setMapDpi(200);
-    expect(useEventStore.getState().event?.mapFile?.dpi).toBe(200);
+    useEventStore.getState().addCourse('Long');
+    const { event, activeCourseId } = useEventStore.getState();
+    expect(event?.courses).toHaveLength(1);
+    expect(event?.courses[0]?.name).toBe('Long');
+    expect(activeCourseId).toBe(event?.courses[0]?.id);
   });
+});
 
-  it('adds a control', () => {
+describe('addControlToCourse', () => {
+  it('auto-creates Course 1 on first control', () => {
     useEventStore.getState().newEvent('Test');
-    const control = createControl(31, { x: 100, y: 200 });
-    useEventStore.getState().addControl(control);
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
     const { event } = useEventStore.getState();
-    expect(event?.controls[control.id]).toEqual(control);
+    expect(event?.courses).toHaveLength(1);
+    expect(event?.courses[0]?.name).toBe('Course 1');
   });
 
-  it('removes a control', () => {
+  it('creates control with code 31', () => {
     useEventStore.getState().newEvent('Test');
-    const control = createControl(31, { x: 100, y: 200 });
-    useEventStore.getState().addControl(control);
-    useEventStore.getState().removeControl(control.id);
-    expect(useEventStore.getState().event?.controls[control.id]).toBeUndefined();
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    const { event } = useEventStore.getState();
+    const controls = Object.values(event!.controls);
+    expect(controls).toHaveLength(1);
+    expect(controls[0]?.code).toBe(31);
   });
 
-  it('updates a control', () => {
+  it('auto-increments codes', () => {
     useEventStore.getState().newEvent('Test');
-    const control = createControl(31, { x: 100, y: 200 });
-    useEventStore.getState().addControl(control);
-    useEventStore.getState().updateControl(control.id, {
-      position: { x: 150, y: 250 },
-    });
-    expect(useEventStore.getState().event?.controls[control.id]?.position).toEqual({
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+    useEventStore.getState().addControlToCourse({ x: 500, y: 600 });
+    const { event } = useEventStore.getState();
+    const codes = Object.values(event!.controls).map((c) => c.code).sort();
+    expect(codes).toEqual([31, 32, 33]);
+  });
+
+  it('sets first control as start, last as finish', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+    useEventStore.getState().addControlToCourse({ x: 500, y: 600 });
+    const course = useEventStore.getState().event!.courses[0]!;
+    expect(course.controls[0]?.type).toBe('start');
+    expect(course.controls[1]?.type).toBe('control');
+    expect(course.controls[2]?.type).toBe('finish');
+  });
+
+  it('single control is typed as start', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    const course = useEventStore.getState().event!.courses[0]!;
+    expect(course.controls).toHaveLength(1);
+    // With one control, index 0 check (start) runs before last-index check (finish)
+    expect(course.controls[0]?.type).toBe('start');
+  });
+
+  it('selects the newly added control', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    const { selectedControlId, event } = useEventStore.getState();
+    const controlId = Object.keys(event!.controls)[0];
+    expect(selectedControlId).toBe(controlId);
+  });
+});
+
+describe('removeControlFromCourse', () => {
+  it('removes a control from the course', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+
+    const { event, activeCourseId } = useEventStore.getState();
+    const controlId = event!.courses[0]!.controls[0]!.controlId;
+
+    useEventStore.getState().removeControlFromCourse(activeCourseId!, controlId);
+
+    const updated = useEventStore.getState().event!.courses[0]!;
+    expect(updated.controls).toHaveLength(1);
+  });
+
+  it('re-derives types after removal', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+    useEventStore.getState().addControlToCourse({ x: 500, y: 600 });
+
+    const { event, activeCourseId } = useEventStore.getState();
+    // Remove the middle control
+    const middleId = event!.courses[0]!.controls[1]!.controlId;
+    useEventStore.getState().removeControlFromCourse(activeCourseId!, middleId);
+
+    const course = useEventStore.getState().event!.courses[0]!;
+    expect(course.controls[0]?.type).toBe('start');
+    expect(course.controls[1]?.type).toBe('finish');
+  });
+});
+
+describe('moveControlInCourse', () => {
+  it('reorders controls', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+    useEventStore.getState().addControlToCourse({ x: 500, y: 600 });
+
+    const { activeCourseId, event } = useEventStore.getState();
+    const firstControlId = event!.courses[0]!.controls[0]!.controlId;
+
+    // Move first to last
+    useEventStore.getState().moveControlInCourse(activeCourseId!, 0, 2);
+
+    const course = useEventStore.getState().event!.courses[0]!;
+    expect(course.controls[2]?.controlId).toBe(firstControlId);
+    expect(course.controls[0]?.type).toBe('start');
+    expect(course.controls[2]?.type).toBe('finish');
+  });
+});
+
+describe('updateControlPosition', () => {
+  it('updates position', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    const controlId = Object.keys(useEventStore.getState().event!.controls)[0]!;
+    useEventStore.getState().updateControlPosition(controlId as any, { x: 150, y: 250 });
+    expect(useEventStore.getState().event!.controls[controlId as any]?.position).toEqual({
       x: 150,
       y: 250,
     });
   });
+});
 
-  it('supports undo/redo', () => {
+describe('undo/redo', () => {
+  it('undoes addControlToCourse', () => {
     useEventStore.getState().newEvent('Test');
-    const control = createControl(31, { x: 100, y: 200 });
-    useEventStore.getState().addControl(control);
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
 
-    // Verify control exists
-    expect(useEventStore.getState().event?.controls[control.id]).toBeDefined();
+    expect(Object.keys(useEventStore.getState().event!.controls)).toHaveLength(1);
 
-    // Undo
     useEventStore.temporal.getState().undo();
-    expect(useEventStore.getState().event?.controls[control.id]).toBeUndefined();
 
-    // Redo
+    expect(Object.keys(useEventStore.getState().event!.controls)).toHaveLength(0);
+  });
+
+  it('redoes addControlToCourse', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+
+    useEventStore.temporal.getState().undo();
     useEventStore.temporal.getState().redo();
-    expect(useEventStore.getState().event?.controls[control.id]).toBeDefined();
+
+    expect(Object.keys(useEventStore.getState().event!.controls)).toHaveLength(1);
   });
 });

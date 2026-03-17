@@ -1,15 +1,20 @@
 import { useRef, useState } from 'react';
 import { detectMapFileType } from '@/core/files/detect-file-type';
 import { loadRasterImage } from '@/core/files/load-raster';
-// loadPdfAsImage is lazy-imported to avoid loading PDF.js at module evaluation
+// loadPdfAsImage and loadOcadMap are lazy-imported to avoid loading at module evaluation
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
+import { useToolStore } from '@/stores/tool-store';
+import type { Tool } from '@/stores/tool-store';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
 
 export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventName = useEventStore((s) => s.event?.name);
+  const activeTool = useToolStore((s) => s.activeTool);
+  const setTool = useToolStore((s) => s.setTool);
+  const hasImage = useMapImageStore((s) => s.image !== null);
   const [loading, setLoading] = useState(false);
 
   const handleLoadMap = () => {
@@ -64,7 +69,7 @@ export function Toolbar() {
           name: file.name,
           type: 'ocad',
           scale: result.scale ?? 15000,
-          dpi: 150, // SVG rasterized at screen resolution
+          dpi: 150,
         });
       }
     } catch (err) {
@@ -77,12 +82,34 @@ export function Toolbar() {
     e.target.value = '';
   };
 
+  const toolButton = (tool: Tool, label: string) => (
+    <button
+      onClick={() => setTool(tool)}
+      className={`rounded px-3 py-1.5 text-sm font-medium ${
+        activeTool === tool
+          ? 'bg-gray-800 text-white'
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
       <h1 className="text-lg font-semibold text-gray-900">Overprint</h1>
       {eventName && (
         <span className="text-sm text-gray-500">{eventName}</span>
       )}
+
+      {/* Tool buttons — only show when a map is loaded */}
+      {hasImage && (
+        <div className="flex gap-1">
+          {toolButton('pan', 'Pan')}
+          {toolButton('addControl', 'Add Control')}
+        </div>
+      )}
+
       <div className="flex-1" />
       <button
         onClick={handleLoadMap}
