@@ -250,12 +250,25 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
       const stage = stageRef.current;
       if (!stage) return;
 
-      // Delete/Backspace — remove selected control from active course
+      // Delete/Backspace — remove selected control, or last control if none selected
       if (e.code === 'Delete' || e.code === 'Backspace') {
-        const { selectedControlId, activeCourseId } = useEventStore.getState();
-        if (selectedControlId && activeCourseId) {
-          e.preventDefault();
+        const { selectedControlId, activeCourseId, event } = useEventStore.getState();
+        if (!activeCourseId || !event) return;
+
+        const course = event.courses.find((c) => c.id === activeCourseId);
+        if (!course || course.controls.length === 0) return;
+
+        e.preventDefault();
+
+        if (selectedControlId) {
+          // Delete the selected control
           useEventStore.getState().removeControlFromCourse(activeCourseId, selectedControlId);
+        } else {
+          // No selection — delete the most recent (last) control
+          const lastCc = course.controls[course.controls.length - 1];
+          if (lastCc) {
+            useEventStore.getState().removeControlFromCourse(activeCourseId, lastCc.controlId);
+          }
         }
         return;
       }

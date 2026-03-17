@@ -8,7 +8,9 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { createControl } from '@/core/models/defaults';
 import { CourseRenderer } from '@/components/course/course-renderer';
+import { CoursePanel } from '@/components/course/course-panel';
 import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 
@@ -38,21 +40,23 @@ export function MapCanvas() {
     handleTouchEnd,
   } = useMapNavigation({ stageRef });
 
-  // Auto-fit when image first loads
-  const prevImageRef = useRef<typeof image>(null);
+  // Auto-fit when image first loads (or when container size becomes available)
+  const fittedImageRef = useRef<typeof image>(null);
   useEffect(() => {
-    if (image && image !== prevImageRef.current && size.width > 0 && size.height > 0) {
-      const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
-      useViewportStore.getState().setViewport(fit);
+    // Skip if no image, or already fitted this image, or container not sized yet
+    if (!image || image === fittedImageRef.current || size.width <= 0 || size.height <= 0) return;
 
-      const stage = stageRef.current;
-      if (stage) {
-        stage.scale({ x: fit.zoom, y: fit.zoom });
-        stage.position({ x: fit.panX, y: fit.panY });
-        stage.batchDraw();
-      }
+    const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
+    useViewportStore.getState().setViewport(fit);
+
+    const stage = stageRef.current;
+    if (stage) {
+      stage.scale({ x: fit.zoom, y: fit.zoom });
+      stage.position({ x: fit.panX, y: fit.panY });
+      stage.batchDraw();
     }
-    prevImageRef.current = image;
+
+    fittedImageRef.current = image;
   }, [image, imageWidth, imageHeight, size.width, size.height]);
 
   // Cursor management based on tool
@@ -112,11 +116,33 @@ export function MapCanvas() {
                 dimensions={dimensions}
                 selectedControlId={selectedControlId}
                 draggable={activeTool === 'pan'}
+                allowLegInsert={activeTool === 'addControl'}
                 onSelectControl={(id) => {
                   useEventStore.getState().setSelectedControl(id);
                 }}
                 onDragControlEnd={(id, x, y) => {
                   useEventStore.getState().updateControlPosition(id, { x, y });
+                }}
+                onInsertOnLeg={(position, afterIndex) => {
+                  const store = useEventStore.getState();
+                  if (!store.activeCourseId || !store.event) return;
+                  // Create a new control and insert at the leg position
+                  const code = Math.max(
+                    30,
+                    ...Object.values(store.event.controls).map((c) => c.code),
+                  ) + 1;
+                  const control = createControl(code, position);
+                  // Add to controls pool via immer mutation
+                  useEventStore.setState((state) => {
+                    if (state.event) {
+                      state.event.controls[control.id] = control;
+                    }
+                  });
+                  store.insertControlInCourse(
+                    store.activeCourseId,
+                    control.id,
+                    afterIndex,
+                  );
                 }}
               />
             )}
@@ -126,6 +152,14 @@ export function MapCanvas() {
       {image && (
         <>
           <MapSettingsPanel />
+          {activeCourse && event && activeCourseId && (
+            <CoursePanel
+              course={activeCourse}
+              controls={event.controls}
+              courseId={activeCourseId}
+              selectedControlId={selectedControlId}
+            />
+          )}
           <ZoomControls
             containerWidth={size.width}
             containerHeight={size.height}
