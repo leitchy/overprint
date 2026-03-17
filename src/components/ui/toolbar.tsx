@@ -28,9 +28,12 @@ export function Toolbar() {
   const descriptionsPanelOpen = useToolStore((s) => s.descriptionsPanelOpen);
   const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
   const hasImage = useMapImageStore((s) => s.image !== null);
+  const setEventName = useEventStore((s) => s.setEventName);
   const [loading, setLoading] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
+  const [editingEventName, setEditingEventName] = useState(false);
+  const [eventNameDraft, setEventNameDraft] = useState('');
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -327,8 +330,39 @@ export function Toolbar() {
   return (
     <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
       <h1 className="text-lg font-semibold text-gray-900">Overprint</h1>
-      {eventName && (
-        <span className="text-sm text-gray-500">{eventName}</span>
+      {eventName !== undefined && (
+        editingEventName ? (
+          <input
+            autoFocus
+            value={eventNameDraft}
+            onChange={(e) => setEventNameDraft(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                const trimmed = eventNameDraft.trim();
+                if (trimmed) setEventName(trimmed);
+                setEditingEventName(false);
+              }
+              if (e.key === 'Escape') {
+                setEditingEventName(false);
+              }
+            }}
+            onBlur={() => {
+              const trimmed = eventNameDraft.trim();
+              if (trimmed) setEventName(trimmed);
+              setEditingEventName(false);
+            }}
+            className="text-sm text-gray-500 border-b border-violet-400 bg-transparent outline-none px-1"
+          />
+        ) : (
+          <span
+            className="text-sm text-gray-500 cursor-pointer hover:text-gray-700"
+            onClick={() => { setEditingEventName(true); setEventNameDraft(eventName ?? ''); }}
+            title={t('clickToEditEventName')}
+          >
+            {eventName}
+          </span>
+        )
       )}
 
       {/* Tool buttons — only show when a map is loaded */}

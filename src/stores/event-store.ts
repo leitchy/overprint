@@ -64,6 +64,13 @@ interface EventActions {
   moveControlInCourse: (courseId: CourseId, fromIndex: number, toIndex: number) => void;
   insertControlInCourse: (courseId: CourseId, controlId: ControlId, atIndex: number) => void;
 
+  // Control management
+  deleteControl: (controlId: ControlId) => void;
+  setControlCode: (controlId: ControlId, code: number) => void;
+
+  // Event name editing
+  setEventName: (name: string) => void;
+
   // Description editing
   updateControlDescription: (id: ControlId, column: string, value: string | undefined) => void;
 
@@ -256,6 +263,48 @@ export const useEventStore = create<EventState & EventActions>()(
           if (state.selectedControlId === controlId) {
             state.selectedControlId = null;
           }
+
+          // Auto-cleanup: if control is no longer referenced by any course, remove it
+          const stillReferenced = state.event.courses.some((c) =>
+            c.controls.some((cc) => cc.controlId === controlId),
+          );
+          if (!stillReferenced) {
+            delete state.event.controls[controlId];
+          }
+        });
+      },
+
+      deleteControl: (controlId: ControlId) => {
+        set((state) => {
+          if (!state.event) return;
+
+          // Remove from all courses
+          for (const course of state.event.courses) {
+            course.controls = course.controls.filter(
+              (cc) => cc.controlId !== controlId,
+            );
+            deriveCourseControlTypes(course.controls);
+          }
+
+          // Remove from controls pool
+          delete state.event.controls[controlId];
+
+          if (state.selectedControlId === controlId) {
+            state.selectedControlId = null;
+          }
+        });
+      },
+
+      setControlCode: (controlId: ControlId, code: number) => {
+        set((state) => {
+          const control = state.event?.controls[controlId];
+          if (control) control.code = code;
+        });
+      },
+
+      setEventName: (name: string) => {
+        set((state) => {
+          if (state.event) state.event.name = name;
         });
       },
 
