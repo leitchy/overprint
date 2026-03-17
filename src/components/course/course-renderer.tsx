@@ -13,8 +13,10 @@ interface CourseRendererProps {
   dimensions: OverprintPixelDimensions;
   selectedControlId: ControlId | null;
   draggable: boolean;
+  allowLegInsert: boolean;
   onSelectControl: (id: ControlId) => void;
   onDragControlEnd: (id: ControlId, x: number, y: number) => void;
+  onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
 }
 
 /**
@@ -45,8 +47,10 @@ export function CourseRenderer({
   dimensions,
   selectedControlId,
   draggable,
+  allowLegInsert,
   onSelectControl,
   onDragControlEnd,
+  onInsertOnLeg,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -88,6 +92,11 @@ export function CourseRenderer({
             fromOffset={shapeOffset(prev.type, dimensions)}
             toOffset={shapeOffset(curr.type, dimensions)}
             lineWidth={screenLineWidth}
+            onInsert={
+              allowLegInsert && onInsertOnLeg
+                ? (pos) => onInsertOnLeg(pos, i)
+                : undefined
+            }
           />
         );
       })}
