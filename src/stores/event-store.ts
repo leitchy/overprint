@@ -5,6 +5,7 @@ import type {
   Control,
   Course,
   CourseControl,
+  CourseControlType,
   EventSettings,
   MapFile,
   MapPoint,
@@ -24,9 +25,11 @@ function deriveCourseControlTypes(controls: CourseControl[]): void {
       cc.type = 'start';
     } else if (i === controls.length - 1) {
       cc.type = 'finish';
-    } else {
+    } else if (cc.type === 'start' || cc.type === 'finish') {
+      // Reset start/finish types that are no longer at endpoints
       cc.type = 'control';
     }
+    // Preserve 'crossingPoint' and 'mapExchange' for middle controls
   }
 }
 
@@ -85,6 +88,13 @@ interface EventActions {
 
   // Number offset (per-course draggable number position)
   setNumberOffset: (courseId: CourseId, controlIndex: number, offset: MapPoint) => void;
+
+  // Control type (crossing point / map exchange)
+  setCourseControlType: (courseId: CourseId, controlIndex: number, type: CourseControlType) => void;
+
+  // Score course support
+  setCourseType: (courseId: CourseId, courseType: 'normal' | 'score') => void;
+  setControlScore: (courseId: CourseId, controlIndex: number, score: number | undefined) => void;
 
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
@@ -394,6 +404,43 @@ export const useEventStore = create<EventState & EventActions>()(
           const cc = course.controls[controlIndex];
           if (cc) {
             cc.numberOffset = offset;
+          }
+        });
+      },
+
+      // --- Control type (crossing point / map exchange) ---
+
+      setCourseControlType: (courseId: CourseId, controlIndex: number, type: CourseControlType) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          const cc = course.controls[controlIndex];
+          // Only allow setting non-endpoint types on middle controls
+          if (cc && controlIndex > 0 && controlIndex < course.controls.length - 1) {
+            cc.type = type;
+          }
+        });
+      },
+
+      // --- Score course support ---
+
+      setCourseType: (courseId: CourseId, courseType: 'normal' | 'score') => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (course) course.courseType = courseType;
+        });
+      },
+
+      setControlScore: (courseId: CourseId, controlIndex: number, score: number | undefined) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          const cc = course.controls[controlIndex];
+          if (cc) {
+            cc.score = score;
           }
         });
       },

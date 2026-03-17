@@ -39,10 +39,14 @@ function shapeOffset(
 
   switch (type) {
     case 'start':
+    case 'mapExchange':
       // Triangle circumradius
       return dims.startTriangleSide / Math.sqrt(3) + gap + screenLineWidth / 2;
     case 'finish':
       return dims.finishOuterRadius + gap + screenLineWidth / 2;
+    case 'crossingPoint':
+      // Crossing point is an X — use the arm length as radius approximation
+      return dims.crossingPointArm + gap + screenLineWidth / 2;
     default:
       return dims.circleRadius + gap + screenLineWidth / 2;
   }
@@ -73,6 +77,7 @@ export function CourseRenderer({
     type: CourseControlType;
     index: number;
     numberOffset?: { x: number; y: number };
+    score?: number;
   }> = [];
 
   for (let i = 0; i < course.controls.length; i++) {
@@ -84,6 +89,7 @@ export function CourseRenderer({
         type: cc.type,
         index: i,
         numberOffset: cc.numberOffset,
+        score: cc.score,
       });
     }
   }
@@ -99,8 +105,9 @@ export function CourseRenderer({
 
   return (
     <>
-      {/* Leg lines — drawn first so they appear behind controls */}
-      {resolvedControls.map((curr, i) => {
+      {/* Leg lines — drawn first so they appear behind controls.
+          Score courses have no ordered legs — skip them entirely. */}
+      {course.courseType !== 'score' && resolvedControls.map((curr, i) => {
         if (i === 0) return null;
         const prev = resolvedControls[i - 1]!;
         return (
@@ -122,7 +129,7 @@ export function CourseRenderer({
       })}
 
       {/* Control shapes — skip controls that are hidden (shared with active course) */}
-      {resolvedControls.map(({ control, type, index, numberOffset }) => {
+      {resolvedControls.map(({ control, type, index, numberOffset, score }) => {
         if (hideControlIds?.has(control.id)) return null;
         return (
         <ControlShape
@@ -133,9 +140,10 @@ export function CourseRenderer({
           dimensions={dimensions}
           isSelected={control.id === selectedControlId}
           draggable={draggable}
-          startTarget={type === 'start' ? startTarget : undefined}
+          startTarget={(type === 'start' || type === 'mapExchange') ? startTarget : undefined}
           color={color}
           showNumber={showNumbers}
+          score={course.courseType === 'score' ? score : undefined}
           clickable={clickable}
           numberOffset={numberOffset}
           onSelect={() => onSelectControl(control.id)}

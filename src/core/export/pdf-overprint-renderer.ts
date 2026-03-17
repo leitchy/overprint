@@ -62,32 +62,40 @@ export function renderOverprint(
   const circleGap = mmToPdfPoints(0.3);
   const numberSize = mmToPdfPoints(settings.numberSize);
 
+  const crossingPointArm = mmToPdfPoints(3.0); // IOF spec: 6mm total, half = 3mm
+
   function shapeOffset(type: CourseControlType): number {
     switch (type) {
       case 'start':
+      case 'mapExchange':
         return startTriangleSide / Math.sqrt(3) + circleGap + lineWidth / 2;
       case 'finish':
         return finishOuterRadius + circleGap + lineWidth / 2;
+      case 'crossingPoint':
+        return crossingPointArm + circleGap + lineWidth / 2;
       default:
         return circleRadius + circleGap + lineWidth / 2;
     }
   }
 
-  // Draw legs first (behind shapes)
-  for (let i = 1; i < resolved.length; i++) {
-    const prev = resolved[i - 1]!;
-    const curr = resolved[i]!;
-    const prevPdf = ctx.toPdf(prev.control.position);
-    const currPdf = ctx.toPdf(curr.control.position);
+  // Draw legs first (behind shapes).
+  // Score courses have no ordered legs — skip them entirely.
+  if (course.courseType !== 'score') {
+    for (let i = 1; i < resolved.length; i++) {
+      const prev = resolved[i - 1]!;
+      const curr = resolved[i]!;
+      const prevPdf = ctx.toPdf(prev.control.position);
+      const currPdf = ctx.toPdf(curr.control.position);
 
-    const endpoints = shortenedLeg(prevPdf, currPdf, shapeOffset(prev.type), shapeOffset(curr.type));
-    if (endpoints) {
-      page.drawLine({
-        start: { x: endpoints[0].x, y: endpoints[0].y },
-        end: { x: endpoints[1].x, y: endpoints[1].y },
-        thickness: lineWidth,
-        color: PURPLE,
-      });
+      const endpoints = shortenedLeg(prevPdf, currPdf, shapeOffset(prev.type), shapeOffset(curr.type));
+      if (endpoints) {
+        page.drawLine({
+          start: { x: endpoints[0].x, y: endpoints[0].y },
+          end: { x: endpoints[1].x, y: endpoints[1].y },
+          thickness: lineWidth,
+          color: PURPLE,
+        });
+      }
     }
   }
 
@@ -109,6 +117,11 @@ export function renderOverprint(
       drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget);
     } else if (type === 'finish') {
       drawFinishCircles(page, pt, finishOuterRadius, finishInnerRadius, lineWidth);
+    } else if (type === 'crossingPoint') {
+      drawCrossingPoint(page, pt, crossingPointArm, lineWidth);
+    } else if (type === 'mapExchange') {
+      // Inverted triangle — rotated π from start direction
+      drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
     } else {
       page.drawCircle({
         x: pt.x,
@@ -141,6 +154,7 @@ export function renderOverprint(
 /**
  * Draw an equilateral start triangle centered at `center` using drawLine.
  * All coordinates in PDF space (bottom-left origin).
+ * `extraRotation` (radians) is added after target-pointing — use Math.PI for map exchange.
  */
 function drawStartTriangle(
   page: PDFPage,
@@ -148,11 +162,12 @@ function drawStartTriangle(
   sideLength: number,
   lineWidth: number,
   target?: MapPoint,
+  extraRotation = 0,
 ): void {
   // In PDF, Y points up. Default direction = up = pi/2
-  const angle = target
+  const angle = (target
     ? Math.atan2(target.y, target.x)
-    : Math.PI / 2;
+    : Math.PI / 2) + extraRotation;
 
   const r = sideLength / Math.sqrt(3);
   const vertices: MapPoint[] = [];
@@ -175,6 +190,32 @@ function drawStartTriangle(
       color: PURPLE,
     });
   }
+}
+
+/**
+ * Draw a crossing point (X shape) centered at `center`.
+ * Two diagonal lines at ±45°, arm half-length = armHalf.
+ */
+function drawCrossingPoint(
+  page: PDFPage,
+  center: MapPoint,
+  armHalf: number,
+  lineWidth: number,
+): void {
+  // Line 1: top-left to bottom-right (PDF Y-up, so (-arm,-arm) is bottom-left)
+  page.drawLine({
+    start: { x: center.x - armHalf, y: center.y + armHalf },
+    end: { x: center.x + armHalf, y: center.y - armHalf },
+    thickness: lineWidth,
+    color: PURPLE,
+  });
+  // Line 2: top-right to bottom-left
+  page.drawLine({
+    start: { x: center.x + armHalf, y: center.y + armHalf },
+    end: { x: center.x - armHalf, y: center.y - armHalf },
+    thickness: lineWidth,
+    color: PURPLE,
+  });
 }
 
 /**

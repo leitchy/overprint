@@ -25,3 +25,4 @@ coverage/
 tests/fixtures/maps/
 tests/fixtures/exports/
 tests/fixtures/events/
+tsconfig.tsbuildinfo

@@ -6,17 +6,20 @@ interface StartTriangleProps {
   lineWidth: number;
   targetPoint?: MapPoint; // First regular control — triangle points toward it
   color?: string;
+  /** Extra rotation in radians added after target-pointing rotation. Used for
+   *  map exchange (inverted triangle = +π). */
+  extraRotation?: number;
 }
 
 /**
  * Equilateral triangle vertices centered at (0,0), with one vertex pointing
  * toward the target. If no target, points upward.
  */
-function trianglePoints(side: number, target?: MapPoint): number[] {
+function trianglePoints(side: number, target?: MapPoint, extraRotation = 0): number[] {
   // Angle from origin toward target (or upward by default)
-  const angle = target
+  const angle = (target
     ? Math.atan2(target.y, target.x)
-    : -Math.PI / 2; // upward
+    : -Math.PI / 2) + extraRotation; // upward
 
   // Circumradius of equilateral triangle = side / sqrt(3)
   const r = side / Math.sqrt(3);
@@ -29,8 +32,8 @@ function trianglePoints(side: number, target?: MapPoint): number[] {
   return points;
 }
 
-export function StartTriangle({ sideLength, lineWidth, targetPoint, color = '#CD59A4' }: StartTriangleProps) {
-  const points = trianglePoints(sideLength, targetPoint);
+export function StartTriangle({ sideLength, lineWidth, targetPoint, color = '#CD59A4', extraRotation = 0 }: StartTriangleProps) {
+  const points = trianglePoints(sideLength, targetPoint, extraRotation);
 
   return (
     <Line

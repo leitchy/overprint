@@ -19,6 +19,8 @@ export interface OverprintPixelDimensions {
   finishOuterRadius: number;
   finishInnerRadius: number;
   circleGap: number;
+  /** Half-length of each crossing-point arm (total arm = 6mm, half = 3mm). */
+  crossingPointArm: number;
 }
 
 /**
@@ -36,5 +38,6 @@ export function overprintPixelDimensions(
     finishOuterRadius: mmToMapPixels(5.0 / 2, dpi),       // ISOM 2017-2: 5mm outer diameter
     finishInnerRadius: mmToMapPixels(3.5 / 2, dpi),       // ISOM 2017-2: 3.5mm inner diameter
     circleGap: mmToMapPixels(0.3, dpi),                    // IOF spec: ~0.3mm gap
+    crossingPointArm: mmToMapPixels(3.0, dpi),             // IOF spec: 6mm total, half = 3mm
   };
 }
