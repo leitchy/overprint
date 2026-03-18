@@ -6,6 +6,8 @@ import { saveBlob, saveString } from '@/core/files/download';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useToolStore } from '@/stores/tool-store';
+import { useViewportStore } from '@/stores/viewport-store';
+import { useAppSettingsStore } from '@/stores/app-settings-store';
 import type { Tool } from '@/stores/tool-store';
 import type { SpecialItemType } from '@/core/models/types';
 import { FileMenu } from './file-menu';
@@ -13,6 +15,7 @@ import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
 import { PrintSettingsModal } from './print-settings';
 import { useT } from '@/i18n/use-t';
+import { fitToView } from '@/components/map/use-map-navigation';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
 
@@ -39,6 +42,11 @@ export function Toolbar() {
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
     useMapImageStore.getState().clear();
+  };
+
+  const handleCloseMap = () => {
+    useMapImageStore.getState().clear();
+    useViewportStore.getState().resetView();
   };
 
   const handleLoadMap = () => {
@@ -200,30 +208,16 @@ export function Toolbar() {
     e.target.value = '';
   };
 
-  const specialItemMenuItems: MenuEntry[] = ([
-    ['text', t('addText')],
-    ['line', t('addLine')],
-    ['rectangle', t('addRectangle')],
-    null, // separator
-    ['outOfBounds', t('outOfBounds')],
-    ['dangerousArea', t('dangerousArea')],
-    ['waterLocation', t('waterLocation')],
-    ['firstAid', t('firstAid')],
-    ['forbiddenRoute', t('forbiddenRoute')],
-  ] as Array<[SpecialItemType, string] | null>).map((entry): MenuEntry => {
-    if (entry === null) return { separator: true };
-    const [itemType, label] = entry;
-    return {
-      label,
-      onClick: () => setTool({ type: 'addSpecialItem', itemType }),
-    };
-  });
+  // --- Menu item arrays ---
 
   const fileMenuItems: MenuEntry[] = [
+    { label: t('newEvent'), onClick: handleNewEvent },
+    { separator: true },
     { label: t('openEvent'), onClick: handleOpenEvent },
     { label: t('saveEvent'), onClick: handleSave, disabled: !hasEvent },
     { separator: true },
     { label: t('loadMap'), onClick: handleLoadMap, disabled: loading },
+    { label: t('closeMap'), onClick: handleCloseMap, disabled: !hasImage },
     { separator: true },
     { label: t('exportPdfCourseMap'), onClick: handleExportPdf, disabled: !canExport },
     { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf, disabled: !canExport },
@@ -232,11 +226,111 @@ export function Toolbar() {
     { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
     { separator: true },
     { label: t('importIofXml'), onClick: handleImportIofXml, disabled: !hasEvent },
+  ];
+
+  const editMenuItems: MenuEntry[] = [
+    {
+      label: t('undo'),
+      shortcut: '⌘Z',
+      onClick: () => useEventStore.temporal.getState().undo(),
+    },
+    {
+      label: t('redo'),
+      shortcut: '⇧⌘Z',
+      onClick: () => useEventStore.temporal.getState().redo(),
+    },
+  ];
+
+  const viewMenuItems: MenuEntry[] = [
+    {
+      label: t('toolDescriptions'),
+      onClick: toggleDescriptionsPanel,
+      disabled: !hasImage,
+    },
+    {
+      label: t('showPrintBoundary'),
+      onClick: () => {
+        const current = useAppSettingsStore.getState().showPrintBoundary;
+        useAppSettingsStore.getState().setShowPrintBoundary(!current);
+      },
+      disabled: !hasEvent,
+    },
     { separator: true },
     { label: t('pageSetup'), onClick: () => setPageSetupOpen(true), disabled: !hasEvent },
     { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
     { separator: true },
-    { label: t('newEvent'), onClick: handleNewEvent },
+    {
+      label: t('zoomIn'),
+      shortcut: '⌘+',
+      onClick: () => {
+        const { zoom, setZoom } = useViewportStore.getState();
+        setZoom(zoom * 1.25);
+      },
+    },
+    {
+      label: t('zoomOut'),
+      shortcut: '⌘-',
+      onClick: () => {
+        const { zoom, setZoom } = useViewportStore.getState();
+        setZoom(zoom / 1.25);
+      },
+    },
+    {
+      label: t('fitToWindow'),
+      onClick: () => {
+        const { imageWidth, imageHeight } = useMapImageStore.getState();
+        // Find the map canvas container to get its dimensions
+        const container = document.querySelector('[data-map-container]');
+        if (container && imageWidth > 0 && imageHeight > 0) {
+          const { width, height } = container.getBoundingClientRect();
+          const fit = fitToView(imageWidth, imageHeight, width, height);
+          useViewportStore.getState().setViewport(fit);
+        }
+      },
+      disabled: !hasImage,
+    },
+  ];
+
+  const insertMenuItems: MenuEntry[] = [
+    {
+      label: t('toolAddControl'),
+      onClick: () => setTool({ type: 'addControl' }),
+      disabled: viewMode === 'allControls',
+    },
+    { separator: true },
+    {
+      label: t('addText'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'text' as SpecialItemType }),
+    },
+    {
+      label: t('addLine'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'line' as SpecialItemType }),
+    },
+    {
+      label: t('addRectangle'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'rectangle' as SpecialItemType }),
+    },
+    { separator: true },
+    {
+      label: t('outOfBounds'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'outOfBounds' as SpecialItemType }),
+    },
+    {
+      label: t('dangerousArea'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'dangerousArea' as SpecialItemType }),
+    },
+    {
+      label: t('waterLocation'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'waterLocation' as SpecialItemType }),
+    },
+    {
+      label: t('firstAid'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'firstAid' as SpecialItemType }),
+    },
+    {
+      label: t('forbiddenRoute'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'forbiddenRoute' as SpecialItemType }),
+    },
   ];
 
   const toolButton = (tool: Tool, label: string) => {
@@ -248,7 +342,7 @@ export function Toolbar() {
         onClick={() => setTool(tool)}
         className={`rounded px-3 py-1.5 text-sm font-medium ${
           isActive
-            ? 'bg-gray-800 text-white'
+            ? 'bg-violet-600 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         }`}
       >
@@ -258,8 +352,25 @@ export function Toolbar() {
   };
 
   return (
-    <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
-      <h1 className="text-lg font-semibold text-gray-900">Overprint</h1>
+    <header className="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
+
+      {/* Brand */}
+      <span className="text-sm font-semibold text-gray-900 mr-1">Overprint</span>
+
+      {/* Zone 1 — Menu bar */}
+      <nav className="flex items-center">
+        <FileMenu items={fileMenuItems} label={t('file')} variant="menubar" />
+        <FileMenu items={editMenuItems} label={t('edit')} variant="menubar" />
+        <FileMenu items={viewMenuItems} label={t('view')} variant="menubar" />
+        {hasImage && (
+          <FileMenu items={insertMenuItems} label={t('insert')} variant="menubar" />
+        )}
+      </nav>
+
+      {/* Separator between menus and event name */}
+      <div className="mx-1 h-5 w-px bg-gray-200" />
+
+      {/* Zone 2 — Event name */}
       {eventName !== undefined && (
         editingEventName ? (
           <input
@@ -286,76 +397,75 @@ export function Toolbar() {
           />
         ) : (
           <span
-            className="text-sm text-gray-500 cursor-pointer hover:text-gray-700"
+            className="group flex items-center gap-1 text-sm text-gray-500 cursor-pointer hover:text-gray-700"
             onClick={() => { setEditingEventName(true); setEventNameDraft(eventName ?? ''); }}
             title={t('clickToEditEventName')}
           >
             {eventName}
+            <span className="opacity-0 group-hover:opacity-50 text-xs">&#9998;</span>
           </span>
         )
       )}
 
-      {/* Tool buttons — only show when a map is loaded */}
+      {/* Zone 3 + 4 — Tool buttons and descriptions toggle */}
       {hasImage && (
-        <div className="flex gap-1">
-          {toolButton({ type: 'pan' }, t('toolPan'))}
-          <button
-            onClick={() => setTool({ type: 'addControl' })}
-            disabled={viewMode === 'allControls'}
-            title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
-            className={`rounded px-3 py-1.5 text-sm font-medium ${
-              activeTool.type === 'addControl'
-                ? 'bg-gray-800 text-white'
-                : viewMode === 'allControls'
-                  ? 'cursor-not-allowed bg-gray-100 text-gray-300'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {t('toolAddControl')}
-          </button>
-          {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
+        <>
+          <div className="mx-1 h-5 w-px bg-gray-200" />
+          <div className="flex items-center gap-1">
+            {toolButton({ type: 'pan' }, t('toolPan'))}
             <button
-              onClick={() => setTool({ type: 'setPrintArea' })}
-              title={t('setPrintArea')}
+              onClick={() => setTool({ type: 'addControl' })}
+              disabled={viewMode === 'allControls'}
+              title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
               className={`rounded px-3 py-1.5 text-sm font-medium ${
-                activeTool.type === 'setPrintArea'
-                  ? 'bg-gray-800 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                activeTool.type === 'addControl'
+                  ? 'bg-violet-600 text-white'
+                  : viewMode === 'allControls'
+                    ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {t('setPrintArea')}
+              {t('toolAddControl')}
             </button>
-          )}
-        </div>
+            {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
+              <>
+                <div className="h-5 w-px bg-gray-200" />
+                <button
+                  onClick={() => setTool({ type: 'setPrintArea' })}
+                  title={t('setPrintArea')}
+                  className={`rounded px-3 py-1.5 text-sm font-medium ${
+                    activeTool.type === 'setPrintArea'
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {t('setPrintArea')}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Zone 4 — Descriptions toggle */}
+          <div className="mx-1 h-5 w-px bg-gray-200" />
+          <button
+            onClick={toggleDescriptionsPanel}
+            className={`rounded px-3 py-1.5 text-sm font-medium ${
+              descriptionsPanelOpen
+                ? 'bg-violet-100 text-violet-700'
+                : 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-violet-200 hover:bg-gray-200'
+            }`}
+          >
+            {t('toolDescriptions')}
+          </button>
+        </>
       )}
 
-      {hasImage && (
-        <button
-          onClick={toggleDescriptionsPanel}
-          className={`rounded px-3 py-1.5 text-sm font-medium ${
-            descriptionsPanelOpen
-              ? 'bg-violet-100 text-violet-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          {t('toolDescriptions')}
-        </button>
-      )}
-
-      {hasImage && (
-        <FileMenu
-          items={specialItemMenuItems}
-          label={t('specialItems')}
-        />
-      )}
-
+      {/* Zone 5 — Right side spacer + loading */}
       <div className="flex-1" />
 
       {loading && (
         <span className="text-sm text-gray-400">{t('loadingMap')}</span>
       )}
-
-      <FileMenu items={fileMenuItems} label={t('file')} />
 
       {preferencesOpen && (
         <PreferencesModal onClose={() => setPreferencesOpen(false)} />
@@ -365,6 +475,7 @@ export function Toolbar() {
       )}
       <input
         ref={fileInputRef}
+        data-load-map
         type="file"
         accept={ACCEPTED_FILE_TYPES}
         onChange={handleFileSelected}

@@ -165,7 +165,7 @@ export function MapCanvas() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden">
+    <div ref={containerRef} data-map-container className="relative h-full w-full overflow-hidden">
       {size.width > 0 && size.height > 0 && (
         <Stage
           ref={(node) => {

@@ -4,6 +4,7 @@ export interface MenuItem {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  shortcut?: string;
   separator?: false;
 }
 
@@ -15,11 +16,11 @@ export type MenuEntry = MenuItem | MenuSeparator;
 
 interface FileMenuProps {
   items: MenuEntry[];
-  /** Button label. Defaults to "File" if not provided. */
   label?: string;
+  variant?: 'default' | 'menubar';
 }
 
-export function FileMenu({ items, label = 'File' }: FileMenuProps) {
+export function FileMenu({ items, label = 'File', variant = 'default' }: FileMenuProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -43,20 +44,31 @@ export function FileMenu({ items, label = 'File' }: FileMenuProps) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [open]);
 
-  return (
-    <div ref={menuRef} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`rounded px-3 py-1.5 text-sm font-medium ${
+  const triggerClass =
+    variant === 'menubar'
+      ? `rounded px-3 py-1.5 text-sm font-medium flex items-center gap-1 ${
+          open
+            ? 'bg-gray-100 text-gray-900'
+            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+        }`
+      : `rounded px-3 py-1.5 text-sm font-medium ${
           open
             ? 'bg-gray-800 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-      >
+        }`;
+
+  const dropdownAlign = variant === 'menubar' ? 'left-0' : 'right-0';
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button onClick={() => setOpen((o) => !o)} className={triggerClass}>
         {label}
+        {variant === 'menubar' && <span className="text-xs leading-none">▾</span>}
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+        <div
+          className={`absolute ${dropdownAlign} top-full z-50 mt-1 min-w-[200px] rounded-md border border-gray-200 bg-white py-1 shadow-lg`}
+        >
           {items.map((entry, i) =>
             entry.separator ? (
               <div key={i} className="my-1 border-t border-gray-100" />
@@ -70,13 +82,16 @@ export function FileMenu({ items, label = 'File' }: FileMenuProps) {
                   }
                 }}
                 disabled={entry.disabled}
-                className={`block w-full px-4 py-1.5 text-left text-sm ${
+                className={`flex w-full items-center justify-between px-4 py-1.5 text-left text-sm ${
                   entry.disabled
                     ? 'cursor-default text-gray-300'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                {entry.label}
+                <span>{entry.label}</span>
+                {entry.shortcut && (
+                  <span className="ml-8 text-xs text-gray-400">{entry.shortcut}</span>
+                )}
               </button>
             ),
           )}
