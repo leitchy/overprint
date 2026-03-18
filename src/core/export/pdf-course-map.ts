@@ -77,7 +77,7 @@ export async function generateCoursePdf(
     );
 
     // Draw special items (filter by course: items with no courseIds restriction, or this course)
-    renderSpecialItems(page, event.specialItems, course.id, toPdf, font);
+    renderSpecialItems(page, event.specialItems, course.id, toPdf, font, viewport.effectivePPP);
 
     // Page indicator for multi-page exports (no title/scale bar — the map provides those)
     if (totalPages > 1) {
@@ -188,8 +188,8 @@ function renderSpecialItems(
   courseId: CourseId,
   toPdf: (point: MapPoint) => MapPoint,
   font: PDFFont,
+  effectivePPP: number,
 ): void {
-  const MM_TO_PT = 72 / 25.4;
   const IOF_SYMBOL_PT = 12; // pt half-size for IOF symbols in PDF
 
   for (const item of specialItems) {
@@ -204,7 +204,8 @@ function renderSpecialItems(
 
     switch (item.type) {
       case 'text': {
-        const fontSizePt = item.fontSize * MM_TO_PT;
+        // fontSize is in map pixels — convert to PDF points
+        const fontSizePt = item.fontSize * effectivePPP;
         page.drawText(item.text, {
           x: pos.x,
           y: pos.y,
