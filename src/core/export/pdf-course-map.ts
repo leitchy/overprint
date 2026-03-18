@@ -42,8 +42,11 @@ export async function generateCoursePdf(
   if (!bounds) throw new Error('Course has no controls');
 
   // Compute viewport grid (1×1 for single-page, n×m for multi-page)
+  // Pass custom print area override if set on the course
+  const printAreaOverride = course.settings.printArea;
   const multiPage = computeMultiPageViewports(
     layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds,
+    30, 15, printAreaOverride,
   );
   const totalPages = multiPage.viewports.length;
 

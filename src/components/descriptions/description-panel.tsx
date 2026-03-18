@@ -109,6 +109,7 @@ export function DescriptionPanel() {
           lang={descriptionLang}
           selectedControlId={selectedControlId}
           mode={viewMode === 'allControls' ? 'allControls' : 'course'}
+          textOnly={activeCourse?.settings.descriptionAppearance === 'text'}
           onSelectControl={(id) => {
             useEventStore.getState().setSelectedControl(id);
           }}

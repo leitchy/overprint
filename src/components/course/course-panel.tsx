@@ -5,6 +5,7 @@ import { useEventStore } from '@/stores/event-store';
 import { calculateCourseLength } from '@/core/geometry/course-length';
 import { CourseList } from './course-tabs';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
+import { SCALE_PRESETS } from '@/core/models/constants';
 import { useT } from '@/i18n/use-t';
 
 interface CoursePanelProps {
@@ -42,8 +43,11 @@ export function CoursePanel({
 }: CoursePanelProps) {
   const t = useT();
   const mapFile = useEventStore((s) => s.event?.mapFile);
+  const eventSettings = useEventStore((s) => s.event?.settings);
   const descriptionLang = useEventStore((s) => s.event?.settings.language ?? 'en');
   const updateSettings = useEventStore((s) => s.updateSettings);
+  const updateCourseSettings = useEventStore((s) => s.updateCourseSettings);
+  const clearPrintArea = useEventStore((s) => s.clearPrintArea);
   const viewMode = useEventStore((s) => s.viewMode);
   const setSelectedControl = useEventStore((s) => s.setSelectedControl);
   const moveControlInCourse = useEventStore((s) => s.moveControlInCourse);
@@ -57,6 +61,7 @@ export function CoursePanel({
   const [codeDraft, setCodeDraft] = useState(0);
   const [editingScoreIndex, setEditingScoreIndex] = useState<number | null>(null);
   const [scoreDraft, setScoreDraft] = useState(0);
+  const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
 
   const lengthMetres =
     course && mapFile
@@ -282,6 +287,115 @@ export function CoursePanel({
             </ul>
           )}
         </>
+      )}
+
+      {/* Course Settings — collapsible section */}
+      {course && courseId && (
+        <div className="border-t border-gray-200">
+          <button
+            className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 hover:bg-gray-50"
+            onClick={() => setCourseSettingsOpen((v) => !v)}
+          >
+            <span>{t('courseSettings')}</span>
+            <span>{courseSettingsOpen ? '▲' : '▼'}</span>
+          </button>
+          {courseSettingsOpen && (
+            <div className="px-3 pb-2 space-y-2">
+              {/* Label mode */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('labelMode')}
+                </label>
+                <select
+                  value={course.settings.labelMode ?? 'sequence'}
+                  onChange={(e) => updateCourseSettings(courseId, { labelMode: e.target.value as 'sequence' | 'code' | 'both' | 'none' })}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                >
+                  <option value="sequence">{t('labelSequence')}</option>
+                  <option value="code">{t('labelCode')}</option>
+                  <option value="both">{t('labelBoth')}</option>
+                  <option value="none">{t('labelNone')}</option>
+                </select>
+              </div>
+
+              {/* Description appearance */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('descriptionAppearance')}
+                </label>
+                <select
+                  value={course.settings.descriptionAppearance ?? 'symbols'}
+                  onChange={(e) => updateCourseSettings(courseId, { descriptionAppearance: e.target.value as 'symbols' | 'text' })}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                >
+                  <option value="symbols">{t('symbolsMode')}</option>
+                  <option value="text">{t('textMode')}</option>
+                </select>
+              </div>
+
+              {/* Print scale */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('printScaleLabel')}
+                </label>
+                <select
+                  value={course.settings.printScale ?? (eventSettings?.printScale ?? 15000)}
+                  onChange={(e) => updateCourseSettings(courseId, { printScale: Number(e.target.value) })}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                >
+                  <option value="">— {t('printScaleLabel')} (event default) —</option>
+                  {SCALE_PRESETS.map((s) => (
+                    <option key={s} value={s}>1:{s.toLocaleString()}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Climb */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('climb')} ({t('climbMetres')})
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={course.climb ?? course.settings.climb ?? ''}
+                  placeholder="—"
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? undefined : Number(e.target.value);
+                    updateCourseSettings(courseId, { climb: val });
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                />
+              </div>
+
+              {/* Secondary title */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('secondaryTitle')}
+                </label>
+                <input
+                  type="text"
+                  value={course.settings.secondaryTitle ?? ''}
+                  placeholder={t('secondaryTitlePlaceholder')}
+                  onChange={(e) => updateCourseSettings(courseId, { secondaryTitle: e.target.value || undefined })}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                />
+              </div>
+
+              {/* Clear print area */}
+              {course.settings.printArea && (
+                <button
+                  className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:border-red-200 hover:text-red-500"
+                  onClick={() => clearPrintArea(courseId)}
+                >
+                  {t('clearPrintArea')}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Description language selector — always visible when event is loaded */}

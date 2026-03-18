@@ -21,12 +21,22 @@ interface UseMapNavigationOptions {
   stageRef: React.RefObject<StageType | null>;
 }
 
+/** Print-area drag state — stored as map pixel coordinates. */
+interface PrintAreaDrag {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
+
 export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const lastTouchDistRef = useRef(0);
   const lastTouchCenterRef = useRef({ x: 0, y: 0 });
+  const isPrintAreaDraggingRef = useRef(false);
+  const printAreaDragRef = useRef<PrintAreaDrag | null>(null);
 
   // Debounced sync to Zustand — only on gesture end
   const syncToStore = useCallback(() => {
@@ -114,7 +124,15 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
 
       const activeTool = useToolStore.getState().activeTool;
 
-      if (activeTool.type === 'addControl') {
+      if (activeTool.type === 'setPrintArea') {
+        // Start drawing a print area rectangle
+        e.evt.preventDefault();
+        const pos = stage.getRelativePointerPosition();
+        if (pos) {
+          isPrintAreaDraggingRef.current = true;
+          printAreaDragRef.current = { startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y };
+        }
+      } else if (activeTool.type === 'addControl') {
         // Add control at click position (in map-image coordinates)
         e.evt.preventDefault();
         const pos = stage.getRelativePointerPosition();
@@ -185,9 +203,24 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
 
   const handleMouseMove = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isPanningRef.current) return;
       const stage = stageRef.current;
       if (!stage) return;
+
+      // Update print area drag endpoint
+      if (isPrintAreaDraggingRef.current && printAreaDragRef.current) {
+        const pos = stage.getRelativePointerPosition();
+        if (pos) {
+          printAreaDragRef.current = {
+            ...printAreaDragRef.current,
+            endX: pos.x,
+            endY: pos.y,
+          };
+          stage.batchDraw();
+        }
+        return;
+      }
+
+      if (!isPanningRef.current) return;
 
       const dx = e.evt.clientX - panStartRef.current.x;
       const dy = e.evt.clientY - panStartRef.current.y;
@@ -203,6 +236,33 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
   );
 
   const handleMouseUp = useCallback(() => {
+    // Commit print area drag
+    if (isPrintAreaDraggingRef.current && printAreaDragRef.current) {
+      isPrintAreaDraggingRef.current = false;
+      const drag = printAreaDragRef.current;
+      printAreaDragRef.current = null;
+
+      // Normalise the rectangle (start may be bottom-right of end)
+      const minX = Math.min(drag.startX, drag.endX);
+      const minY = Math.min(drag.startY, drag.endY);
+      const maxX = Math.max(drag.startX, drag.endX);
+      const maxY = Math.max(drag.startY, drag.endY);
+
+      // Only commit if the rectangle has meaningful area
+      if (maxX - minX > 5 && maxY - minY > 5) {
+        const store = useEventStore.getState();
+        if (store.activeCourseId) {
+          store.updateCourseSettings(store.activeCourseId, {
+            printArea: { minX, minY, maxX, maxY },
+          });
+        }
+      }
+
+      // Auto-switch back to pan tool
+      useToolStore.getState().setTool({ type: 'pan' });
+      return;
+    }
+
     if (isPanningRef.current) {
       isPanningRef.current = false;
       syncToStore();
@@ -358,6 +418,9 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
+    /** Ref holding current print-area drag rectangle in map pixels, or null when not dragging. */
+    printAreaDragRef,
+    isPrintAreaDraggingRef,
   };
 }
 

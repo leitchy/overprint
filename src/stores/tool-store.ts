@@ -5,7 +5,8 @@ import type { SpecialItemType } from '@/core/models/types';
 export type Tool =
   | { type: 'pan' }
   | { type: 'addControl' }
-  | { type: 'addSpecialItem'; itemType: SpecialItemType };
+  | { type: 'addSpecialItem'; itemType: SpecialItemType }
+  | { type: 'setPrintArea' };
 
 interface ToolState {
   activeTool: Tool;

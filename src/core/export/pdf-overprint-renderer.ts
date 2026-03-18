@@ -131,22 +131,37 @@ export function renderOverprint(
       });
     }
 
-    // Sequence number — default offset to the right of the shape, then apply
+    // Compute label text from course labelMode setting
+    const labelMode = course.settings.labelMode ?? 'sequence';
+    let labelText: string;
+    if (labelMode === 'sequence') {
+      labelText = String(index + 1);
+    } else if (labelMode === 'code') {
+      labelText = String(control.code);
+    } else if (labelMode === 'both') {
+      labelText = `${index + 1} (${control.code})`;
+    } else {
+      labelText = '';
+    }
+
+    // Label — default offset to the right of the shape, then apply
     // the user-defined numberOffset (stored in map pixels, converted via effectivePPP).
     // PDF Y-axis is inverted relative to screen (bottom-left origin), so negate Y.
-    const baseOffsetX = shapeOffset(type) + lineWidth;
-    const baseOffsetY = -numberSize * 0.35;
+    if (labelText !== '') {
+      const baseOffsetX = shapeOffset(type) + lineWidth;
+      const baseOffsetY = -numberSize * 0.35;
 
-    const numOffsetX = numberOffset ? numberOffset.x * ctx.effectivePPP : 0;
-    const numOffsetY = numberOffset ? -(numberOffset.y * ctx.effectivePPP) : 0;
+      const numOffsetX = numberOffset ? numberOffset.x * ctx.effectivePPP : 0;
+      const numOffsetY = numberOffset ? -(numberOffset.y * ctx.effectivePPP) : 0;
 
-    page.drawText(String(index + 1), {
-      x: pt.x + baseOffsetX + numOffsetX,
-      y: pt.y + baseOffsetY + numOffsetY,
-      size: numberSize,
-      font,
-      color: PURPLE,
-    });
+      page.drawText(labelText, {
+        x: pt.x + baseOffsetX + numOffsetX,
+        y: pt.y + baseOffsetY + numOffsetY,
+        size: numberSize,
+        font,
+        color: PURPLE,
+      });
+    }
   }
 }
 

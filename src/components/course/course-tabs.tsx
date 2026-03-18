@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import type { CourseId } from '@/utils/id';
 import { useT } from '@/i18n/use-t';
@@ -23,12 +23,24 @@ export function CourseList() {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline course creation state
+  const [creating, setCreating] = useState(false);
+  const [createValue, setCreateValue] = useState('');
+  const createInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (renamingId !== null) {
       renameInputRef.current?.focus();
       renameInputRef.current?.select();
     }
   }, [renamingId]);
+
+  useEffect(() => {
+    if (creating) {
+      createInputRef.current?.focus();
+      createInputRef.current?.select();
+    }
+  }, [creating]);
 
   function handleRenameStart(id: CourseId, currentName: string) {
     setRenamingId(id);
@@ -60,9 +72,28 @@ export function CourseList() {
   }
 
   function handleAddCourse() {
-    const name = window.prompt(t('courseNamePrompt'), `Course ${courses.length + 1}`);
-    if (name && name.trim()) {
-      addCourse(name.trim());
+    setCreateValue(`Course ${courses.length + 1}`);
+    setCreating(true);
+  }
+
+  const handleCreateCommit = useCallback(() => {
+    const trimmed = createValue.trim();
+    if (trimmed) {
+      addCourse(trimmed);
+    }
+    setCreating(false);
+  }, [createValue, addCourse]);
+
+  function handleCreateCancel() {
+    setCreating(false);
+  }
+
+  function handleCreateKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    e.stopPropagation();
+    if (e.key === 'Enter') {
+      handleCreateCommit();
+    } else if (e.key === 'Escape') {
+      handleCreateCancel();
     }
   }
 
@@ -159,6 +190,23 @@ export function CourseList() {
           </div>
         );
       })}
+
+      {/* Inline course creation input */}
+      {creating && (
+        <div className="flex items-center gap-1 px-3 py-1.5 border-l-2 border-l-violet-300 bg-violet-50">
+          <input
+            ref={createInputRef}
+            type="text"
+            value={createValue}
+            aria-label={t('createCourse')}
+            className="min-w-0 flex-1 rounded border border-violet-400 px-1 py-0 text-sm outline-none"
+            onChange={(e) => setCreateValue(e.target.value)}
+            onKeyDown={handleCreateKeyDown}
+            onBlur={handleCreateCommit}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
       {/* Add course button */}
       <button

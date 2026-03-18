@@ -16,6 +16,8 @@ interface DescriptionSheetProps {
   /** Rendering mode: 'course' (default) shows full course with sequence numbers;
    *  'allControls' shows all controls sorted by code with no sequence numbers. */
   mode?: 'course' | 'allControls';
+  /** When true, render symbol names as text instead of SVG icons. */
+  textOnly?: boolean;
 }
 
 const GRID_COLS = 'grid-cols-[1.5rem_2rem_repeat(6,1fr)]';
@@ -32,6 +34,7 @@ export function DescriptionSheet({
   onCellClick,
   onSelectControl,
   mode = 'course',
+  textOnly = false,
 }: DescriptionSheetProps) {
   const lengthMetres = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
   const lengthKm = (lengthMetres / 1000).toFixed(1);
@@ -55,6 +58,15 @@ export function DescriptionSheet({
           {course.name}
         </div>
       </div>
+
+      {/* Secondary title row (e.g. class list) */}
+      {course.settings.secondaryTitle && (
+        <div className={`grid ${GRID_COLS}`}>
+          <div className="col-span-full border border-gray-800 bg-white px-2 py-0.5 text-center text-xs text-gray-700">
+            {course.settings.secondaryTitle}
+          </div>
+        </div>
+      )}
 
       {/* Info row — length and climb (hidden in all-controls mode) */}
       {!isAllControls && (
@@ -114,6 +126,7 @@ export function DescriptionSheet({
                   lang={lang}
                   isEditable={!isAllControls}
                   isSelected={isSelected}
+                  textOnly={textOnly}
                   onClick={(el) => onCellClick?.(cc.controlId, colLetter, el)}
                 />
               );

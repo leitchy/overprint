@@ -138,6 +138,8 @@ export interface MultiPageLayout {
  * @param imgHeight - Map image height in pixels
  * @param bounds - Course control bounding box in map pixels
  * @param paddingMm - Padding around course bounds in mm at print scale (default 30)
+ * @param printAreaOverride - When set, use this rectangle instead of computing from controls.
+ *                            Padding is still applied around the override bounds.
  */
 export function computeMapViewport(
   layout: PageLayout,
@@ -148,6 +150,7 @@ export function computeMapViewport(
   imgHeight: number,
   bounds: CourseBounds,
   paddingMm = 30,
+  printAreaOverride?: CourseBounds,
 ): MapViewport {
   // PDF points per map pixel at correct print scale
   const effectivePPP = (72 / dpi) * (mapScale / printScale);
@@ -159,11 +162,14 @@ export function computeMapViewport(
   const viewportWidthPx = layout.printableWidth / effectivePPP;
   const viewportHeightPx = layout.printableHeight / effectivePPP;
 
+  // Use printAreaOverride when set, otherwise fall back to course control bounds
+  const effectiveBounds = printAreaOverride ?? bounds;
+
   // Course center in map pixels (including padding in the bounds)
-  const paddedMinX = bounds.minX - paddingPx;
-  const paddedMinY = bounds.minY - paddingPx;
-  const paddedMaxX = bounds.maxX + paddingPx;
-  const paddedMaxY = bounds.maxY + paddingPx;
+  const paddedMinX = effectiveBounds.minX - paddingPx;
+  const paddedMinY = effectiveBounds.minY - paddingPx;
+  const paddedMaxX = effectiveBounds.maxX + paddingPx;
+  const paddedMaxY = effectiveBounds.maxY + paddingPx;
   const courseCenterX = (paddedMinX + paddedMaxX) / 2;
   const courseCenterY = (paddedMinY + paddedMaxY) / 2;
 
@@ -201,6 +207,7 @@ export function computeMapViewport(
  * All viewports share the same `effectivePPP` (scale factor).
  *
  * @param overlapMm - Overlap between adjacent pages in mm at print scale (default 15mm)
+ * @param printAreaOverride - When set, use this rectangle as the course extent instead of computing from controls.
  */
 export function computeMultiPageViewports(
   layout: PageLayout,
@@ -212,6 +219,7 @@ export function computeMultiPageViewports(
   bounds: CourseBounds,
   paddingMm = 30,
   overlapMm = 15,
+  printAreaOverride?: CourseBounds,
 ): MultiPageLayout {
   // PDF points per map pixel at correct print scale
   const effectivePPP = (72 / dpi) * (mapScale / printScale);
@@ -224,16 +232,19 @@ export function computeMultiPageViewports(
   const pageWidthPx = layout.printableWidth / effectivePPP;
   const pageHeightPx = layout.printableHeight / effectivePPP;
 
+  // Use printAreaOverride when set, otherwise fall back to course control bounds
+  const effectiveBounds = printAreaOverride ?? bounds;
+
   // Padded course extent
-  const extentLeft = bounds.minX - paddingPx;
-  const extentTop = bounds.minY - paddingPx;
-  const extentWidth = (bounds.maxX - bounds.minX) + paddingPx * 2;
-  const extentHeight = (bounds.maxY - bounds.minY) + paddingPx * 2;
+  const extentLeft = effectiveBounds.minX - paddingPx;
+  const extentTop = effectiveBounds.minY - paddingPx;
+  const extentWidth = (effectiveBounds.maxX - effectiveBounds.minX) + paddingPx * 2;
+  const extentHeight = (effectiveBounds.maxY - effectiveBounds.minY) + paddingPx * 2;
 
   // If the extent fits in a single page, fall back to single viewport
   if (extentWidth <= pageWidthPx && extentHeight <= pageHeightPx) {
     const singleViewport = computeMapViewport(
-      layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds, paddingMm,
+      layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds, paddingMm, printAreaOverride,
     );
     return { rows: 1, cols: 1, viewports: [singleViewport] };
   }
