@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
-import { detectMapFileType } from '@/core/files/detect-file-type';
-import { loadRasterImage } from '@/core/files/load-raster';
-import { serializeEvent, deserializeEvent } from '@/core/files/overprint-format';
+import { loadMapFile, loadEventFile, importIofXmlFile } from '@/core/files/load-map-file';
+import { serializeEvent } from '@/core/files/overprint-format';
 import { saveBlob, saveString } from '@/core/files/download';
 // Heavy exporters and format parsers are lazy-imported to keep initial bundle small
 import { useEventStore } from '@/stores/event-store';
@@ -61,21 +60,7 @@ export function Toolbar() {
   const handleEventFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    try {
-      const text = await file.text();
-      const loadedEvent = deserializeEvent(text);
-      useEventStore.getState().loadEvent(loadedEvent);
-
-      if (loadedEvent.mapFile) {
-        console.log(
-          `Event loaded. Please load the map file: ${loadedEvent.mapFile.name}`,
-        );
-      }
-    } catch (err) {
-      console.error('Failed to open event:', err);
-    }
-
+    await loadEventFile(file);
     e.target.value = '';
   };
 
@@ -83,63 +68,9 @@ export function Toolbar() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const fileType = detectMapFileType(file);
-    console.log('File selected:', file.name, 'type:', file.type, 'detected:', fileType);
-
-    if (fileType === 'unknown') {
-      console.error('Unsupported file type:', file.name);
-      return;
-    }
-
-    // Create event if none exists — but don't overwrite a loaded event
-    if (!useEventStore.getState().event) {
-      useEventStore.getState().newEvent('Untitled Event');
-    }
-
-    // If event already has mapFile metadata (from .overprint load), use its saved scale/dpi
-    const existingMapFile = useEventStore.getState().event?.mapFile;
-
     setLoading(true);
-
     try {
-      if (fileType === 'raster') {
-        const img = await loadRasterImage(file);
-        useMapImageStore.getState().setImage(img, img.naturalWidth, img.naturalHeight);
-        useEventStore.getState().setMapFile({
-          name: file.name,
-          type: 'raster',
-          scale: existingMapFile?.scale ?? 15000,
-          dpi: existingMapFile?.dpi ?? 150,
-        });
-      } else if (fileType === 'pdf') {
-        const { loadPdfAsImage } = await import('@/core/files/load-pdf');
-        const dpi = existingMapFile?.dpi ?? 200;
-        const result = await loadPdfAsImage(file, { dpi });
-        useMapImageStore.getState().setImage(result.canvas, result.width, result.height);
-        useMapImageStore.getState().setPdfArrayBuffer(result.arrayBuffer);
-        useEventStore.getState().setMapFile({
-          name: file.name,
-          type: 'pdf',
-          scale: existingMapFile?.scale ?? 15000,
-          dpi,
-        });
-      } else if (fileType === 'ocad') {
-        const { loadOcadMap } = await import('@/core/files/load-ocad');
-        const result = await loadOcadMap(file);
-        useMapImageStore.getState().setImage(result.image, result.width, result.height);
-        // For OCAD files the DPI is computed directly from the file's coordinate geometry
-        // and must never be overridden by a stale saved value. The scale embedded in the
-        // OCAD file is also authoritative; fall back to the saved scale only when OCAD
-        // metadata is missing (result.scale === null).
-        useEventStore.getState().setMapFile({
-          name: file.name,
-          type: 'ocad',
-          scale: result.scale ?? existingMapFile?.scale ?? 15000,
-          dpi: result.dpi,
-        });
-      }
-    } catch (err) {
-      console.error('Failed to load map:', err);
+      await loadMapFile(file);
     } finally {
       setLoading(false);
     }
@@ -265,34 +196,7 @@ export function Toolbar() {
   const handleIofXmlFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const currentEvent = useEventStore.getState().event;
-    const mapFile = currentEvent?.mapFile;
-
-    const dpi = mapFile?.dpi ?? 96;
-    const mapImage = useMapImageStore.getState().image;
-    const mapHeightPx =
-      mapImage instanceof HTMLCanvasElement
-        ? mapImage.height
-        : mapImage instanceof HTMLImageElement
-          ? mapImage.naturalHeight
-          : 0;
-
-    try {
-      const xmlString = await file.text();
-      const { importIofXml } = await import('@/core/iof/import-xml');
-      const { controls, courses } = importIofXml(xmlString, dpi, mapHeightPx);
-
-      // Ensure an event exists before importing
-      if (!useEventStore.getState().event) {
-        useEventStore.getState().newEvent('Imported Event');
-      }
-
-      useEventStore.getState().importControlsAndCourses(controls, courses);
-    } catch (err) {
-      console.error('IOF XML import failed:', err);
-    }
-
+    await importIofXmlFile(file);
     e.target.value = '';
   };
 

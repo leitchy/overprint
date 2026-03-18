@@ -8,8 +8,8 @@ describe('App', () => {
     expect(screen.getByText('Overprint')).toBeInTheDocument();
   });
 
-  it('shows the empty state message', () => {
+  it('shows the empty state drop hint', () => {
     render(<App />);
-    expect(screen.getByText('Load a map to get started')).toBeInTheDocument();
+    expect(screen.getByText('Drop files here')).toBeInTheDocument();
   });
 });
