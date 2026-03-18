@@ -17,6 +17,7 @@ import { ZoomControls } from '@/components/ui/zoom-controls';
 import { MapSettingsPanel } from '@/components/ui/map-settings-panel';
 import { PrintBoundary } from '@/components/map/print-boundary';
 import { TextFormatToolbar } from '@/components/map/text-format-toolbar';
+import { InlineTextEditor } from '@/components/map/inline-text-editor';
 import { SpecialItemsLayer } from '@/components/map/special-items-layer';
 
 // Module-level stage reference — allows toolbar and export utilities to access
@@ -325,6 +326,7 @@ export function MapCanvas() {
         </Stage>
       )}
       <TextFormatToolbar />
+      <InlineTextEditor />
       {image && (
         <>
           <MapSettingsPanel />
