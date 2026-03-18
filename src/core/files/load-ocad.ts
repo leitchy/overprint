@@ -137,7 +137,7 @@ function injectRectangleObjects(svgEl: SVGElement, ocadFile: any): void {
     if (!coords || coords.length < 3) continue;
 
     const color = ocadFile.colors[obj.col];
-    const fillRgb: string = color?.rgb ?? 'none';
+    const strokeRgb: string = color?.rgb ?? 'none';
 
     // Coordinates are in OCAD space. The <g> group already has a transform
     // (translate + Y-negate) applied by ocadToSvg, so we use raw OCAD coords
@@ -147,11 +147,13 @@ function injectRectangleObjects(svgEl: SVGElement, ocadFile: any): void {
       .map((c: any) => `${c[0]},${-c[1]}`)
       .join(' ');
 
+    // Render as stroke-only (border) — OCAD rectangle symbols are frames,
+    // not filled areas. Filling them covers the map content underneath.
     const polygon = document.createElementNS(svgNS, 'polygon');
     polygon.setAttribute('points', points);
-    polygon.setAttribute('fill', fillRgb);
-    polygon.setAttribute('stroke', fillRgb);
-    polygon.setAttribute('stroke-width', '0');
+    polygon.setAttribute('fill', 'none');
+    polygon.setAttribute('stroke', strokeRgb);
+    polygon.setAttribute('stroke-width', '30');
 
     targetGroup.appendChild(polygon);
   }
