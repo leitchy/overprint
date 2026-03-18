@@ -1,0 +1,144 @@
+{
+  "formatId": "overprint",
+  "version": "0.1.0",
+  "event": {
+    "id": "acea40fe-9668-4a7e-ad82-31e3f020aacc",
+    "name": "Sample Event",
+    "mapFile": {
+      "name": "sample-map.ocd",
+      "type": "ocad",
+      "scale": 5000,
+      "dpi": 365.33620999640414
+    },
+    "courses": [
+      {
+        "id": "e9c60cc6-e868-40b9-842f-5ab669bf1322",
+        "name": "Course 1",
+        "courseType": "normal",
+        "controls": [
+          {
+            "controlId": "6e60083f-665f-41ae-b98c-5f495246c9df",
+            "type": "start"
+          },
+          {
+            "controlId": "9b56031a-98af-432c-8597-0526bd550eea",
+            "type": "control"
+          },
+          {
+            "controlId": "3f918e83-b38f-4bcb-8220-9417987f479a",
+            "type": "control"
+          },
+          {
+            "controlId": "864db1fb-9d29-476b-b6f4-324c4e1fc288",
+            "type": "control"
+          },
+          {
+            "controlId": "aa914060-8ad3-4290-ac9e-1ec71b8e2241",
+            "type": "control"
+          },
+          {
+            "controlId": "a21e8e70-8a1b-49eb-bd87-3bff410c3b7f",
+            "type": "finish"
+          }
+        ],
+        "settings": {}
+      },
+      {
+        "id": "f7f4f770-01af-429d-a6d5-dbd14f9dedcc",
+        "name": "Course 2",
+        "courseType": "normal",
+        "controls": [],
+        "settings": {}
+      }
+    ],
+    "controls": {
+      "6e60083f-665f-41ae-b98c-5f495246c9df": {
+        "id": "6e60083f-665f-41ae-b98c-5f495246c9df",
+        "code": 31,
+        "position": {
+          "x": 255.8243370301267,
+          "y": 2593.7620366909587
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "9b56031a-98af-432c-8597-0526bd550eea": {
+        "id": "9b56031a-98af-432c-8597-0526bd550eea",
+        "code": 32,
+        "position": {
+          "x": 665.5464309350248,
+          "y": 1965.6570566464316
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "3f918e83-b38f-4bcb-8220-9417987f479a": {
+        "id": "3f918e83-b38f-4bcb-8220-9417987f479a",
+        "code": 33,
+        "position": {
+          "x": 846.4896906798275,
+          "y": 636.653473042283
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "864db1fb-9d29-476b-b6f4-324c4e1fc288": {
+        "id": "864db1fb-9d29-476b-b6f4-324c4e1fc288",
+        "code": 34,
+        "position": {
+          "x": 1137.6627523381305,
+          "y": 293.483533613982
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "aa914060-8ad3-4290-ac9e-1ec71b8e2241": {
+        "id": "aa914060-8ad3-4290-ac9e-1ec71b8e2241",
+        "code": 35,
+        "position": {
+          "x": 1570.2627296590383,
+          "y": 690.7287362249245
+        },
+        "description": {
+          "columnD": ""
+        }
+      },
+      "a21e8e70-8a1b-49eb-bd87-3bff410c3b7f": {
+        "id": "a21e8e70-8a1b-49eb-bd87-3bff410c3b7f",
+        "code": 36,
+        "position": {
+          "x": 2217.082888057126,
+          "y": 1558.012764961904
+        },
+        "description": {
+          "columnD": ""
+        }
+      }
+    },
+    "specialItems": [],
+    "settings": {
+      "printScale": 5000,
+      "controlCircleDiameter": 5,
+      "lineWidth": 0.35,
+      "numberSize": 4,
+      "descriptionStandard": "2024",
+      "mapStandard": "ISOM2017",
+      "pageSetup": {
+        "paperSize": "A4",
+        "orientation": "portrait",
+        "margins": {
+          "top": 10,
+          "right": 10,
+          "bottom": 10,
+          "left": 10
+        }
+      },
+      "language": "en"
+    },
+    "version": "0.1.0"
+  }
+}

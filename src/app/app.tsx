@@ -30,6 +30,7 @@ export function App() {
 
   const [dragOver, setDragOver] = useState(false);
   const [dropLoading, setDropLoading] = useState(false);
+  const [loadingSample, setLoadingSample] = useState(false);
 
   // Hidden file input for the "Load Map" button shown in the no-map empty state
   const mapFileInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +118,29 @@ export function App() {
   };
 
   // ---------------------------------------------------------------------------
+  // "Try a Sample" handler
+  // ---------------------------------------------------------------------------
+
+  const handleTrySample = async () => {
+    setLoadingSample(true);
+    try {
+      const eventRes = await fetch('/samples/sample-event.overprint');
+      const eventBlob = await eventRes.blob();
+      const eventFile = new File([eventBlob], 'sample-event.overprint');
+      await loadEventFile(eventFile);
+
+      const mapRes = await fetch('/samples/sample-map.ocd');
+      const mapBlob = await mapRes.blob();
+      const mapFile = new File([mapBlob], 'sample-map.ocd');
+      await loadMapFile(mapFile);
+    } catch (err) {
+      console.error('Failed to load sample:', err);
+    } finally {
+      setLoadingSample(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // "Load Map" button handler for the empty-state prompt
   // ---------------------------------------------------------------------------
 
@@ -182,7 +206,16 @@ export function App() {
                 </button>
               </>
             ) : (
-              <p className="text-gray-400">{t('dropFilesHere')}</p>
+              <>
+                <p className="text-gray-400">{t('dropFilesHere')}</p>
+                <button
+                  onClick={handleTrySample}
+                  disabled={loadingSample}
+                  className="mt-2 rounded-lg bg-violet-600 px-6 py-3 text-base font-semibold text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {loadingSample ? t('loadingSample') : t('trySample')}
+                </button>
+              </>
             )}
           </div>
         )}
