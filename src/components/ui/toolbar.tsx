@@ -56,9 +56,23 @@ export function Toolbar() {
   const handleSave = async () => {
     const currentEvent = useEventStore.getState().event;
     if (!currentEvent) return;
-    const json = serializeEvent(currentEvent);
     const suggestedName = `${currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.overprint`;
-    await saveString(json, suggestedName);
+    try {
+      if ('showSaveFilePicker' in window) {
+        // Open save dialog FIRST to preserve user gesture
+        const handle = await window.showSaveFilePicker({ suggestedName });
+        const json = serializeEvent(currentEvent);
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+      } else {
+        const json = serializeEvent(currentEvent);
+        await saveString(json, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Save failed:', err);
+    }
   };
 
   const handleOpenEvent = () => {
