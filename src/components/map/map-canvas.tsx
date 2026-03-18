@@ -157,6 +157,7 @@ export function MapCanvas() {
   // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
   const handleSelectControl = useCallback((id: ControlId) => {
     useEventStore.getState().setSelectedControl(id);
+    useToolStore.getState().setSelectedSpecialItem(null); // deselect any special item
   }, []);
 
   const handleDragControlEnd = useCallback((id: ControlId, x: number, y: number) => {
