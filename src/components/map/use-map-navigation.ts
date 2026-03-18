@@ -152,16 +152,17 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
           const mmToPixels = (mm: number) => (mm * dpi) / 25.4;
 
           if (itemType === 'text') {
-            const text = window.prompt('Text:');
-            if (text && text.trim()) {
-              store.addSpecialItem({
-                id: generateSpecialItemId(),
-                type: 'text',
-                text: text.trim(),
-                fontSize: mmToPixels(4), // 4mm text height in map pixels
-                position: { x: pos.x, y: pos.y },
-              });
-            }
+            // Place text with default content — user edits via double-click
+            const newId = generateSpecialItemId();
+            store.addSpecialItem({
+              id: newId,
+              type: 'text',
+              text: 'Text',
+              fontSize: mmToPixels(4),
+              position: { x: pos.x, y: pos.y },
+            });
+            // Select it so the formatting toolbar appears
+            useToolStore.getState().setSelectedSpecialItem(newId);
           } else if (itemType === 'line') {
             // Place a default-length line (100px in map coords)
             store.addSpecialItem({

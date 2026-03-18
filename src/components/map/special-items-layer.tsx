@@ -454,6 +454,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
   const setSelectedSpecialItem = useToolStore((s) => s.setSelectedSpecialItem);
 
   const [drawState, setDrawState] = useState<DrawState | null>(null);
+  const setEditingTextItemId = useToolStore((s) => s.setEditingTextItemId);
 
   // Delete key removes the selected special item
   useEffect(() => {
@@ -540,10 +541,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
   };
 
   const handleTextDblClick = (item: TextItem) => {
-    const newText = window.prompt('Edit text:', item.text);
-    if (newText !== null && newText.trim()) {
-      updateSpecialItem(item.id, { text: newText.trim() } as Partial<SpecialItem>);
-    }
+    setEditingTextItemId(item.id);
   };
 
   return (

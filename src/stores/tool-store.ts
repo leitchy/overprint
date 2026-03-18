@@ -12,6 +12,8 @@ interface ToolState {
   activeTool: Tool;
   descriptionsPanelOpen: boolean;
   selectedSpecialItemId: SpecialItemId | null;
+  /** When non-null, the text item is being edited inline on the canvas */
+  editingTextItemId: SpecialItemId | null;
 }
 
 interface ToolActions {
@@ -19,12 +21,14 @@ interface ToolActions {
   toggleDescriptionsPanel: () => void;
   setDescriptionsPanelOpen: (open: boolean) => void;
   setSelectedSpecialItem: (id: SpecialItemId | null) => void;
+  setEditingTextItemId: (id: SpecialItemId | null) => void;
 }
 
 export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   activeTool: { type: 'pan' },
   descriptionsPanelOpen: false,
   selectedSpecialItemId: null,
+  editingTextItemId: null,
 
   setTool: (tool) => {
     set({ activeTool: tool });
@@ -40,5 +44,9 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
 
   setSelectedSpecialItem: (id) => {
     set({ selectedSpecialItemId: id });
+  },
+
+  setEditingTextItemId: (id) => {
+    set({ editingTextItemId: id });
   },
 }));
