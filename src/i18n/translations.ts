@@ -134,6 +134,10 @@ const en = {
   viewingAllControls: 'Viewing all controls',
   addControlDisabledInAllControls: 'Switch to a course to add controls',
 
+  // Try Sample
+  trySample: 'Try a Sample',
+  loadingSample: 'Loading sample\u2026',
+
   // Drag and drop
   dropFilesHere: 'Drop files here',
   dropFilesToOpen: 'Drop files to open',
@@ -276,6 +280,8 @@ const fr: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'D\xe9finir la zone d\u2019impression',
   clearPrintArea: 'Effacer la zone d\u2019impression',
   createCourse: 'Cr\xe9er un circuit',
+  trySample: 'Essayer un exemple',
+  loadingSample: 'Chargement de l\u2019exemple\u2026',
 };
 
 // ---------------------------------------------------------------------------
@@ -390,6 +396,8 @@ const de: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'Druckbereich festlegen',
   clearPrintArea: 'Druckbereich l\xf6schen',
   createCourse: 'Bahn erstellen',
+  trySample: 'Beispiel ausprobieren',
+  loadingSample: 'Beispiel wird geladen…',
 };
 
 // ---------------------------------------------------------------------------
@@ -504,6 +512,8 @@ const es: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'Definir \xe1rea de impresi\xf3n',
   clearPrintArea: 'Borrar \xe1rea de impresi\xf3n',
   createCourse: 'Crear recorrido',
+  trySample: 'Probar un ejemplo',
+  loadingSample: 'Cargando ejemplo…',
 };
 
 // ---------------------------------------------------------------------------
@@ -618,6 +628,8 @@ const fi: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'M\xe4\xe4rit\xe4 tulostusalue',
   clearPrintArea: 'Poista tulostusalue',
   createCourse: 'Luo rata',
+  trySample: 'Kokeile esimerkkiä',
+  loadingSample: 'Ladataan esimerkkiä…',
 };
 
 // ---------------------------------------------------------------------------
@@ -732,6 +744,8 @@ const it: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'Imposta area di stampa',
   clearPrintArea: 'Cancella area di stampa',
   createCourse: 'Crea percorso',
+  trySample: 'Prova un esempio',
+  loadingSample: 'Caricamento esempio…',
 };
 
 // ---------------------------------------------------------------------------
@@ -846,6 +860,8 @@ const sv: Partial<Record<TranslationKey, string>> = {
   setPrintArea: 'St\xe4ll in utskriftsomr\xe5de',
   clearPrintArea: 'Rensa utskriftsomr\xe5de',
   createCourse: 'Skapa bana',
+  trySample: 'Prova ett exempel',
+  loadingSample: 'Laddar exempel…',
 };
 
 // ---------------------------------------------------------------------------
@@ -960,6 +976,8 @@ const ja: Partial<Record<TranslationKey, string>> = {
   setPrintArea: '印刷範囲を設定',
   clearPrintArea: '印刷範囲をクリア',
   createCourse: 'コースを作成',
+  trySample: 'サンプルを試す',
+  loadingSample: 'サンプルを読み込み中…',
 };
 
 // ---------------------------------------------------------------------------
