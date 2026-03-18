@@ -262,10 +262,19 @@ export async function generateDescriptionSheetPdf(
   await drawRow([course.name], { headerSpan: true, bold: true, fontSize: HEADER_FONT_SIZE });
 
   // ---------------------------------------------------------------------------
+  // Secondary title row (e.g. class list)
+  // ---------------------------------------------------------------------------
+
+  if (course.settings.secondaryTitle) {
+    await drawRow([course.settings.secondaryTitle], { headerSpan: true, fontSize: HEADER_FONT_SIZE - 1 });
+  }
+
+  // ---------------------------------------------------------------------------
   // Info row: length + climb
   // ---------------------------------------------------------------------------
 
-  const climbText = course.climb !== undefined ? ` / ${course.climb}m climb` : '';
+  const climbValue = course.climb ?? course.settings.climb;
+  const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
   const infoText = `${Math.round(lengthM)} m${climbText}`;
   await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
 

@@ -7,6 +7,7 @@ import type {
   Course,
   CourseControl,
   CourseControlType,
+  CourseSettings,
   EventSettings,
   MapFile,
   MapPoint,
@@ -37,9 +38,14 @@ function deriveCourseControlTypes(controls: CourseControl[]): void {
   }
 }
 
+/** Control codes that look ambiguous when printed upside-down — skip these. */
+const AMBIGUOUS_CODES = new Set([68, 69, 86, 89, 96, 98, 160, 180, 190]);
+
 function nextControlCode(event: OverprintEvent): number {
   const codes = Object.values(event.controls).map((c) => c.code);
-  return codes.length > 0 ? Math.max(...codes) + 1 : 31;
+  let next = codes.length > 0 ? Math.max(...codes) + 1 : 31;
+  while (AMBIGUOUS_CODES.has(next)) next++;
+  return next;
 }
 
 // --- State interfaces ---
@@ -104,6 +110,10 @@ interface EventActions {
 
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
+
+  // Course settings
+  updateCourseSettings: (courseId: CourseId, updates: Partial<CourseSettings>) => void;
+  clearPrintArea: (courseId: CourseId) => void;
 
   // Special item operations
   addSpecialItem: (item: SpecialItem) => void;
@@ -482,6 +492,28 @@ export const useEventStore = create<EventState & EventActions>()(
           const control = state.event?.controls[id];
           if (control) {
             control.position = position;
+          }
+        });
+      },
+
+      // --- Course settings ---
+
+      updateCourseSettings: (courseId: CourseId, updates: Partial<CourseSettings>) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (course) {
+            Object.assign(course.settings, updates);
+          }
+        });
+      },
+
+      clearPrintArea: (courseId: CourseId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (course) {
+            course.settings.printArea = undefined;
           }
         });
       },

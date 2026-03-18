@@ -409,6 +409,19 @@ export function Toolbar() {
           >
             {t('toolAddControl')}
           </button>
+          {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
+            <button
+              onClick={() => setTool({ type: 'setPrintArea' })}
+              title={t('setPrintArea')}
+              className={`rounded px-3 py-1.5 text-sm font-medium ${
+                activeTool.type === 'setPrintArea'
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {t('setPrintArea')}
+            </button>
+          )}
         </div>
       )}
 

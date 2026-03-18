@@ -127,12 +127,26 @@ export const CourseRenderer = memo(function CourseRenderer({
       {/* Control shapes — skip controls that are hidden (shared with active course) */}
       {resolvedControls.map(({ control, type, index, numberOffset, score }) => {
         if (hideControlIds?.has(control.id)) return null;
+
+        // Compute label text from course labelMode setting
+        const labelMode = course.settings.labelMode ?? 'sequence';
+        let labelText: string;
+        if (labelMode === 'sequence') {
+          labelText = String(index + 1);
+        } else if (labelMode === 'code') {
+          labelText = String(control.code);
+        } else if (labelMode === 'both') {
+          labelText = `${index + 1} (${control.code})`;
+        } else {
+          labelText = '';
+        }
+
         return (
         <ControlShape
           key={control.id}
           control={control}
           type={type}
-          sequenceNumber={index + 1}
+          labelText={labelText}
           dimensions={dimensions}
           isSelected={control.id === selectedControlId}
           draggable={draggable}

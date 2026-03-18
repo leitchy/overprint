@@ -7,6 +7,8 @@ interface DescriptionCellProps {
   lang?: string;            // BCP 47 language tag for symbol name/tooltip
   isEditable?: boolean;
   isSelected?: boolean;
+  /** When true, render symbol name as text instead of the SVG icon. */
+  textOnly?: boolean;
   onClick?: (cellElement: HTMLElement) => void;
 }
 
@@ -15,6 +17,7 @@ export function DescriptionCell({
   lang = 'en',
   isEditable = false,
   isSelected = false,
+  textOnly = false,
   onClick,
 }: DescriptionCellProps) {
   const cellRef = useRef<HTMLDivElement>(null);
@@ -55,7 +58,7 @@ export function DescriptionCell({
       title={value ? getSymbolName(value, lang) : isEditable ? 'Click to set' : ''}
     >
       {value && (
-        hasSvg ? (
+        hasSvg && !textOnly ? (
           <SymbolIcon symbolId={value} size={20} />
         ) : (
           <span className="truncate text-[9px] leading-tight text-gray-600">

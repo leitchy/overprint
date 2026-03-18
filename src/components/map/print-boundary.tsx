@@ -45,6 +45,7 @@ export function PrintBoundary() {
   const { dpi, scale: mapScale } = mapFile;
   const printScale = activeCourse.settings.printScale ?? settings.printScale;
   const layout = computePageLayout(settings.pageSetup);
+  const printAreaOverride = activeCourse.settings.printArea;
 
   const viewport = computeMapViewport(
     layout,
@@ -54,6 +55,8 @@ export function PrintBoundary() {
     imgWidth,
     imgHeight,
     bounds,
+    30,
+    printAreaOverride,
   );
 
   return (

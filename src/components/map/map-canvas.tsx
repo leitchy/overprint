@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Stage, Layer, Image as KonvaImage } from 'react-konva';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Stage, Layer, Image as KonvaImage, Rect as KonvaRect } from 'react-konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import { useCanvasSize } from './use-canvas-size';
 import { useMapNavigation, fitToView } from './use-map-navigation';
@@ -57,7 +57,14 @@ export function MapCanvas() {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
+    printAreaDragRef,
+    isPrintAreaDraggingRef,
   } = useMapNavigation({ stageRef });
+
+  // Force re-render during print area drag so the preview rectangle updates
+  const [printAreaPreview, setPrintAreaPreview] = useState<{
+    minX: number; minY: number; maxX: number; maxY: number;
+  } | null>(null);
 
   // Auto-fit when image first loads (or when container size becomes available)
   const fittedImageRef = useRef<typeof image>(null);
@@ -82,12 +89,27 @@ export function MapCanvas() {
   useEffect(() => {
     const container = stageRef.current?.container();
     if (!container) return;
-    if (activeTool.type === 'addControl' || activeTool.type === 'addSpecialItem') {
+    if (activeTool.type === 'addControl' || activeTool.type === 'addSpecialItem' || activeTool.type === 'setPrintArea') {
       container.style.cursor = 'crosshair';
     } else {
       container.style.cursor = 'default';
     }
   }, [activeTool]);
+
+  // Track print area drag for preview rectangle
+  const handleMouseMoveForPreview = useCallback(() => {
+    if (isPrintAreaDraggingRef.current && printAreaDragRef.current) {
+      const drag = printAreaDragRef.current;
+      setPrintAreaPreview({
+        minX: Math.min(drag.startX, drag.endX),
+        minY: Math.min(drag.startY, drag.endY),
+        maxX: Math.max(drag.startX, drag.endX),
+        maxY: Math.max(drag.startY, drag.endY),
+      });
+    } else {
+      setPrintAreaPreview(null);
+    }
+  }, [isPrintAreaDraggingRef, printAreaDragRef]);
 
   // Compute overprint dimensions — only recomputes when settings or dpi change
   const dpi = mapFile?.dpi ?? 150;
@@ -157,8 +179,8 @@ export function MapCanvas() {
           y={panY}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onMouseMove={(e) => { handleMouseMove(e); handleMouseMoveForPreview(); }}
+          onMouseUp={() => { handleMouseUp(); handleMouseMoveForPreview(); }}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -281,6 +303,23 @@ export function MapCanvas() {
           {viewMode === 'course' && (
             <Layer listening={false}>
               <PrintBoundary />
+            </Layer>
+          )}
+
+          {/* Print area drag preview — shown while dragging the setPrintArea tool */}
+          {printAreaPreview && (
+            <Layer listening={false}>
+              <KonvaRect
+                x={printAreaPreview.minX}
+                y={printAreaPreview.minY}
+                width={printAreaPreview.maxX - printAreaPreview.minX}
+                height={printAreaPreview.maxY - printAreaPreview.minY}
+                fill="rgba(59, 130, 246, 0.15)"
+                stroke="rgba(59, 130, 246, 0.7)"
+                strokeWidth={2}
+                dash={[8, 4]}
+                perfectDrawEnabled={false}
+              />
             </Layer>
           )}
         </Stage>

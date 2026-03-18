@@ -12,7 +12,8 @@ const SELECTION_COLOR = '#FFD700';
 interface ControlShapeProps {
   control: Control;
   type: CourseControlType;
-  sequenceNumber: number;
+  /** Resolved label text to display — empty string means no label rendered. */
+  labelText: string;
   dimensions: OverprintPixelDimensions;
   isSelected: boolean;
   draggable: boolean;
@@ -30,7 +31,7 @@ interface ControlShapeProps {
 export const ControlShape = memo(function ControlShape({
   control,
   type,
-  sequenceNumber,
+  labelText,
   dimensions,
   isSelected,
   draggable,
@@ -178,10 +179,10 @@ export const ControlShape = memo(function ControlShape({
         />
       )}
 
-      {/* Control sequence number */}
-      {showNumber && (
+      {/* Control label (sequence number, code, both, or none) */}
+      {showNumber && labelText !== '' && (
         <Text
-          text={String(sequenceNumber)}
+          text={labelText}
           x={numX}
           y={numY}
           fontSize={numberSize}

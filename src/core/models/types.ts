@@ -48,8 +48,21 @@ export interface CourseControl {
   numberOffset?: MapPoint;
 }
 
+/** Axis-aligned bounding box in map pixel coordinates. */
+export interface CourseBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 export interface CourseSettings {
   printScale?: number; // Override event print scale for this course
+  labelMode?: 'sequence' | 'code' | 'both' | 'none';
+  descriptionAppearance?: 'symbols' | 'text';
+  secondaryTitle?: string;
+  printArea?: CourseBounds;
+  climb?: number;
 }
 
 export interface Course {
