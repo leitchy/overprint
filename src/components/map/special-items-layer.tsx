@@ -462,6 +462,8 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       if (!selectedSpecialItemId) return;
       if (isEditableTarget(e.target)) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        e.stopImmediatePropagation(); // Prevent control deletion handler from also firing
         deleteSpecialItem(selectedSpecialItemId);
         setSelectedSpecialItem(null);
       }

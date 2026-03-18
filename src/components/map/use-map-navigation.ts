@@ -197,6 +197,7 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
         isPanningRef.current = true;
         panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
         useEventStore.getState().setSelectedControl(null);
+        useToolStore.getState().setSelectedSpecialItem(null);
       }
     },
     [stageRef],
@@ -361,7 +362,9 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
       if (!stage) return;
 
       // Delete/Backspace — remove selected control, or last control if none selected
+      // Skip if a special item is selected (handled by SpecialItemsLayer)
       if (e.code === 'Delete' || e.code === 'Backspace') {
+        if (useToolStore.getState().selectedSpecialItemId) return;
         const { selectedControlId, activeCourseId, event } = useEventStore.getState();
         if (!activeCourseId || !event) return;
 
