@@ -56,8 +56,18 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   svgEl.setAttribute('width', String(pixelWidth));
   svgEl.setAttribute('height', String(pixelHeight));
 
-  // Convert SVG to image via Blob URL
-  const svgStr = new XMLSerializer().serializeToString(svgEl);
+  // Inject rectangle symbol objects as SVG polygons.
+  // ocad2geojson ignores rectangle symbols entirely (RectangleSymbolType = 7),
+  // so we render them ourselves. Each rectangle object has 4 coordinates
+  // forming the corners and a `col` index referencing ocadFile.colors.
+  injectRectangleObjects(svgEl, ocadFile);
+
+  // Fix text rendering: SVG loaded via <img> blob URL cannot resolve external
+  // fonts. Replace specific font-family declarations with generic fallbacks so
+  // text elements are visible (correct position/size, slightly different face).
+  let svgStr = new XMLSerializer().serializeToString(svgEl);
+  svgStr = svgStr.replace(/font-family="[^"]*"/g, 'font-family="sans-serif"');
+
   const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
 
@@ -87,6 +97,66 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
     dpi,
     arrayBuffer,
   };
+}
+
+// OCAD rectangle object type constant (matches ocad2geojson object-types.js)
+const RECTANGLE_OBJECT_TYPE = 7;
+
+/**
+ * Inject rectangle symbol objects (objType 7) into the SVG element as polygons.
+ *
+ * ocad2geojson skips rectangle symbols during SVG generation, so these objects —
+ * which define layout boxes like the title block and SPORTident control boxes —
+ * are absent from the rendered output. We reconstruct them from the raw object
+ * data: 4 coordinates in OCAD 1/100mm space, a color index, and an optional
+ * rotation angle (in tenths of a degree, already reflected in the coordinate
+ * positions since OCAD stores pre-rotated corner points).
+ *
+ * The ocad-to-svg.js coordinate transform applies `translate(0, bounds[1]+bounds[3])`
+ * and negates Y (i.e. SVG y = −ocad_y). We match that here.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function injectRectangleObjects(svgEl: SVGElement, ocadFile: any): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rectObjects: any[] = (ocadFile.objects as any[]).filter(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (o: any) => o.objType === RECTANGLE_OBJECT_TYPE
+  );
+
+  if (rectObjects.length === 0) return;
+
+  const bounds: [number, number, number, number] = ocadFile.getBounds();
+  const translateY = bounds[1] + bounds[3];
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  // Append rectangles inside the same <g> that ocadToSvg uses, or directly
+  // onto the SVG root if the group isn't found.
+  const targetGroup = svgEl.querySelector('g') ?? svgEl;
+
+  for (const obj of rectObjects) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const coords: any[] = obj.coordinates;
+    if (!coords || coords.length < 3) continue;
+
+    const color = ocadFile.colors[obj.col];
+    const fillRgb: string = color?.rgb ?? 'none';
+
+    // Build the SVG polygon points string.
+    // Y is negated and offset by the same translateY used by ocadToSvg's group transform.
+    const points = coords
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((c: any) => `${c[0]},${-(c[1]) + translateY}`)
+      .join(' ');
+
+    const polygon = document.createElementNS(svgNS, 'polygon');
+    polygon.setAttribute('points', points);
+    polygon.setAttribute('fill', fillRgb);
+    polygon.setAttribute('stroke', fillRgb);
+    polygon.setAttribute('stroke-width', '0');
+    polygon.setAttribute('data-sym', String(obj.sym));
+
+    targetGroup.appendChild(polygon);
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
