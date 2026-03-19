@@ -325,11 +325,12 @@ export function CoursePanel({
                 </label>
                 <select
                   value={course.settings.descriptionAppearance ?? 'symbols'}
-                  onChange={(e) => updateCourseSettings(courseId, { descriptionAppearance: e.target.value as 'symbols' | 'text' })}
+                  onChange={(e) => updateCourseSettings(courseId, { descriptionAppearance: e.target.value as 'symbols' | 'text' | 'symbolsAndText' })}
                   className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
                 >
                   <option value="symbols">{t('symbolsMode')}</option>
                   <option value="text">{t('textMode')}</option>
+                  <option value="symbolsAndText">{t('symbolsAndTextMode')}</option>
                 </select>
               </div>
 
@@ -382,6 +383,34 @@ export function CoursePanel({
                   onKeyDown={(e) => e.stopPropagation()}
                   className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
                 />
+              </div>
+
+              {/* Page orientation override */}
+              <div>
+                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                  {t('orientationLabel')}
+                </label>
+                <select
+                  value={course.settings.pageSetup?.orientation ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') {
+                      // Clear override — use event default
+                      const { orientation: _, ...rest } = course.settings.pageSetup ?? {};
+                      const hasKeys = Object.keys(rest).length > 0;
+                      updateCourseSettings(courseId, { pageSetup: hasKeys ? rest : undefined });
+                    } else {
+                      updateCourseSettings(courseId, {
+                        pageSetup: { ...course.settings.pageSetup, orientation: val as 'portrait' | 'landscape' },
+                      });
+                    }
+                  }}
+                  className="w-full rounded border border-gray-200 px-1 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                >
+                  <option value="">{t('useDefault')} ({eventSettings?.pageSetup.orientation ?? 'portrait'})</option>
+                  <option value="portrait">{t('portrait')}</option>
+                  <option value="landscape">{t('landscape')}</option>
+                </select>
               </div>
 
               {/* Clear print area */}
