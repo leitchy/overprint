@@ -150,6 +150,7 @@ export function importIofXml(
 
     const courseControls: CourseControl[] = [];
     let seqIndex = 0;
+    let hasScore = false;
 
     for (const ccEl of courseControlEls) {
       const refId = getTextNS(ccEl, ns, 'ControlId');
@@ -171,14 +172,20 @@ export function importIofXml(
         type = 'control';
       }
 
-      courseControls.push({ controlId: ctrl.id as ControlId, type });
+      // Parse score value if present
+      const scoreStr = getTextNS(ccEl, ns, 'Score');
+      const score = scoreStr ? parseInt(scoreStr, 10) : undefined;
+      const validScore = score !== undefined && !isNaN(score) ? score : undefined;
+
+      courseControls.push({ controlId: ctrl.id as ControlId, type, score: validScore });
+      if (validScore !== undefined) hasScore = true;
       seqIndex++;
     }
 
     courses.push({
       id: generateCourseId(),
       name: name || 'Imported Course',
-      courseType: 'normal',
+      courseType: hasScore ? 'score' : 'normal',
       controls: courseControls,
       settings: {},
     });

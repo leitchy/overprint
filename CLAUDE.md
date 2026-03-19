@@ -132,8 +132,9 @@ overprint/
 - Crossing points and map exchange symbols (X and inverted triangle, type cycling in course panel)
 - Multi-page PDF export (all courses in one PDF, per-course page orientation)
 
+- Score course support (toggle, point values, no legs, sorted descriptions)
+
 **Not yet implemented:**
-- Score course support
 - Batch export (separate files per course)
 
 ## Getting Started

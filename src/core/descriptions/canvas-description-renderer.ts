@@ -402,18 +402,32 @@ export async function renderDescriptionToCanvas(
   }
   const rows: RowInfo[] = [];
 
+  const isScore = course.courseType === 'score';
+
+  // For score courses, sort controls by code number
+  const controlOrder: number[] = course.controls.map((_, i) => i);
+  if (isScore) {
+    controlOrder.sort((a, b) => {
+      const ca = controls[course.controls[a]!.controlId as ControlId];
+      const cb = controls[course.controls[b]!.controlId as ControlId];
+      return (ca?.code ?? 0) - (cb?.code ?? 0);
+    });
+  }
+
   rows.push({ type: 'header', height: cellSize });
   if (course.settings.secondaryTitle) {
     rows.push({ type: 'secondary', height: cellSize });
   }
-  rows.push({ type: 'info', height: cellSize });
+  if (!isScore) {
+    rows.push({ type: 'info', height: cellSize });
+  }
   rows.push({ type: 'colHeaders', height: cellSize });
 
   if (course.controls.length === 0) {
     rows.push({ type: 'empty', height: cellSize });
   } else {
-    for (let i = 0; i < course.controls.length; i++) {
-      const cc = course.controls[i]!;
+    for (let i = 0; i < controlOrder.length; i++) {
+      const cc = course.controls[controlOrder[i]!]!;
       const ctrl = controls[cc.controlId as ControlId];
       let rowHeight = cellSize;
 
@@ -425,7 +439,7 @@ export async function renderDescriptionToCanvas(
           rowHeight = measureTextRowHeight(tmpCtx, composedText, textColWidth, cellSize);
         }
       }
-      rows.push({ type: 'control', height: rowHeight, ccIndex: i });
+      rows.push({ type: 'control', height: rowHeight, ccIndex: controlOrder[i]! });
     }
   }
 
@@ -513,9 +527,16 @@ export async function renderDescriptionToCanvas(
         const isStart = cc.type === 'start';
         const isFinish = cc.type === 'finish';
 
-        // Column A: sequence number
+        // Column A: point value (score courses) or sequence number (normal)
         drawCell(ctx, 0, currentY, cellSize, rh);
-        if (!isStart && !isFinish) {
+        if (isScore) {
+          if (cc.score != null) {
+            const scoreFontSize = Math.max(6, cellSize * 0.4);
+            drawCenteredText(ctx, String(cc.score), 0, currentY, cellSize, rh, scoreFontSize, {
+              color: GRAY_400,
+            });
+          }
+        } else if (!isStart && !isFinish) {
           seqNumber += 1;
           const seqFontSize = Math.max(6, cellSize * 0.4);
           drawCenteredText(ctx, String(seqNumber), 0, currentY, cellSize, rh, seqFontSize, {
