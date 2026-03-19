@@ -71,6 +71,17 @@ export async function loadMapFile(file: File): Promise<boolean> {
         scale: result.scale ?? existingMapFile?.scale ?? 15000,
         dpi: result.dpi,
       });
+    } else if (fileType === 'omap') {
+      const { loadOmapMap } = await import('./load-omap');
+      const result = await loadOmapMap(file);
+      useMapImageStore.getState().setImage(result.image, result.width, result.height);
+      // OOM DPI + scale are computed from the file and are authoritative.
+      useEventStore.getState().setMapFile({
+        name: file.name,
+        type: 'omap',
+        scale: result.scale ?? existingMapFile?.scale ?? 15000,
+        dpi: result.dpi,
+      });
     }
     return true;
   } catch (err) {

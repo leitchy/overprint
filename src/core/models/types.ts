@@ -7,7 +7,7 @@ export interface MapPoint {
 
 export interface MapFile {
   name: string;
-  type: 'raster' | 'pdf' | 'ocad';
+  type: 'raster' | 'pdf' | 'ocad' | 'omap';
   scale: number;  // e.g. 10000 for 1:10000
   dpi: number;    // Resolution for coordinate mapping
 }
@@ -59,7 +59,7 @@ export interface CourseBounds {
 export interface CourseSettings {
   printScale?: number; // Override event print scale for this course
   labelMode?: 'sequence' | 'code' | 'both' | 'none';
-  descriptionAppearance?: 'symbols' | 'text';
+  descriptionAppearance?: 'symbols' | 'text' | 'symbolsAndText';
   secondaryTitle?: string;
   printArea?: CourseBounds;
   climb?: number;
@@ -119,6 +119,7 @@ export type SpecialItemType =
   | 'text'
   | 'line'
   | 'rectangle'
+  | 'descriptionBox'
   | 'outOfBounds'
   | 'dangerousArea'
   | 'waterLocation'
@@ -152,11 +153,16 @@ export interface RectangleItem extends SpecialItemBase {
   endPosition: MapPoint;
 }
 
+export interface DescriptionBoxItem extends SpecialItemBase {
+  type: 'descriptionBox';
+  endPosition: MapPoint;
+}
+
 export interface IofSymbolItem extends SpecialItemBase {
   type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute';
 }
 
-export type SpecialItem = TextItem | LineItem | RectangleItem | IofSymbolItem;
+export type SpecialItem = TextItem | LineItem | RectangleItem | DescriptionBoxItem | IofSymbolItem;
 
 export interface OverprintEvent {
   id: EventId;

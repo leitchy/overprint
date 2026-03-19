@@ -17,7 +17,7 @@ import { PrintSettingsModal } from './print-settings';
 import { useT } from '@/i18n/use-t';
 import { fitToView } from '@/components/map/use-map-navigation';
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
+const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
 
 export function Toolbar() {
   const t = useT();
@@ -310,6 +310,12 @@ export function Toolbar() {
       label: t('toolAddControl'),
       onClick: () => setTool({ type: 'addControl' }),
       disabled: viewMode === 'allControls',
+    },
+    { separator: true },
+    {
+      label: t('addDescriptionBox'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'descriptionBox' as SpecialItemType }),
+      disabled: viewMode === 'allControls' || !hasCourses,
     },
     { separator: true },
     {
