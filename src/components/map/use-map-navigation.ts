@@ -179,11 +179,23 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
               position: { x: pos.x, y: pos.y },
               endPosition: { x: pos.x + mmToPixels(30), y: pos.y + mmToPixels(20) },
             });
-          } else {
-            // IOF symbols — click to place
+          } else if (itemType === 'descriptionBox') {
+            // Place a default-sized description box (60x40mm in map coords)
+            // Auto-bind to the active course
+            const activeCourseId = useEventStore.getState().activeCourseId;
             store.addSpecialItem({
               id: generateSpecialItemId(),
-              type: itemType,
+              type: 'descriptionBox',
+              position: { x: pos.x, y: pos.y },
+              endPosition: { x: pos.x + mmToPixels(60), y: pos.y + mmToPixels(40) },
+              courseIds: activeCourseId ? [activeCourseId] : undefined,
+            });
+          } else {
+            // IOF symbols — click to place
+            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'descriptionBox'>;
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: symType,
               position: { x: pos.x, y: pos.y },
             });
           }
