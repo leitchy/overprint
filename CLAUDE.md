@@ -134,8 +134,7 @@ overprint/
 
 - Score course support (toggle, point values, no legs, sorted descriptions)
 
-**Not yet implemented:**
-- Batch export (separate files per course)
+- Batch export: each course as separate PDF (via directory picker or auto-download fallback)
 
 ## Getting Started
 
