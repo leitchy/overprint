@@ -75,6 +75,7 @@ export function importIofXml(
 
   // Map from IOF control ID string → Control (to share across courses)
   const controlByIofId = new Map<string, Control>();
+  const controlTypeByIofId = new Map<string, string>();
 
   const raceCourseDataEls = doc.getElementsByTagNameNS(ns, 'RaceCourseData');
   const raceCourseData = raceCourseDataEls[0];
@@ -120,6 +121,7 @@ export function importIofXml(
     };
 
     controlByIofId.set(iofId, control);
+    controlTypeByIofId.set(iofId, typeStr);
   }
 
   // ---------------------------------------------------------------------------
@@ -154,11 +156,17 @@ export function importIofXml(
       const ctrl = controlByIofId.get(refId);
       if (!ctrl) continue;
 
+      // Determine control type from IOF XML Type element
+      const iofType = controlTypeByIofId.get(refId) ?? '';
       let type: CourseControlType;
-      if (seqIndex === 0) {
+      if (seqIndex === 0 || iofType === 'Start') {
         type = 'start';
-      } else if (seqIndex === courseControlEls.length - 1) {
+      } else if (seqIndex === courseControlEls.length - 1 || iofType === 'Finish') {
         type = 'finish';
+      } else if (iofType === 'CrossingPoint') {
+        type = 'crossingPoint';
+      } else if (iofType === 'MapExchange') {
+        type = 'mapExchange';
       } else {
         type = 'control';
       }
