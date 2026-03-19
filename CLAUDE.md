@@ -111,7 +111,7 @@ overprint/
 ## Current Status
 
 **Implemented features:**
-- Map loading: raster images (PNG, JPEG, TIFF, GIF), PDF, OCAD (.ocd)
+- Map loading: raster images (PNG, JPEG, TIFF, GIF), PDF, OCAD (.ocd), OpenOrienteering Mapper (.omap/.xmap)
 - Pan/zoom canvas with map display
 - Control placement (click to add), drag to move, delete
 - Multi-course management: add, rename, delete, switch courses
@@ -129,13 +129,12 @@ overprint/
 - Undo/redo (Cmd/Ctrl+Z)
 - Editable event name, control codes
 - showSaveFilePicker save dialogs with fallback
+- Crossing points and map exchange symbols (X and inverted triangle, type cycling in course panel)
+- Multi-page PDF export (all courses in one PDF, per-course page orientation)
 
 **Not yet implemented:**
-- OpenOrienteering Mapper (.omap/.xmap) file support
-- Multi-page PDF export
-- Crossing points and map exchange symbols
 - Score course support
-- Batch export (all courses at once)
+- Batch export (separate files per course)
 
 ## Getting Started
 
