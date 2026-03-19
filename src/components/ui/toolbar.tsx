@@ -134,6 +134,32 @@ export function Toolbar() {
     }
   };
 
+  const handleExportAllPdf = async () => {
+    const currentEvent = useEventStore.getState().event;
+    const mapImage = useMapImageStore.getState().image;
+    if (!currentEvent || !mapImage) return;
+
+    try {
+      const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
+      const courseIndices = currentEvent.courses.map((_: unknown, i: number) => i);
+      const suggestedName = `${currentEvent.name} - All Courses.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
+
+      if ('showSaveFilePicker' in window) {
+        const handle = await window.showSaveFilePicker({ suggestedName });
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices });
+        await saveBlob(blob, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('PDF export all courses failed:', err);
+    }
+  };
+
   const handleExportImage = async (format: 'png' | 'jpeg') => {
     const currentEvent = useEventStore.getState().event;
     const { getStageInstance } = await import('@/components/map/map-canvas');
@@ -234,6 +260,7 @@ export function Toolbar() {
     { label: t('closeMap'), onClick: handleCloseMap, disabled: !hasImage },
     { separator: true },
     { label: t('exportPdfCourseMap'), onClick: handleExportPdf, disabled: !canExport },
+    { label: t('exportAllCoursesPdf'), onClick: handleExportAllPdf, disabled: !canExport },
     { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf, disabled: !canExport },
     { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
     { label: t('exportPng'), onClick: () => handleExportImage('png'), disabled: !hasImage },

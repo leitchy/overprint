@@ -63,6 +63,7 @@ export interface CourseSettings {
   secondaryTitle?: string;
   printArea?: CourseBounds;
   climb?: number;
+  pageSetup?: Partial<PageSetup>; // Per-course override (e.g. orientation, paper size)
 }
 
 export interface Course {
