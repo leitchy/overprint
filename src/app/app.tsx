@@ -13,7 +13,7 @@ import { useT } from '@/i18n/use-t';
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd';
+const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
 
 /** Return true if the filename has the given extension (case-insensitive). */
 function hasExtension(name: string, ext: string): boolean {

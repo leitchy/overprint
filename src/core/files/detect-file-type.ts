@@ -1,4 +1,4 @@
-export type MapFileType = 'raster' | 'pdf' | 'ocad' | 'unknown';
+export type MapFileType = 'raster' | 'pdf' | 'ocad' | 'omap' | 'unknown';
 
 const RASTER_MIME_TYPES = new Set([
   'image/png',
@@ -22,6 +22,7 @@ export function detectMapFileType(file: File): MapFileType {
   if (RASTER_EXTENSIONS.has(ext)) return 'raster';
   if (ext === '.pdf') return 'pdf';
   if (ext === '.ocd') return 'ocad';
+  if (ext === '.omap' || ext === '.xmap') return 'omap';
 
   return 'unknown';
 }
