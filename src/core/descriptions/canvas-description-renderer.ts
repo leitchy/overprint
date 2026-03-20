@@ -16,6 +16,7 @@
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
 
 // ---------------------------------------------------------------------------
@@ -405,14 +406,9 @@ export async function renderDescriptionToCanvas(
   const isScore = course.courseType === 'score';
 
   // For score courses, sort controls by code number
-  const controlOrder: number[] = course.controls.map((_, i) => i);
-  if (isScore) {
-    controlOrder.sort((a, b) => {
-      const ca = controls[course.controls[a]!.controlId as ControlId];
-      const cb = controls[course.controls[b]!.controlId as ControlId];
-      return (ca?.code ?? 0) - (cb?.code ?? 0);
-    });
-  }
+  const displayControls = isScore
+    ? sortControlsByCode(course.controls, controls)
+    : course.controls;
 
   rows.push({ type: 'header', height: cellSize });
   if (course.settings.secondaryTitle) {
@@ -426,8 +422,8 @@ export async function renderDescriptionToCanvas(
   if (course.controls.length === 0) {
     rows.push({ type: 'empty', height: cellSize });
   } else {
-    for (let i = 0; i < controlOrder.length; i++) {
-      const cc = course.controls[controlOrder[i]!]!;
+    for (let i = 0; i < displayControls.length; i++) {
+      const cc = displayControls[i]!;
       const ctrl = controls[cc.controlId as ControlId];
       let rowHeight = cellSize;
 
@@ -439,7 +435,7 @@ export async function renderDescriptionToCanvas(
           rowHeight = measureTextRowHeight(tmpCtx, composedText, textColWidth, cellSize);
         }
       }
-      rows.push({ type: 'control', height: rowHeight, ccIndex: controlOrder[i]! });
+      rows.push({ type: 'control', height: rowHeight, ccIndex: i });
     }
   }
 
@@ -515,7 +511,7 @@ export async function renderDescriptionToCanvas(
       }
 
       case 'control': {
-        const cc = course.controls[row.ccIndex!]!;
+        const cc = displayControls[row.ccIndex!]!;
         const ctrl: Control | undefined = controls[cc.controlId as ControlId];
         if (!ctrl) {
           // Draw empty cells for missing control

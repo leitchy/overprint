@@ -2,6 +2,7 @@ import type { Course, Control } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { DescriptionCell, NumberCell } from './description-cell';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 
 interface DescriptionSheetProps {
   course: Course;
@@ -44,11 +45,7 @@ export function DescriptionSheet({
 
   // In all-controls or score mode, sort the controls by code number
   const displayControls = isAllControls || isScore
-    ? [...course.controls].sort((a, b) => {
-        const ca = controls[a.controlId];
-        const cb = controls[b.controlId];
-        return (ca?.code ?? 0) - (cb?.code ?? 0);
-      })
+    ? sortControlsByCode(course.controls, controls)
     : course.controls;
 
   return (
