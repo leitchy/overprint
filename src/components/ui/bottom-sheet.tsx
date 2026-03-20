@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 interface BottomSheetProps {
@@ -13,7 +13,6 @@ interface BottomSheetProps {
   children: ReactNode;
 }
 
-const DISMISS_THRESHOLD = 0.15; // swipe down 15% of vh to dismiss
 const VELOCITY_DISMISS = 800; // px/s downward velocity to dismiss
 
 export function BottomSheet({
@@ -27,108 +26,84 @@ export function BottomSheet({
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({
     startY: 0,
-    startTranslate: 0,
-    currentTranslate: 0,
+    startHeight: 0,
     isDragging: false,
     lastY: 0,
     lastTime: 0,
   });
-  const snapIndexRef = useRef(initialSnap);
+
+  // Track current sheet height as state so the content area gets a real height
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const [visible, setVisible] = useState(false);
 
   const getSnapHeight = useCallback(
     (index: number) => {
       const point = snapPoints[Math.min(index, snapPoints.length - 1)] ?? 0.5;
-      return window.innerHeight * point;
+      return Math.round(window.innerHeight * point);
     },
     [snapPoints],
   );
 
-  // Animate to a Y position
-  const animateTo = useCallback((translateY: number, duration = 200) => {
-    const sheet = sheetRef.current;
-    if (!sheet) return;
-    sheet.style.transition = `transform ${duration}ms ease-out`;
-    sheet.style.transform = `translateY(${translateY}px)`;
-    dragRef.current.currentTranslate = translateY;
-  }, []);
-
-  // Open/close animation
+  // Open animation
   useEffect(() => {
-    const sheet = sheetRef.current;
-    if (!sheet) return;
-
     if (open) {
-      // Start off-screen, then animate in
-      const height = getSnapHeight(snapIndexRef.current);
-      sheet.style.transition = 'none';
-      sheet.style.transform = `translateY(${window.innerHeight}px)`;
-      // Force reflow
-      sheet.offsetHeight;
-      animateTo(window.innerHeight - height);
+      // Start at 0 height, then animate to snap point
+      setSheetHeight(0);
+      setVisible(true);
+      // Delay to allow mount, then animate
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setSheetHeight(getSnapHeight(initialSnap));
+        });
+      });
     } else {
-      animateTo(window.innerHeight, 150);
+      setSheetHeight(0);
+      // Keep mounted briefly for close animation
+      const timer = setTimeout(() => setVisible(false), 200);
+      return () => clearTimeout(timer);
     }
-  }, [open, animateTo, getSnapHeight]);
+  }, [open, getSnapHeight, initialSnap]);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      const sheet = sheetRef.current;
-      if (!sheet) return;
-
-      // Only drag from the handle area (first 40px)
-      const rect = sheet.getBoundingClientRect();
-      if (e.clientY - rect.top > 40) return;
-
-      sheet.style.transition = 'none';
-      sheet.setPointerCapture(e.pointerId);
-
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
       dragRef.current.isDragging = true;
       dragRef.current.startY = e.clientY;
-      dragRef.current.startTranslate = dragRef.current.currentTranslate;
+      dragRef.current.startHeight = sheetHeight;
       dragRef.current.lastY = e.clientY;
       dragRef.current.lastTime = Date.now();
     },
-    [],
+    [sheetHeight],
   );
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragRef.current.isDragging) return;
-    const sheet = sheetRef.current;
-    if (!sheet) return;
 
-    const deltaY = e.clientY - dragRef.current.startY;
-    const newTranslate = dragRef.current.startTranslate + deltaY;
+    const deltaY = dragRef.current.startY - e.clientY; // positive = dragging up
+    const maxHeight = Math.round(window.innerHeight * 0.9);
+    const newHeight = Math.max(0, Math.min(maxHeight, dragRef.current.startHeight + deltaY));
 
-    // Don't allow dragging above the highest snap point
-    const maxHeight = getSnapHeight(snapPoints.length - 1);
-    const minTranslate = window.innerHeight - maxHeight;
-    const clamped = Math.max(minTranslate, newTranslate);
-
-    sheet.style.transform = `translateY(${clamped}px)`;
-    dragRef.current.currentTranslate = clamped;
+    setSheetHeight(newHeight);
     dragRef.current.lastY = e.clientY;
     dragRef.current.lastTime = Date.now();
-  }, [getSnapHeight, snapPoints.length]);
+  }, []);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
       if (!dragRef.current.isDragging) return;
       dragRef.current.isDragging = false;
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
 
-      const sheet = sheetRef.current;
-      if (!sheet) return;
-      sheet.releasePointerCapture(e.pointerId);
-
-      // Calculate velocity
+      // Calculate velocity (positive = dragging down / closing)
       const dt = Math.max(Date.now() - dragRef.current.lastTime, 1);
       const dy = e.clientY - dragRef.current.lastY;
-      const velocity = (dy / dt) * 1000; // px/s
+      const velocity = (dy / dt) * 1000;
 
-      const currentY = dragRef.current.currentTranslate;
+      const currentHeight = sheetHeight;
       const vh = window.innerHeight;
 
-      // Dismiss if swiped down fast enough or past threshold
-      if (velocity > VELOCITY_DISMISS || currentY > vh * (1 - DISMISS_THRESHOLD)) {
+      // Dismiss if swiped down fast enough or sheet is very small
+      if (velocity > VELOCITY_DISMISS || currentHeight < vh * 0.1) {
         onClose();
         return;
       }
@@ -137,18 +112,17 @@ export function BottomSheet({
       let bestIndex = 0;
       let bestDist = Infinity;
       for (let i = 0; i < snapPoints.length; i++) {
-        const snapY = vh - vh * (snapPoints[i] ?? 0);
-        const dist = Math.abs(currentY - snapY);
+        const snapH = Math.round(vh * (snapPoints[i] ?? 0));
+        const dist = Math.abs(currentHeight - snapH);
         if (dist < bestDist) {
           bestDist = dist;
           bestIndex = i;
         }
       }
 
-      snapIndexRef.current = bestIndex;
-      animateTo(vh - getSnapHeight(bestIndex));
+      setSheetHeight(getSnapHeight(bestIndex));
     },
-    [onClose, snapPoints, animateTo, getSnapHeight],
+    [onClose, snapPoints, getSnapHeight, sheetHeight],
   );
 
   // Escape key dismisses the sheet
@@ -161,7 +135,7 @@ export function BottomSheet({
     return () => document.removeEventListener('keydown', handleKey);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!visible && !open) return null;
 
   return createPortal(
     <>
@@ -169,29 +143,34 @@ export function BottomSheet({
       {showScrim && (
         <div
           className="fixed inset-0 z-40 bg-black/30"
+          style={{ opacity: sheetHeight > 0 ? 1 : 0, transition: 'opacity 200ms' }}
           onClick={onClose}
           aria-hidden="true"
         />
       )}
 
-      {/* Sheet */}
+      {/* Sheet — height-driven instead of transform-driven */}
       <div
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl touch-none"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl"
         style={{
-          maxHeight: '90vh',
+          height: sheetHeight > 0 ? `${sheetHeight}px` : '0px',
+          transition: dragRef.current.isDragging ? 'none' : 'height 200ms ease-out',
           borderTopLeftRadius: 'var(--sheet-border-radius)',
           borderTopRightRadius: 'var(--sheet-border-radius)',
           paddingBottom: 'var(--safe-bottom)',
+          overflow: 'hidden',
         }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
       >
-        {/* Drag handle */}
-        <div className="flex shrink-0 justify-center py-3">
+        {/* Drag handle — touch-none so it doesn't conflict with content scroll */}
+        <div
+          className="flex shrink-0 justify-center py-3 touch-none cursor-grab"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
           <div
             className="rounded-full bg-gray-300"
             style={{
@@ -201,8 +180,8 @@ export function BottomSheet({
           />
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        {/* Content — scrollable with normal touch */}
+        <div className="flex-1 overflow-y-auto overscroll-contain min-h-0">
           {children}
         </div>
       </div>
