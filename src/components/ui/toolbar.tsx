@@ -426,6 +426,9 @@ export function Toolbar() {
   const helpMenuItems: MenuEntry[] = [
     { label: t('gettingStarted'), onClick: () => useToolStore.getState().toggleGettingStarted() },
     { label: t('keyboardShortcuts'), onClick: () => useToolStore.getState().toggleShortcutsModal(), shortcut: '?' },
+    { separator: true },
+    { label: t('whatsNew'), onClick: () => window.open(`https://github.com/leitchy/overprint/releases/tag/v${__APP_VERSION__}`, '_blank') },
+    { label: t('reportIssue'), onClick: () => window.open('https://github.com/leitchy/overprint/issues/new', '_blank') },
   ];
 
   const toolButton = (tool: Tool, label: string) => {
@@ -450,7 +453,8 @@ export function Toolbar() {
     <header className="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
 
       {/* Brand */}
-      <span className="text-sm font-semibold text-gray-900 mr-1">Overprint</span>
+      <span className="text-sm font-semibold text-gray-900">Overprint</span>
+      <span className="text-[10px] text-gray-400 ml-0.5 mr-1">v{__APP_VERSION__}</span>
 
       {/* Zone 1 — Menu bar */}
       <nav className="flex items-center">
