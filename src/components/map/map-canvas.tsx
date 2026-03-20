@@ -43,6 +43,8 @@ export function MapCanvas() {
   const [containerRef, size] = useCanvasSize();
   const stageRef = useRef<StageType>(null);
   const rubberBandRef = useRef<Konva.Line>(null);
+  const courseLayerRef = useRef<Konva.Layer>(null);
+  const rubberBandLayerRef = useRef<Konva.Layer>(null);
   const image = useMapImageStore((s) => s.image);
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
@@ -107,6 +109,15 @@ export function MapCanvas() {
       container.style.cursor = 'default';
     }
   }, [activeTool]);
+
+  // Set multiply blend mode on overprint layers so dark map features show through purple.
+  // Uses Konva internal _canvas (underscore convention) — stable across Konva versions.
+  useEffect(() => {
+    for (const ref of [courseLayerRef, rubberBandLayerRef]) {
+      const canvas = (ref.current?.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+      if (canvas) canvas.style.mixBlendMode = 'multiply';
+    }
+  }, []);
 
   // Track print area drag for preview rectangle
   const handleMouseMoveForPreview = useCallback(() => {
@@ -192,10 +203,6 @@ export function MapCanvas() {
     () => new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []),
     [activeCourse],
   );
-  const hasControls = useMemo(
-    () => courses?.some((c) => c.controls.length > 0) ?? false,
-    [courses],
-  );
 
   // Synthetic "all controls" course — used when viewMode === 'allControls'
   const allControlsCourse = useMemo((): Course | null => {
@@ -279,7 +286,7 @@ export function MapCanvas() {
           {/* Map layer — dimmed when controls are visible for overprint readability */}
           <Layer
             listening={false}
-            opacity={(hasControls || (viewMode === 'allControls' && allControlsCourse !== null)) ? 0.6 : 1}
+            opacity={1}
           >
             {image && (
               <KonvaImage
@@ -291,8 +298,8 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Course overprint layer — branches on viewMode */}
-          <Layer>
+          {/* Course overprint layer — multiply blend so dark map features show through */}
+          <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
               /* All-controls view: synthetic score course with no legs */
               allControlsCourse && dimensions && controls && (
@@ -388,8 +395,8 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Rubber-band preview line — shows next leg from last control to cursor */}
-          <Layer listening={false}>
+          {/* Rubber-band preview line — multiply blend to match course layer */}
+          <Layer ref={rubberBandLayerRef} listening={false}>
             <KonvaLine
               ref={rubberBandRef}
               points={[]}
