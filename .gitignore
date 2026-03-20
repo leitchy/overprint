@@ -27,3 +27,9 @@ tests/fixtures/exports/
 tests/fixtures/events/
 tsconfig.tsbuildinfo
 tests/fixtures/PP-examples/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
