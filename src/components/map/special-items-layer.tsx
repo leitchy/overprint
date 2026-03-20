@@ -193,6 +193,16 @@ const LineItemShape = memo(function LineItemShape({
   const color = item.color ?? OVERPRINT_PURPLE;
   const dx = item.endPosition.x - item.position.x;
   const dy = item.endPosition.y - item.position.y;
+  const strokeW = (item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER;
+
+  // Ref for imperative line update during handle drag
+  const lineRef = useRef<Konva.Line>(null);
+
+  const updateLinePoints = useCallback((startX: number, startY: number, endX: number, endY: number) => {
+    lineRef.current?.points([startX, startY, endX, endY]);
+    lineRef.current?.getLayer()?.batchDraw();
+  }, []);
+
   return (
     <Group
       x={item.position.x}
@@ -205,9 +215,10 @@ const LineItemShape = memo(function LineItemShape({
       }}
     >
       <Line
+        ref={lineRef}
         points={[0, 0, dx, dy]}
         stroke={color}
-        strokeWidth={(item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER}
+        strokeWidth={strokeW}
         lineCap="round"
         listening={true}
         hitStrokeWidth={12}
@@ -219,6 +230,10 @@ const LineItemShape = memo(function LineItemShape({
             x={0} y={0} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateLinePoints(e.target.x(), e.target.y(), dx, dy);
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
@@ -239,6 +254,10 @@ const LineItemShape = memo(function LineItemShape({
             x={dx} y={dy} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateLinePoints(0, 0, e.target.x(), e.target.y());
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
