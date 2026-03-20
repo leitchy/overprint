@@ -3,6 +3,8 @@ import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { DescriptionSheet } from './description-sheet';
 import { SymbolPicker } from './symbol-picker';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
 import type { SymbolColumn } from '@/core/iof/symbol-db';
@@ -19,6 +21,7 @@ export function DescriptionPanel() {
   const selectedControlId = useEventStore((s) => s.selectedControlId);
   const viewMode = useEventStore((s) => s.viewMode);
   const isOpen = useToolStore((s) => s.descriptionsPanelOpen);
+  const breakpoint = useBreakpoint();
   // Description language is per-event (stored in .overprint), not a global pref
   const descriptionLang = event?.settings.language ?? 'en';
 
@@ -85,8 +88,8 @@ export function DescriptionPanel() {
       })()
     : undefined;
 
-  return (
-    <div className="h-full w-70 shrink-0 border-l border-gray-200 bg-white">
+  const sheetContent = (
+    <>
       {/* Panel header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
         <span className="text-sm font-medium text-gray-700">Descriptions</span>
@@ -100,7 +103,7 @@ export function DescriptionPanel() {
       </div>
 
       {/* Scrollable sheet */}
-      <div className="overflow-y-auto p-3" style={{ maxHeight: 'calc(100% - 2.5rem)' }}>
+      <div className="overflow-y-auto p-3" style={{ maxHeight: breakpoint === 'lg' ? 'calc(100% - 2.5rem)' : undefined }}>
         <DescriptionSheet
           course={sheetCourse}
           controls={event.controls}
@@ -128,6 +131,27 @@ export function DescriptionPanel() {
           onClose={() => setPicker(null)}
         />
       )}
-    </div>
+    </>
+  );
+
+  // Desktop: sidebar
+  if (breakpoint === 'lg') {
+    return (
+      <div className="h-full w-70 shrink-0 border-l border-gray-200 bg-white">
+        {sheetContent}
+      </div>
+    );
+  }
+
+  // Tablet: bottom sheet at 50%, Phone: bottom sheet at 90% (near full-screen)
+  const handleClose = () => useToolStore.getState().toggleDescriptionsPanel();
+  return (
+    <BottomSheet
+      open={isOpen}
+      onClose={handleClose}
+      snapPoints={breakpoint === 'sm' ? [0.9] : [0.5, 0.85]}
+    >
+      {sheetContent}
+    </BottomSheet>
   );
 }

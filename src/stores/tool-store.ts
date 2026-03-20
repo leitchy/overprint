@@ -8,6 +8,8 @@ export type Tool =
   | { type: 'addSpecialItem'; itemType: SpecialItemType }
   | { type: 'setPrintArea' };
 
+export type MobilePanel = 'none' | 'course' | 'descriptions' | 'menu';
+
 interface ToolState {
   activeTool: Tool;
   descriptionsPanelOpen: boolean;
@@ -16,6 +18,8 @@ interface ToolState {
   selectedSpecialItemId: SpecialItemId | null;
   /** When non-null, the text item is being edited inline on the canvas */
   editingTextItemId: SpecialItemId | null;
+  /** On mobile/tablet, only one panel can be open at a time */
+  mobilePanelOpen: MobilePanel;
 }
 
 interface ToolActions {
@@ -26,6 +30,8 @@ interface ToolActions {
   toggleGettingStarted: () => void;
   setSelectedSpecialItem: (id: SpecialItemId | null) => void;
   setEditingTextItemId: (id: SpecialItemId | null) => void;
+  setMobilePanelOpen: (panel: MobilePanel) => void;
+  toggleMobilePanel: (panel: Exclude<MobilePanel, 'none'>) => void;
 }
 
 export const useToolStore = create<ToolState & ToolActions>()((set) => ({
@@ -35,6 +41,7 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   gettingStartedOpen: false,
   selectedSpecialItemId: null,
   editingTextItemId: null,
+  mobilePanelOpen: 'none',
 
   setTool: (tool) => {
     set({ activeTool: tool });
@@ -62,5 +69,15 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
 
   setEditingTextItemId: (id) => {
     set({ editingTextItemId: id });
+  },
+
+  setMobilePanelOpen: (panel) => {
+    set({ mobilePanelOpen: panel });
+  },
+
+  toggleMobilePanel: (panel) => {
+    set((state) => ({
+      mobilePanelOpen: state.mobilePanelOpen === panel ? 'none' : panel,
+    }));
   },
 }));

@@ -25,6 +25,7 @@ interface CourseRendererProps {
   onDragControlEnd: (id: ControlId, x: number, y: number) => void;
   onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
   onNumberDragEnd?: (controlIndex: number, offset: MapPoint) => void;
+  onLongPressControl?: (controlId: ControlId, screenX: number, screenY: number) => void;
 }
 
 /**
@@ -64,6 +65,7 @@ export const CourseRenderer = memo(function CourseRenderer({
   onDragControlEnd,
   onInsertOnLeg,
   onNumberDragEnd,
+  onLongPressControl,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -161,6 +163,11 @@ export const CourseRenderer = memo(function CourseRenderer({
           onNumberDragEnd={
             courseId && onNumberDragEnd
               ? (offset) => onNumberDragEnd(index, offset)
+              : undefined
+          }
+          onLongPress={
+            onLongPressControl
+              ? (screenX, screenY) => onLongPressControl(control.id, screenX, screenY)
               : undefined
           }
         />

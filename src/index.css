@@ -1,8 +1,36 @@
 @import "tailwindcss";
 
+:root {
+  /* Touch targets — iOS HIG minimum */
+  --touch-target-min: 44px;
+
+  /* Safe area insets (iOS notch / home indicator) */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Mobile layout */
+  --mobile-nav-height: 48px;
+
+  /* Bottom sheet */
+  --sheet-handle-width: 40px;
+  --sheet-handle-height: 4px;
+  --sheet-border-radius: 16px;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+/* Toast fade-in animation */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
 }

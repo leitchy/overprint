@@ -13,6 +13,8 @@ interface CoursePanelProps {
   controls: Record<ControlId, Control>;
   courseId: CourseId | null;
   selectedControlId: ControlId | null;
+  /** When true, skip absolute positioning (used inside drawer/sheet) */
+  embedded?: boolean;
 }
 
 /** Middle-control types that can be cycled through. */
@@ -40,6 +42,7 @@ export function CoursePanel({
   controls,
   courseId,
   selectedControlId,
+  embedded = false,
 }: CoursePanelProps) {
   const t = useT();
   const mapFile = useEventStore((s) => s.event?.mapFile);
@@ -74,7 +77,7 @@ export function CoursePanel({
   // All-controls view: collapsed panel showing only course list + language selector
   if (viewMode === 'allControls') {
     return (
-      <div className="absolute right-4 top-4 w-56 rounded bg-white/90 shadow">
+      <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-56 rounded bg-white/90 shadow'}>
         <CourseList />
         <div className="border-t border-gray-200 px-3 py-2">
           <p className="mb-2 text-[10px] italic text-gray-400">{t('viewingAllControls')}</p>
@@ -98,7 +101,7 @@ export function CoursePanel({
   }
 
   return (
-    <div className="absolute right-4 top-4 w-56 rounded bg-white/90 shadow">
+    <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-56 rounded bg-white/90 shadow'}>
       {/* Course list — always visible */}
       <CourseList />
 
@@ -146,7 +149,7 @@ export function CoursePanel({
                 return (
                   <li
                     key={cc.controlId}
-                    className={`flex items-center gap-1 px-3 py-1 text-xs ${
+                    className={`flex items-center gap-1 px-3 py-1 text-xs max-lg:py-2.5 ${
                       isSelected ? 'bg-yellow-50' : 'hover:bg-gray-50'
                     }`}
                     onClick={() => setSelectedControl(cc.controlId)}
@@ -255,7 +258,7 @@ export function CoursePanel({
                         moveControlInCourse(courseId, index, index - 1);
                       }}
                       disabled={isFirst}
-                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible"
+                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible max-lg:px-2 max-lg:py-1"
                       title="Move up"
                     >
                       &uarr;
@@ -266,7 +269,7 @@ export function CoursePanel({
                         moveControlInCourse(courseId, index, index + 1);
                       }}
                       disabled={isLast}
-                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible"
+                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible max-lg:px-2 max-lg:py-1"
                       title="Move down"
                     >
                       &darr;
@@ -276,7 +279,7 @@ export function CoursePanel({
                         e.stopPropagation();
                         removeControlFromCourse(courseId, cc.controlId);
                       }}
-                      className="rounded px-1 text-red-300 hover:text-red-600"
+                      className="rounded px-1 text-red-300 hover:text-red-600 max-lg:px-2 max-lg:py-1"
                       title={t('removeFromCourse')}
                     >
                       &times;
