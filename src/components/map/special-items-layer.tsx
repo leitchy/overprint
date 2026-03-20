@@ -851,8 +851,16 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     }
   }
 
+  // Set multiply blend mode so dark map features show through special items
+  const specialLayerRef = useRef<Konva.Layer>(null);
+  useEffect(() => {
+    const canvas = (specialLayerRef.current?.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+    if (canvas) canvas.style.mixBlendMode = 'multiply';
+  }, []);
+
   return (
     <Layer
+      ref={specialLayerRef}
       onMouseDown={handleStageMouseDown}
       onMouseMove={handleStageMouseMove}
       onMouseUp={handleStageMouseUp}

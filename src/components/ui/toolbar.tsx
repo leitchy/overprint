@@ -257,8 +257,25 @@ export function Toolbar() {
     const suggestedName = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '')}.${ext}`;
 
     try {
-      // Capture all visible layers at 2× pixel ratio
-      const canvas = stage.toCanvas({ pixelRatio: 2 });
+      // Manual layer compositing to capture CSS mix-blend-mode (multiply)
+      // which stage.toCanvas() does not apply.
+      const pixelRatio = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = stage.width() * pixelRatio;
+      canvas.height = stage.height() * pixelRatio;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(pixelRatio, pixelRatio);
+
+      for (const layer of stage.getLayers()) {
+        const layerCanvas = (layer.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+        if (!layerCanvas || !layer.visible()) continue;
+
+        const isMultiply = layerCanvas.style.mixBlendMode === 'multiply';
+        if (isMultiply) ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(layerCanvas, 0, 0, stage.width(), stage.height());
+        if (isMultiply) ctx.globalCompositeOperation = 'source-over';
+      }
+
       const { generateImageBlob } = await import('@/core/export/image-export');
       const { blob } = await generateImageBlob(canvas, format);
 
