@@ -1,8 +1,10 @@
 /**
  * `useT()` — lightweight translation hook.
  *
- * Returns a typed `t(key)` function that translates a UI string key into the
- * current app language. Fallback chain:
+ * Returns a typed `t(key, params?)` function that translates a UI string key
+ * into the current app language. Supports `{param}` interpolation.
+ *
+ * Fallback chain:
  *   1. Exact language match (e.g. 'fr')
  *   2. Base language strip (e.g. 'nb' for 'nb-NO')
  *   3. English
@@ -13,22 +15,31 @@
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { translations, type TranslationKey } from './translations';
 
-export function useT(): (key: TranslationKey) => string {
+export function useT(): (key: TranslationKey, params?: Record<string, string | number>) => string {
   const lang = useAppSettingsStore((s) => s.appLanguage);
 
-  return (key: TranslationKey): string => {
+  return (key: TranslationKey, params?: Record<string, string | number>): string => {
     // 1. Exact language match
-    const exact = translations[lang]?.[key];
-    if (exact) return exact;
+    let str: string | undefined = translations[lang]?.[key];
 
     // 2. Try base language (strip region, e.g. 'nb-NO' → 'nb')
-    const base = lang.split('-')[0] ?? '';
-    if (base !== lang) {
-      const baseMatch = translations[base]?.[key];
-      if (baseMatch) return baseMatch;
+    if (!str) {
+      const base = lang.split('-')[0] ?? '';
+      if (base !== lang) {
+        str = translations[base]?.[key];
+      }
     }
 
     // 3. Fallback to English (always complete)
-    return translations['en']?.[key] ?? key;
+    let result: string = str ?? translations['en']?.[key] ?? key;
+
+    // 4. Interpolate {param} placeholders
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        result = result.split(`{${k}}`).join(String(v));
+      }
+    }
+
+    return result;
   };
 }

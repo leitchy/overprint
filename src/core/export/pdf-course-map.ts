@@ -1,5 +1,6 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { PDFFont, PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, endPath } from 'pdf-lib';
+import { rectangle as rectOp } from 'pdf-lib';
+import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
 import type { OverprintEvent, Course, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
@@ -46,6 +47,7 @@ export async function generateCoursePdf(
   event: OverprintEvent,
   mapImage: HTMLCanvasElement | HTMLImageElement,
   options: PdfExportOptions = {},
+  pdfArrayBuffer?: ArrayBuffer | null,
 ): Promise<{ blob: Blob; suggestedName: string }> {
   if (!event.mapFile) throw new Error('No map file loaded');
 
@@ -63,8 +65,20 @@ export async function generateCoursePdf(
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-  // Embed the base map image once — pdf-lib reuses it across all pages
-  const embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight);
+  // Embed the base map once — pdf-lib reuses across all pages.
+  // For PDF-source maps, embed the original PDF page as vectors.
+  // For raster/OCAD/OMAP, fall back to PNG rasterisation.
+  const isPdfSource = event.mapFile.type === 'pdf' && pdfArrayBuffer;
+  let embeddedMap: EmbeddedMapImage | null = null;
+  let embeddedPdfPage: PDFEmbeddedPage | null = null;
+
+  if (isPdfSource) {
+    const pages = await pdfDoc.embedPdf(pdfArrayBuffer!);
+    embeddedPdfPage = pages[0] ?? null;
+  }
+  if (!embeddedPdfPage) {
+    embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight);
+  }
 
   let lastCourseName = '';
 
@@ -101,8 +115,10 @@ export async function generateCoursePdf(
       // Each page gets its own dimensions (supports mixed portrait/landscape)
       const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
 
-      // Draw base map
-      if (embeddedMap) {
+      // Draw base map — vector PDF page or rasterised PNG
+      if (embeddedPdfPage) {
+        drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
+      } else if (embeddedMap) {
         drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
       }
 
@@ -214,6 +230,40 @@ function drawEmbeddedMap(
     width: bottomRight.x - topLeft.x,
     height: topLeft.y - bottomRight.y,
   });
+}
+
+/**
+ * Draw an embedded PDF page (vector-preserving) onto the output page.
+ * Uses a clip rectangle to keep the map within the printable area.
+ * Positioning math is identical to drawEmbeddedMap.
+ */
+function drawEmbeddedPdfPage(
+  page: PDFPage,
+  embeddedPage: PDFEmbeddedPage,
+  layout: PageLayout,
+  toPdf: (point: MapPoint) => MapPoint,
+  imgWidth: number,
+  imgHeight: number,
+): void {
+  const topLeft = toPdf({ x: 0, y: 0 });
+  const bottomRight = toPdf({ x: imgWidth, y: imgHeight });
+
+  // Clip to printable area — the full PDF page may extend beyond the viewport
+  page.pushOperators(
+    pushGraphicsState(),
+    rectOp(layout.marginLeft, layout.marginBottom, layout.printableWidth, layout.printableHeight),
+    clip(),
+    endPath(),
+  );
+
+  page.drawPage(embeddedPage, {
+    x: topLeft.x,
+    y: bottomRight.y,
+    width: bottomRight.x - topLeft.x,
+    height: topLeft.y - bottomRight.y,
+  });
+
+  page.pushOperators(popGraphicsState());
 }
 
 // ---------------------------------------------------------------------------

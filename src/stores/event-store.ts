@@ -15,6 +15,7 @@ import type {
   SpecialItem,
 } from '@/core/models/types';
 import type { ControlId, CourseId, SpecialItemId } from '@/utils/id';
+import { generateCourseId } from '@/utils/id';
 import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
 import { useAppSettingsStore } from './app-settings-store';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
@@ -38,8 +39,7 @@ function deriveCourseControlTypes(controls: CourseControl[]): void {
   }
 }
 
-/** Control codes that look ambiguous when printed upside-down — skip these. */
-const AMBIGUOUS_CODES = new Set([68, 69, 86, 89, 96, 98, 160, 180, 190]);
+import { AMBIGUOUS_CODES } from '@/core/validation/ambiguous-codes';
 
 function nextControlCode(event: OverprintEvent): number {
   const codes = Object.values(event.controls).map((c) => c.code);
@@ -67,6 +67,7 @@ interface EventActions {
 
   // Course management
   addCourse: (name: string) => void;
+  duplicateCourse: (id: CourseId) => void;
   renameCourse: (id: CourseId, name: string) => void;
   deleteCourse: (id: CourseId) => void;
   setActiveCourse: (id: CourseId | null) => void;
@@ -194,6 +195,28 @@ export const useEventStore = create<EventState & EventActions>()(
           const course = createCourse(name);
           state.event.courses.push(course);
           state.activeCourseId = course.id;
+          state.viewMode = 'course';
+        });
+      },
+
+      duplicateCourse: (id: CourseId) => {
+        set((state) => {
+          if (!state.event) return;
+          const source = state.event.courses.find((c) => c.id === id);
+          if (!source) return;
+          const newId = generateCourseId();
+          const clone: Course = {
+            id: newId,
+            name: `${source.name} (copy)`,
+            courseType: source.courseType,
+            controls: source.controls.map((cc) => ({ ...cc })),
+            climb: source.climb,
+            settings: JSON.parse(JSON.stringify(source.settings)),
+          };
+          // Insert after the source course
+          const index = state.event.courses.findIndex((c) => c.id === id);
+          state.event.courses.splice(index + 1, 0, clone);
+          state.activeCourseId = newId;
           state.viewMode = 'course';
         });
       },

@@ -21,6 +21,7 @@ import { fitToView } from '@/components/map/use-map-navigation';
 import { useIsCompact } from '@/hooks/use-breakpoint';
 import { MobileMenuDrawer } from './mobile-menu-drawer';
 import { EventNameEditor } from './event-name-editor';
+import { AuditModal } from './audit-modal';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
 
@@ -90,6 +91,7 @@ export function Toolbar() {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -160,6 +162,7 @@ export function Toolbar() {
   const handleExportPdf = async () => {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
+    const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -171,13 +174,13 @@ export function Toolbar() {
       if ('showSaveFilePicker' in window) {
         // Get file handle while gesture is still valid
         const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf);
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
       } else {
         // Fallback: generate then auto-download
-        const { blob } = await generateCoursePdf(currentEvent, mapImage);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf);
         await saveBlob(blob, suggestedName);
       }
     } catch (err) {
@@ -189,6 +192,7 @@ export function Toolbar() {
   const handleExportAllPdf = async () => {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
+    const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -198,12 +202,12 @@ export function Toolbar() {
 
       if ('showSaveFilePicker' in window) {
         const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices });
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf);
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
       } else {
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices });
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf);
         await saveBlob(blob, suggestedName);
       }
     } catch (err) {
@@ -215,6 +219,7 @@ export function Toolbar() {
   const handleExportBatchPdf = async () => {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
+    const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -224,7 +229,7 @@ export function Toolbar() {
         // Chrome/Edge: pick folder, write all course PDFs there
         const dirHandle = await window.showDirectoryPicker();
         for (let i = 0; i < currentEvent.courses.length; i++) {
-          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i });
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf);
           const fileHandle = await dirHandle.getFileHandle(suggestedName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(blob);
@@ -233,7 +238,7 @@ export function Toolbar() {
       } else {
         // Fallback: sequential auto-downloads
         for (let i = 0; i < currentEvent.courses.length; i++) {
-          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i });
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf);
           await saveBlob(blob, suggestedName);
         }
       }
@@ -254,8 +259,25 @@ export function Toolbar() {
     const suggestedName = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '')}.${ext}`;
 
     try {
-      // Capture all visible layers at 2× pixel ratio
-      const canvas = stage.toCanvas({ pixelRatio: 2 });
+      // Manual layer compositing to capture CSS mix-blend-mode (multiply)
+      // which stage.toCanvas() does not apply.
+      const pixelRatio = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = stage.width() * pixelRatio;
+      canvas.height = stage.height() * pixelRatio;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(pixelRatio, pixelRatio);
+
+      for (const layer of stage.getLayers()) {
+        const layerCanvas = (layer.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+        if (!layerCanvas || !layer.visible()) continue;
+
+        const isMultiply = layerCanvas.style.mixBlendMode === 'multiply';
+        if (isMultiply) ctx.globalCompositeOperation = 'multiply';
+        ctx.drawImage(layerCanvas, 0, 0, stage.width(), stage.height());
+        if (isMultiply) ctx.globalCompositeOperation = 'source-over';
+      }
+
       const { generateImageBlob } = await import('@/core/export/image-export');
       const { blob } = await generateImageBlob(canvas, format);
 
@@ -387,6 +409,8 @@ export function Toolbar() {
       },
       disabled: !hasEvent,
     },
+    { separator: true },
+    { label: t('eventAudit'), onClick: () => setAuditOpen(true), disabled: !hasEvent },
     { separator: true },
     { label: t('pageSetup'), onClick: () => setPageSetupOpen(true), disabled: !hasEvent },
     { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
@@ -687,6 +711,9 @@ export function Toolbar() {
       )}
       {gettingStartedOpen && (
         <GettingStartedDrawer onClose={() => useToolStore.getState().toggleGettingStarted()} />
+      )}
+      {auditOpen && (
+        <AuditModal onClose={() => setAuditOpen(false)} />
       )}
 
       {/* Hidden file inputs (shared) */}
