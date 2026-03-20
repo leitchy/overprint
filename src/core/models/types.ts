@@ -147,11 +147,13 @@ export interface TextItem extends SpecialItemBase {
 export interface LineItem extends SpecialItemBase {
   type: 'line';
   endPosition: MapPoint;
+  lineWidth?: number; // map pixels, defaults to DEFAULT_LINE_WIDTH
 }
 
 export interface RectangleItem extends SpecialItemBase {
   type: 'rectangle';
   endPosition: MapPoint;
+  lineWidth?: number;
 }
 
 export interface DescriptionBoxItem extends SpecialItemBase {

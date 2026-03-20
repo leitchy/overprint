@@ -16,6 +16,7 @@
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
 
 // ---------------------------------------------------------------------------
@@ -402,18 +403,27 @@ export async function renderDescriptionToCanvas(
   }
   const rows: RowInfo[] = [];
 
+  const isScore = course.courseType === 'score';
+
+  // For score courses, sort controls by code number
+  const displayControls = isScore
+    ? sortControlsByCode(course.controls, controls)
+    : course.controls;
+
   rows.push({ type: 'header', height: cellSize });
   if (course.settings.secondaryTitle) {
     rows.push({ type: 'secondary', height: cellSize });
   }
-  rows.push({ type: 'info', height: cellSize });
+  if (!isScore) {
+    rows.push({ type: 'info', height: cellSize });
+  }
   rows.push({ type: 'colHeaders', height: cellSize });
 
   if (course.controls.length === 0) {
     rows.push({ type: 'empty', height: cellSize });
   } else {
-    for (let i = 0; i < course.controls.length; i++) {
-      const cc = course.controls[i]!;
+    for (let i = 0; i < displayControls.length; i++) {
+      const cc = displayControls[i]!;
       const ctrl = controls[cc.controlId as ControlId];
       let rowHeight = cellSize;
 
@@ -501,7 +511,7 @@ export async function renderDescriptionToCanvas(
       }
 
       case 'control': {
-        const cc = course.controls[row.ccIndex!]!;
+        const cc = displayControls[row.ccIndex!]!;
         const ctrl: Control | undefined = controls[cc.controlId as ControlId];
         if (!ctrl) {
           // Draw empty cells for missing control
@@ -513,9 +523,16 @@ export async function renderDescriptionToCanvas(
         const isStart = cc.type === 'start';
         const isFinish = cc.type === 'finish';
 
-        // Column A: sequence number
+        // Column A: point value (score courses) or sequence number (normal)
         drawCell(ctx, 0, currentY, cellSize, rh);
-        if (!isStart && !isFinish) {
+        if (isScore) {
+          if (cc.score != null) {
+            const scoreFontSize = Math.max(6, cellSize * 0.4);
+            drawCenteredText(ctx, String(cc.score), 0, currentY, cellSize, rh, scoreFontSize, {
+              color: GRAY_400,
+            });
+          }
+        } else if (!isStart && !isFinish) {
           seqNumber += 1;
           const seqFontSize = Math.max(6, cellSize * 0.4);
           drawCenteredText(ctx, String(seqNumber), 0, currentY, cellSize, rh, seqFontSize, {

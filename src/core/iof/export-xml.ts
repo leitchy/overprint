@@ -122,19 +122,28 @@ function buildCourseElement(
     const seqTag = `        <Control>`;
     const refTag = `          <ControlId>${iofId}</ControlId>`;
 
-    // Leg length to next control
+    // Score value (score courses only)
+    let scoreLine = '';
+    if (cc.score != null) {
+      scoreLine = `          <Score>${cc.score}</Score>`;
+    }
+
+    // Leg length to next control (skip for score courses — no ordered legs)
     let legLine = '';
-    const next = course.controls[i + 1];
-    if (next) {
-      const nextCtrl = controls[next.controlId];
-      if (nextCtrl) {
-        const legM = mapDistanceMetres(ctrl.position, nextCtrl.position, scale, dpi);
-        legLine = `          <LegLength>${legM.toFixed(0)}</LegLength>`;
+    if (course.courseType !== 'score') {
+      const next = course.controls[i + 1];
+      if (next) {
+        const nextCtrl = controls[next.controlId];
+        if (nextCtrl) {
+          const legM = mapDistanceMetres(ctrl.position, nextCtrl.position, scale, dpi);
+          legLine = `          <LegLength>${legM.toFixed(0)}</LegLength>`;
+        }
       }
     }
 
     lines.push(seqTag);
     lines.push(refTag);
+    if (scoreLine) lines.push(scoreLine);
     if (legLine) lines.push(legLine);
     lines.push(`        </Control>`);
   }

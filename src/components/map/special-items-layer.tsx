@@ -193,6 +193,16 @@ const LineItemShape = memo(function LineItemShape({
   const color = item.color ?? OVERPRINT_PURPLE;
   const dx = item.endPosition.x - item.position.x;
   const dy = item.endPosition.y - item.position.y;
+  const strokeW = (item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER;
+
+  // Ref for imperative line update during handle drag
+  const lineRef = useRef<Konva.Line>(null);
+
+  const updateLinePoints = useCallback((startX: number, startY: number, endX: number, endY: number) => {
+    lineRef.current?.points([startX, startY, endX, endY]);
+    lineRef.current?.getLayer()?.batchDraw();
+  }, []);
+
   return (
     <Group
       x={item.position.x}
@@ -205,9 +215,10 @@ const LineItemShape = memo(function LineItemShape({
       }}
     >
       <Line
+        ref={lineRef}
         points={[0, 0, dx, dy]}
         stroke={color}
-        strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
+        strokeWidth={strokeW}
         lineCap="round"
         listening={true}
         hitStrokeWidth={12}
@@ -219,6 +230,10 @@ const LineItemShape = memo(function LineItemShape({
             x={0} y={0} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateLinePoints(e.target.x(), e.target.y(), dx, dy);
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
@@ -239,6 +254,10 @@ const LineItemShape = memo(function LineItemShape({
             x={dx} y={dy} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateLinePoints(0, 0, e.target.x(), e.target.y());
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
@@ -275,6 +294,20 @@ const RectangleItemShape = memo(function RectangleItemShape({
   const minY = Math.min(0, h);
   const absW = Math.abs(w);
   const absH = Math.abs(h);
+  const strokeW = (item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER;
+
+  // Refs for imperative resize preview (same pattern as DescriptionBoxItemShape)
+  const rectRef = useRef<Konva.Rect>(null);
+
+  const updateRectVisuals = useCallback((tlX: number, tlY: number, brX: number, brY: number) => {
+    const rw = Math.abs(brX - tlX);
+    const rh = Math.abs(brY - tlY);
+    const rx = Math.min(tlX, brX);
+    const ry = Math.min(tlY, brY);
+    rectRef.current?.setAttrs({ x: rx, y: ry, width: rw, height: rh });
+    rectRef.current?.getLayer()?.batchDraw();
+  }, []);
+
   return (
     <Group
       x={item.position.x}
@@ -287,22 +320,27 @@ const RectangleItemShape = memo(function RectangleItemShape({
       }}
     >
       <Rect
+        ref={rectRef}
         x={minX}
         y={minY}
         width={absW}
         height={absH}
         stroke={color}
-        strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
+        strokeWidth={strokeW}
         fill="transparent"
         listening={true}
       />
       {isSelected && (
         <>
-          {/* Position corner (top-left of the defined rect) */}
+          {/* Position corner */}
           <Circle
             x={0} y={0} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(e.target.x(), e.target.y(), w, h);
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
@@ -312,11 +350,15 @@ const RectangleItemShape = memo(function RectangleItemShape({
             onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
             onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
           />
-          {/* EndPosition corner (opposite corner) */}
+          {/* EndPosition corner */}
           <Circle
             x={w} y={h} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
             onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(0, 0, e.target.x(), e.target.y());
+            }}
             onDragEnd={(e: KonvaEventObject<DragEvent>) => {
               e.cancelBubble = true;
               const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };

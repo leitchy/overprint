@@ -75,6 +75,7 @@ export function importIofXml(
 
   // Map from IOF control ID string → Control (to share across courses)
   const controlByIofId = new Map<string, Control>();
+  const controlTypeByIofId = new Map<string, string>();
 
   const raceCourseDataEls = doc.getElementsByTagNameNS(ns, 'RaceCourseData');
   const raceCourseData = raceCourseDataEls[0];
@@ -120,6 +121,7 @@ export function importIofXml(
     };
 
     controlByIofId.set(iofId, control);
+    controlTypeByIofId.set(iofId, typeStr);
   }
 
   // ---------------------------------------------------------------------------
@@ -148,29 +150,42 @@ export function importIofXml(
 
     const courseControls: CourseControl[] = [];
     let seqIndex = 0;
+    let hasScore = false;
 
     for (const ccEl of courseControlEls) {
       const refId = getTextNS(ccEl, ns, 'ControlId');
       const ctrl = controlByIofId.get(refId);
       if (!ctrl) continue;
 
+      // Determine control type from IOF XML Type element
+      const iofType = controlTypeByIofId.get(refId) ?? '';
       let type: CourseControlType;
-      if (seqIndex === 0) {
+      if (seqIndex === 0 || iofType === 'Start') {
         type = 'start';
-      } else if (seqIndex === courseControlEls.length - 1) {
+      } else if (seqIndex === courseControlEls.length - 1 || iofType === 'Finish') {
         type = 'finish';
+      } else if (iofType === 'CrossingPoint') {
+        type = 'crossingPoint';
+      } else if (iofType === 'MapExchange') {
+        type = 'mapExchange';
       } else {
         type = 'control';
       }
 
-      courseControls.push({ controlId: ctrl.id as ControlId, type });
+      // Parse score value if present
+      const scoreStr = getTextNS(ccEl, ns, 'Score');
+      const score = scoreStr ? parseInt(scoreStr, 10) : undefined;
+      const validScore = score !== undefined && !isNaN(score) ? score : undefined;
+
+      courseControls.push({ controlId: ctrl.id as ControlId, type, score: validScore });
+      if (validScore !== undefined) hasScore = true;
       seqIndex++;
     }
 
     courses.push({
       id: generateCourseId(),
       name: name || 'Imported Course',
-      courseType: 'normal',
+      courseType: hasScore ? 'score' : 'normal',
       controls: courseControls,
       settings: {},
     });

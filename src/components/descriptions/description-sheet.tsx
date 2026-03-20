@@ -2,6 +2,7 @@ import type { Course, Control } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { DescriptionCell, NumberCell } from './description-cell';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 
 interface DescriptionSheetProps {
   course: Course;
@@ -40,14 +41,11 @@ export function DescriptionSheet({
   const lengthKm = (lengthMetres / 1000).toFixed(1);
 
   const isAllControls = mode === 'allControls';
+  const isScore = course.courseType === 'score';
 
-  // In all-controls mode, sort the controls by code number
-  const displayControls = isAllControls
-    ? [...course.controls].sort((a, b) => {
-        const ca = controls[a.controlId];
-        const cb = controls[b.controlId];
-        return (ca?.code ?? 0) - (cb?.code ?? 0);
-      })
+  // In all-controls or score mode, sort the controls by code number
+  const displayControls = isAllControls || isScore
+    ? sortControlsByCode(course.controls, controls)
     : course.controls;
 
   return (
@@ -68,8 +66,8 @@ export function DescriptionSheet({
         </div>
       )}
 
-      {/* Info row — length and climb (hidden in all-controls mode) */}
-      {!isAllControls && (
+      {/* Info row — length and climb (hidden in all-controls and score mode) */}
+      {!isAllControls && !isScore && (
         <div className={`grid ${GRID_COLS}`}>
           <div className="col-span-2 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
             {lengthKm} km
@@ -107,9 +105,9 @@ export function DescriptionSheet({
             className={`grid ${GRID_COLS} ${isSelected ? 'bg-yellow-50' : ''}`}
             onClick={() => onSelectControl?.(cc.controlId)}
           >
-            {/* Column A — sequence number (empty in all-controls mode) */}
+            {/* Column A — sequence number, or point value for score courses */}
             <NumberCell
-              value={isAllControls ? '' : (isStart ? 'S' : isFinish ? 'F' : index + 1)}
+              value={isAllControls ? '' : isScore ? (cc.score ?? '') : (isStart ? 'S' : isFinish ? 'F' : index + 1)}
               muted
             />
 

@@ -14,6 +14,8 @@ import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
 import { PrintSettingsModal } from './print-settings';
+import { ShortcutsModal } from './shortcuts-modal';
+import { GettingStartedDrawer } from './getting-started-drawer';
 import { useT } from '@/i18n/use-t';
 import { fitToView } from '@/components/map/use-map-navigation';
 
@@ -31,6 +33,8 @@ export function Toolbar() {
   const setTool = useToolStore((s) => s.setTool);
   const descriptionsPanelOpen = useToolStore((s) => s.descriptionsPanelOpen);
   const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
+  const shortcutsModalOpen = useToolStore((s) => s.shortcutsModalOpen);
+  const gettingStartedOpen = useToolStore((s) => s.gettingStartedOpen);
   const hasImage = useMapImageStore((s) => s.image !== null);
   const setEventName = useEventStore((s) => s.setEventName);
   const [loading, setLoading] = useState(false);
@@ -160,6 +164,37 @@ export function Toolbar() {
     }
   };
 
+  const handleExportBatchPdf = async () => {
+    const currentEvent = useEventStore.getState().event;
+    const mapImage = useMapImageStore.getState().image;
+    if (!currentEvent || !mapImage) return;
+
+    try {
+      const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
+
+      if (window.showDirectoryPicker) {
+        // Chrome/Edge: pick folder, write all course PDFs there
+        const dirHandle = await window.showDirectoryPicker();
+        for (let i = 0; i < currentEvent.courses.length; i++) {
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i });
+          const fileHandle = await dirHandle.getFileHandle(suggestedName, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+        }
+      } else {
+        // Fallback: sequential auto-downloads
+        for (let i = 0; i < currentEvent.courses.length; i++) {
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i });
+          await saveBlob(blob, suggestedName);
+        }
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Batch PDF export failed:', err);
+    }
+  };
+
   const handleExportImage = async (format: 'png' | 'jpeg') => {
     const currentEvent = useEventStore.getState().event;
     const { getStageInstance } = await import('@/components/map/map-canvas');
@@ -259,9 +294,17 @@ export function Toolbar() {
     { label: t('loadMap'), onClick: handleLoadMap, disabled: loading },
     { label: t('closeMap'), onClick: handleCloseMap, disabled: !hasImage },
     { separator: true },
-    { label: t('exportPdfCourseMap'), onClick: handleExportPdf, disabled: !canExport },
-    { label: t('exportAllCoursesPdf'), onClick: handleExportAllPdf, disabled: !canExport },
-    { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf, disabled: !canExport },
+    {
+      label: t('exportPdf'),
+      disabled: !canExport,
+      children: [
+        { label: t('exportPdfCourseMap'), onClick: handleExportPdf },
+        { label: t('exportAllCoursesPdf'), onClick: handleExportAllPdf },
+        { label: t('exportPdfEachCourse'), onClick: handleExportBatchPdf },
+        { separator: true },
+        { label: t('exportPdfDescriptions'), onClick: handleExportDescriptionPdf },
+      ],
+    },
     { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
     { label: t('exportPng'), onClick: () => handleExportImage('png'), disabled: !hasImage },
     { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
@@ -380,6 +423,11 @@ export function Toolbar() {
     },
   ];
 
+  const helpMenuItems: MenuEntry[] = [
+    { label: t('gettingStarted'), onClick: () => useToolStore.getState().toggleGettingStarted() },
+    { label: t('keyboardShortcuts'), onClick: () => useToolStore.getState().toggleShortcutsModal(), shortcut: '?' },
+  ];
+
   const toolButton = (tool: Tool, label: string) => {
     const isActive = activeTool.type === tool.type &&
       (tool.type !== 'addSpecialItem' ||
@@ -412,6 +460,7 @@ export function Toolbar() {
         {hasImage && (
           <FileMenu items={insertMenuItems} label={t('insert')} variant="menubar" />
         )}
+        <FileMenu items={helpMenuItems} label={t('help')} variant="menubar" />
       </nav>
 
       {/* Separator between menus and event name */}
@@ -519,6 +568,12 @@ export function Toolbar() {
       )}
       {pageSetupOpen && (
         <PrintSettingsModal onClose={() => setPageSetupOpen(false)} />
+      )}
+      {shortcutsModalOpen && (
+        <ShortcutsModal onClose={() => useToolStore.getState().toggleShortcutsModal()} />
+      )}
+      {gettingStartedOpen && (
+        <GettingStartedDrawer onClose={() => useToolStore.getState().toggleGettingStarted()} />
       )}
       <input
         ref={fileInputRef}

@@ -15,6 +15,7 @@ import type { Control, Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
 // ---------------------------------------------------------------------------
@@ -270,33 +271,43 @@ export async function generateDescriptionSheetPdf(
   }
 
   // ---------------------------------------------------------------------------
-  // Info row: length + climb
+  // Info row: length + climb (hidden for score courses — no meaningful length)
   // ---------------------------------------------------------------------------
 
-  const climbValue = course.climb ?? course.settings.climb;
-  const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
-  const infoText = `${Math.round(lengthM)} m${climbText}`;
-  await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
+  const isScore = course.courseType === 'score';
+
+  if (!isScore) {
+    const climbValue = course.climb ?? course.settings.climb;
+    const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
+    const infoText = `${Math.round(lengthM)} m${climbText}`;
+    await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
+  }
 
   // ---------------------------------------------------------------------------
-  // Control rows
+  // Control rows (score courses sorted by code number)
   // ---------------------------------------------------------------------------
+
+  const displayControls = isScore
+    ? sortControlsByCode(course.controls, event.controls)
+    : course.controls;
 
   let seqNumber = 0;
 
-  for (const cc of course.controls) {
+  for (const cc of displayControls) {
     const ctrl: Control | undefined = event.controls[cc.controlId as ControlId];
     if (!ctrl) continue;
 
     const isStart = cc.type === 'start';
     const isFinish = cc.type === 'finish';
 
-    // Column A: sequence number (blank for start, ● for finish)
+    // Column A: point value for score courses, sequence number for normal
     let colA: string | null = null;
-    if (isStart) {
-      colA = null; // Start triangle has no number
+    if (isScore) {
+      colA = cc.score != null ? String(cc.score) : null;
+    } else if (isStart) {
+      colA = null;
     } else if (isFinish) {
-      colA = null; // Finish double-circle has no number
+      colA = null;
     } else {
       seqNumber += 1;
       colA = String(seqNumber);

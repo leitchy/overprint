@@ -18,6 +18,11 @@ interface SaveFilePickerOptions {
   }>;
 }
 
+interface FileSystemDirectoryHandle {
+  getFileHandle(name: string, options?: { create?: boolean }): Promise<FileSystemFileHandle>;
+}
+
 interface Window {
   showSaveFilePicker(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>;
+  showDirectoryPicker?(): Promise<FileSystemDirectoryHandle>;
 }
