@@ -2,6 +2,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import type { TextItem, LineItem, RectangleItem, SpecialItem } from '@/core/models/types';
 import { mmToMapPixels, mapPixelsToMm } from '@/core/geometry/overprint-dimensions';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 
 const FONT_SIZE_PRESETS = [
   { label: 'S', mm: 3 },
@@ -17,7 +18,7 @@ const LINE_WIDTH_PRESETS = [
 ];
 
 const COLOR_PRESETS = [
-  { label: 'Purple', value: '#CD59A4' },
+  { label: 'Purple', value: OVERPRINT_PURPLE },
   { label: 'Black', value: '#000000' },
   { label: 'Red', value: '#CC0000' },
   { label: 'Blue', value: '#0066CC' },
@@ -34,23 +35,22 @@ const COLOR_PRESETS = [
  */
 export function TextFormatToolbar() {
   const selectedId = useToolStore((s) => s.selectedSpecialItemId);
-  const event = useEventStore((s) => s.event);
+  const specialItems = useEventStore((s) => s.event?.specialItems);
+  const dpi = useEventStore((s) => s.event?.mapFile?.dpi) ?? 150;
   const updateSpecialItem = useEventStore((s) => s.updateSpecialItem);
 
-  if (!selectedId || !event) return null;
+  if (!selectedId || !specialItems) return null;
 
-  const item = event.specialItems.find((i) => i.id === selectedId);
+  const item = specialItems.find((i) => i.id === selectedId);
   if (!item) return null;
 
   // Description boxes have no editable properties
   if (item.type === 'descriptionBox') return null;
-
-  const dpi = event.mapFile?.dpi ?? 150;
   const update = (updates: Partial<SpecialItem>) => {
     updateSpecialItem(selectedId, updates);
   };
 
-  const currentColor = item.color ?? '#CD59A4';
+  const currentColor = item.color ?? OVERPRINT_PURPLE;
 
   return (
     <div className="absolute left-1/2 top-2 z-40 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg">

@@ -117,6 +117,11 @@ function SubMenuItem({ entry, onClose }: { entry: MenuItem; onClose: () => void 
   const [subOpen, setSubOpen] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Clean up pending timeout on unmount
+  useEffect(() => {
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+  }, []);
+
   const handleEnter = () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (!entry.disabled) setSubOpen(true);

@@ -2,9 +2,9 @@
  * Getting Started drawer — slides in from the right side.
  * Non-modal: the canvas stays visible and interactive behind it.
  */
-import { useEffect } from 'react';
 import { helpContent } from '@/i18n/help/en';
 import { useT } from '@/i18n/use-t';
+import { useModalClose } from './use-modal-close';
 
 interface GettingStartedDrawerProps {
   onClose: () => void;
@@ -12,15 +12,7 @@ interface GettingStartedDrawerProps {
 
 export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
   const t = useT();
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  useModalClose(onClose); // Escape key handling
 
   return (
     <div

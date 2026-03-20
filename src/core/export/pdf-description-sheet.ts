@@ -15,6 +15,7 @@ import type { Control, Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
 // ---------------------------------------------------------------------------
@@ -287,11 +288,7 @@ export async function generateDescriptionSheetPdf(
   // ---------------------------------------------------------------------------
 
   const displayControls = isScore
-    ? [...course.controls].sort((a, b) => {
-        const ca = event.controls[a.controlId as ControlId];
-        const cb = event.controls[b.controlId as ControlId];
-        return (ca?.code ?? 0) - (cb?.code ?? 0);
-      })
+    ? sortControlsByCode(course.controls, event.controls)
     : course.controls;
 
   let seqNumber = 0;
