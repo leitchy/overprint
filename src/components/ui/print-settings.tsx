@@ -3,6 +3,7 @@ import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { useT } from '@/i18n/use-t';
 import type { PaperSize } from '@/core/models/types';
 import { SCALE_PRESETS } from '@/core/models/constants';
+import { DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
 import { useModalClose } from './use-modal-close';
 
 const PAPER_SIZES: Array<{ value: PaperSize; label: string }> = [
@@ -211,6 +212,36 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
             />
             <span className="text-sm text-gray-700">{t('showPrintBoundaryLabel')}</span>
           </label>
+
+          {/* Overprint Appearance */}
+          <div className="border-t border-gray-100 pt-3">
+            <span className="block text-sm font-medium text-gray-700 mb-2">
+              {t('overprintAppearance')}
+            </span>
+            <div className="space-y-2">
+              <AppearanceRow
+                label={t('controlCircleDiameter')}
+                value={settings.controlCircleDiameter}
+                defaultValue={DEFAULT_EVENT_SETTINGS.controlCircleDiameter}
+                min={3} max={7} step={0.1}
+                onChange={(v) => updateSettings({ controlCircleDiameter: v })}
+              />
+              <AppearanceRow
+                label={t('lineWidthLabel')}
+                value={settings.lineWidth}
+                defaultValue={DEFAULT_EVENT_SETTINGS.lineWidth}
+                min={0.1} max={1} step={0.05}
+                onChange={(v) => updateSettings({ lineWidth: v })}
+              />
+              <AppearanceRow
+                label={t('numberSizeLabel')}
+                value={settings.numberSize}
+                defaultValue={DEFAULT_EVENT_SETTINGS.numberSize}
+                min={2} max={6} step={0.1}
+                onChange={(v) => updateSettings({ numberSize: v })}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
@@ -223,6 +254,46 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AppearanceRow({
+  label, value, defaultValue, min, max, step, onChange,
+}: {
+  label: string;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+}) {
+  const isDefault = Math.abs(value - defaultValue) < 0.001;
+  return (
+    <div className="flex items-center gap-2">
+      <label className="flex-1 text-xs text-gray-600">{label}</label>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
+        }}
+        className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-xs text-gray-700 outline-none focus:border-violet-400"
+      />
+      <span className="text-[10px] text-gray-400 w-6">mm</span>
+      <button
+        onClick={() => onChange(defaultValue)}
+        disabled={isDefault}
+        title={`Reset to ${defaultValue}`}
+        className={`rounded p-0.5 text-xs ${isDefault ? 'text-gray-200 cursor-default' : 'text-gray-400 hover:text-violet-600'}`}
+      >
+        ↺
+      </button>
     </div>
   );
 }
