@@ -39,8 +39,7 @@ function deriveCourseControlTypes(controls: CourseControl[]): void {
   }
 }
 
-/** Control codes that look ambiguous when printed upside-down — skip these. */
-const AMBIGUOUS_CODES = new Set([68, 69, 86, 89, 96, 98, 160, 180, 190]);
+import { AMBIGUOUS_CODES } from '@/core/validation/ambiguous-codes';
 
 function nextControlCode(event: OverprintEvent): number {
   const codes = Object.values(event.controls).map((c) => c.code);
