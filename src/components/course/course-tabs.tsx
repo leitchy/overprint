@@ -17,6 +17,7 @@ export function CourseList() {
   const setActiveCourse = useEventStore((s) => s.setActiveCourse);
   const showAllControls = useEventStore((s) => s.showAllControls);
   const addCourse = useEventStore((s) => s.addCourse);
+  const duplicateCourse = useEventStore((s) => s.duplicateCourse);
   const renameCourse = useEventStore((s) => s.renameCourse);
   const deleteCourse = useEventStore((s) => s.deleteCourse);
 
@@ -210,6 +211,24 @@ export function CourseList() {
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                   <path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L2.317 11.21a1.75 1.75 0 0 0-.476.89l-.455 2.732a.75.75 0 0 0 .884.884l2.732-.455a1.75 1.75 0 0 0 .89-.476l8.698-8.696a1.75 1.75 0 0 0 0-2.475ZM3.71 12.29l-.316 1.895 1.895-.316.87-.87-1.579-1.579-.87.87Zm1.44-1.44 5.5-5.5 1.579 1.579-5.5 5.5L5.15 10.85ZM11.72 4.28l.53-.53a.25.25 0 0 1 .353 0l.648.648a.25.25 0 0 1 0 .353l-.53.53-1.001-1.001Z" />
+                </svg>
+              </button>
+            )}
+
+            {/* Duplicate button — only on active course */}
+            {isActive && !isRenaming && (
+              <button
+                aria-label="Duplicate course"
+                title="Duplicate"
+                className="shrink-0 rounded p-0.5 text-gray-400 hover:text-gray-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  duplicateCourse(course.id);
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                  <path d="M10.5 3a.75.75 0 0 1 .75.75v1h1a.75.75 0 0 1 0 1.5h-1v1a.75.75 0 0 1-1.5 0v-1h-1a.75.75 0 0 1 0-1.5h1v-1A.75.75 0 0 1 10.5 3Z" />
+                  <path d="M3.5 1A1.5 1.5 0 0 0 2 2.5v9A1.5 1.5 0 0 0 3.5 13h9a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 12.5 1h-9ZM3.5 2.5h9v9h-9v-9Z" />
                 </svg>
               </button>
             )}
