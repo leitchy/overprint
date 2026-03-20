@@ -6,6 +6,8 @@ import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constant
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
 import { CrossingPoint } from './crossing-point';
+import { useKonvaLongPress } from '@/hooks/use-konva-long-press';
+import { hapticTap } from '@/utils/haptics';
 
 const SELECTION_COLOR = '#FFD700';
 
@@ -26,6 +28,7 @@ interface ControlShapeProps {
   onSelect?: () => void;
   onDragEnd?: (x: number, y: number) => void;
   onNumberDragEnd?: (offset: MapPoint) => void; // Called when the number label is dragged
+  onLongPress?: (screenX: number, screenY: number) => void;
 }
 
 export const ControlShape = memo(function ControlShape({
@@ -44,8 +47,14 @@ export const ControlShape = memo(function ControlShape({
   onSelect,
   onDragEnd,
   onNumberDragEnd,
+  onLongPress,
 }: ControlShapeProps) {
   const { x, y } = control.position;
+
+  const longPress = useKonvaLongPress((screenX, screenY) => {
+    hapticTap();
+    onLongPress?.(screenX, screenY);
+  });
   const { circleRadius, numberSize } = dimensions;
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -78,8 +87,12 @@ export const ControlShape = memo(function ControlShape({
       }}
       onTap={(e) => {
         e.cancelBubble = true;
+        if (longPress.longPressFiredRef.current) return;
         onSelect?.();
       }}
+      onTouchStart={longPress.onTouchStart}
+      onTouchMove={longPress.onTouchMove}
+      onTouchEnd={longPress.onTouchEnd}
       onDragEnd={(e) => {
         // Ignore drag events bubbling up from child nodes (e.g., number text)
         if (e.target !== e.currentTarget) return;

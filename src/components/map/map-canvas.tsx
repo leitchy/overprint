@@ -21,6 +21,14 @@ import { PrintBoundary } from '@/components/map/print-boundary';
 import { TextFormatToolbar } from '@/components/map/text-format-toolbar';
 import { InlineTextEditor } from '@/components/map/inline-text-editor';
 import { SpecialItemsLayer } from '@/components/map/special-items-layer';
+import { useBreakpoint } from '@/hooks/use-breakpoint';
+import { useIsTouch } from '@/hooks/use-is-touch';
+import { SlideDrawer } from '@/components/ui/slide-drawer';
+import { BottomSheet } from '@/components/ui/bottom-sheet';
+import { ControlContextMenu } from '@/components/course/control-context-menu';
+import { CenterReticle } from '@/components/map/center-reticle';
+import { NudgePad } from '@/components/ui/nudge-pad';
+import { hapticConfirm } from '@/utils/haptics';
 
 // Module-level stage reference — allows toolbar and export utilities to access
 // the Konva stage without prop drilling.
@@ -216,6 +224,22 @@ export function MapCanvas() {
     useEventStore.getState().updateControlPosition(id, { x, y });
   }, []);
 
+  const breakpoint = useBreakpoint();
+  const isTouch = useIsTouch();
+  const mobilePanelOpen = useToolStore((s) => s.mobilePanelOpen);
+  const toggleMobilePanel = useToolStore((s) => s.toggleMobilePanel);
+
+  // Context menu for long-press on controls (touch only)
+  const [contextMenu, setContextMenu] = useState<{
+    controlId: ControlId;
+    screenX: number;
+    screenY: number;
+  } | null>(null);
+
+  const handleLongPressControl = useCallback((controlId: ControlId, screenX: number, screenY: number) => {
+    setContextMenu({ controlId, screenX, screenY });
+  }, []);
+
   return (
     <div ref={containerRef} data-map-container className="relative h-full w-full overflow-hidden">
       {size.width > 0 && size.height > 0 && (
@@ -239,6 +263,18 @@ export function MapCanvas() {
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
+          onDblTap={(e) => {
+            // Double-tap to fit map — only on empty canvas in pan mode
+            if (activeTool.type !== 'pan') return;
+            const stage = stageRef.current;
+            if (!stage || e.target !== stage) return;
+            const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
+            useViewportStore.getState().setViewport(fit);
+            stage.scale({ x: fit.zoom, y: fit.zoom });
+            stage.position({ x: fit.panX, y: fit.panY });
+            stage.batchDraw();
+            hapticConfirm();
+          }}
         >
           {/* Map layer — dimmed when controls are visible for overprint readability */}
           <Layer
@@ -288,6 +324,7 @@ export function MapCanvas() {
                     courseId={activeCourseId}
                     onSelectControl={handleSelectControl}
                     onDragControlEnd={handleDragControlEnd}
+                    onLongPressControl={isTouch ? handleLongPressControl : undefined}
                     onNumberDragEnd={(controlIndex, offset) => {
                       if (activeCourseId) {
                         useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
@@ -403,12 +440,66 @@ export function MapCanvas() {
           />
         </>
       )}
-      {hasEvent && controls && (
-        <CoursePanel
-          course={activeCourse}
-          controls={controls}
+      {/* Course panel — desktop: floating panel, tablet: slide drawer, phone: bottom sheet */}
+      {hasEvent && controls && (() => {
+        const panelProps = { course: activeCourse, controls, courseId: activeCourseId, selectedControlId };
+
+        if (breakpoint === 'lg') {
+          return <CoursePanel {...panelProps} />;
+        }
+
+        return (
+          <>
+            {/* Drawer/sheet toggle button */}
+            {mobilePanelOpen !== 'course' && (
+              <button
+                onClick={() => toggleMobilePanel('course')}
+                className="absolute right-0 top-16 z-30 rounded-l-lg bg-white/90 px-2 py-3 text-xs font-medium text-gray-600 shadow"
+              >
+                {activeCourse?.name ?? 'Courses'} ›
+              </button>
+            )}
+
+            {breakpoint === 'md' ? (
+              <SlideDrawer
+                open={mobilePanelOpen === 'course'}
+                onClose={() => toggleMobilePanel('course')}
+                side="right"
+                width="260px"
+              >
+                <CoursePanel {...panelProps} embedded />
+              </SlideDrawer>
+            ) : (
+              <BottomSheet
+                open={mobilePanelOpen === 'course'}
+                onClose={() => toggleMobilePanel('course')}
+                snapPoints={[0.45, 0.85]}
+              >
+                <CoursePanel {...panelProps} embedded />
+              </BottomSheet>
+            )}
+          </>
+        );
+      })()}
+
+      {/* Nudge pad for fine positioning (touch only) */}
+      {isTouch && selectedControlId && <NudgePad />}
+
+      {/* Center-reticle placement mode (phone only) */}
+      {breakpoint === 'sm' && isTouch && activeTool.type === 'addControl' && (
+        <CenterReticle
+          stageRef={stageRef}
+          containerWidth={size.width}
+          containerHeight={size.height}
+        />
+      )}
+
+      {/* Long-press context menu (touch only) */}
+      {contextMenu && activeCourseId && (
+        <ControlContextMenu
+          menu={contextMenu}
           courseId={activeCourseId}
-          selectedControlId={selectedControlId}
+          onClose={() => setContextMenu(null)}
         />
       )}
     </div>

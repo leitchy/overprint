@@ -27,10 +27,10 @@ export function ZoomControls({ containerWidth, containerHeight }: ZoomControlsPr
   };
 
   return (
-    <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded bg-white/90 px-2 py-1 shadow">
+    <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded bg-white/90 px-2 py-1 shadow max-lg:bottom-6 max-lg:gap-0.5">
       <button
         onClick={handleZoomOut}
-        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100"
+        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
         title="Zoom out"
       >
         −
@@ -40,7 +40,7 @@ export function ZoomControls({ containerWidth, containerHeight }: ZoomControlsPr
       </span>
       <button
         onClick={handleZoomIn}
-        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100"
+        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
         title="Zoom in"
       >
         +
@@ -48,7 +48,7 @@ export function ZoomControls({ containerWidth, containerHeight }: ZoomControlsPr
       <div className="mx-1 h-4 w-px bg-gray-300" />
       <button
         onClick={handleFitToView}
-        className="rounded px-2 py-0.5 text-xs hover:bg-gray-100"
+        className="rounded px-2 py-0.5 text-xs hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:px-3 max-lg:text-sm"
         title="Fit to view"
       >
         Fit
