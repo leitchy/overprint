@@ -4,8 +4,10 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { version } from './package.json';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), cloudflare()],
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __APP_COMMIT__: JSON.stringify(process.env.CF_PAGES_COMMIT_SHA ?? 'local'),
