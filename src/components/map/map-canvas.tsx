@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Stage, Layer, Image as KonvaImage, Rect as KonvaRect } from 'react-konva';
+import { Stage, Layer, Line as KonvaLine, Image as KonvaImage, Rect as KonvaRect } from 'react-konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
+import type Konva from 'konva';
 import { useCanvasSize } from './use-canvas-size';
 import { useMapNavigation, fitToView } from './use-map-navigation';
 import { useMapImageStore } from '@/stores/map-image-store';
@@ -8,6 +9,7 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
@@ -32,6 +34,7 @@ export function getStageInstance(): StageType | null {
 export function MapCanvas() {
   const [containerRef, size] = useCanvasSize();
   const stageRef = useRef<StageType>(null);
+  const rubberBandRef = useRef<Konva.Line>(null);
   const image = useMapImageStore((s) => s.image);
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
@@ -112,6 +115,55 @@ export function MapCanvas() {
     }
   }, [isPrintAreaDraggingRef, printAreaDragRef]);
 
+  // Rubber-band line — imperative update on mouse move (no React re-renders)
+  const updateRubberBand = useCallback(() => {
+    const line = rubberBandRef.current;
+    if (!line) return;
+
+    const stage = stageRef.current;
+    if (!stage || activeTool.type !== 'addControl') {
+      if (line.visible()) { line.visible(false); line.getLayer()?.batchDraw(); }
+      return;
+    }
+
+    const pos = stage.getRelativePointerPosition();
+    const state = useEventStore.getState();
+    const course = state.event?.courses.find((c) => c.id === state.activeCourseId);
+
+    if (!pos || !course || course.controls.length === 0 || course.courseType === 'score') {
+      if (line.visible()) { line.visible(false); line.getLayer()?.batchDraw(); }
+      return;
+    }
+
+    const lastCC = course.controls[course.controls.length - 1]!;
+    const ctrl = state.event?.controls[lastCC.controlId];
+    if (!ctrl) {
+      if (line.visible()) { line.visible(false); line.getLayer()?.batchDraw(); }
+      return;
+    }
+
+    line.points([ctrl.position.x, ctrl.position.y, pos.x, pos.y]);
+    line.visible(true);
+    line.getLayer()?.batchDraw();
+  }, [activeTool.type]);
+
+  // Hide rubber-band when tool changes or no active course
+  useEffect(() => {
+    const line = rubberBandRef.current;
+    if (line && activeTool.type !== 'addControl') {
+      line.visible(false);
+      line.getLayer()?.batchDraw();
+    }
+  }, [activeTool.type]);
+
+  const handleMouseLeave = useCallback(() => {
+    const line = rubberBandRef.current;
+    if (line && line.visible()) {
+      line.visible(false);
+      line.getLayer()?.batchDraw();
+    }
+  }, []);
+
   // Compute overprint dimensions — only recomputes when settings or dpi change
   const dpi = mapFile?.dpi ?? 150;
   const dimensions = useMemo(
@@ -181,8 +233,9 @@ export function MapCanvas() {
           y={panY}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
-          onMouseMove={(e) => { handleMouseMove(e); handleMouseMoveForPreview(); }}
+          onMouseMove={(e) => { handleMouseMove(e); handleMouseMoveForPreview(); updateRubberBand(); }}
           onMouseUp={() => { handleMouseUp(); handleMouseMoveForPreview(); }}
+          onMouseLeave={handleMouseLeave}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -296,6 +349,19 @@ export function MapCanvas() {
                 ))}
               </>
             )}
+          </Layer>
+
+          {/* Rubber-band preview line — shows next leg from last control to cursor */}
+          <Layer listening={false}>
+            <KonvaLine
+              ref={rubberBandRef}
+              points={[]}
+              stroke={OVERPRINT_PURPLE}
+              strokeWidth={2 * SCREEN_LINE_MULTIPLIER}
+              dash={[8, 4]}
+              visible={false}
+              listening={false}
+            />
           </Layer>
 
           {/* Special items layer — interactive annotations above the overprint */}
