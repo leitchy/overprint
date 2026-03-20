@@ -43,14 +43,14 @@ sudo port install git
 Always use SSH for git remotes, never HTTPS:
 
 ```bash
-git clone git@github.com:jimcresswell/Overprint.git
+git clone git@github.com:leitchy/overprint.git
 cd Overprint
 ```
 
 If the remote is using HTTPS, convert it:
 
 ```bash
-git remote set-url origin git@github.com:jimcresswell/Overprint.git
+git remote set-url origin git@github.com:leitchy/overprint.git
 ```
 
 ### Install dependencies
