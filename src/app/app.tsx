@@ -3,12 +3,16 @@ import { useStrictMode } from 'react-konva';
 import { MapCanvas } from '@/components/map/map-canvas';
 import { Toolbar } from '@/components/ui/toolbar';
 import { DescriptionPanel } from '@/components/descriptions/description-panel';
+import { MobileBottomBar } from '@/components/ui/mobile-bottom-bar';
+import { MobileFab } from '@/components/ui/mobile-fab';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useEventStore } from '@/stores/event-store';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { detectMapFileType } from '@/core/files/detect-file-type';
 import { loadMapFile, loadEventFile, importIofXmlFile } from '@/core/files/load-map-file';
 import { useT } from '@/i18n/use-t';
+import { useIsMobile } from '@/hooks/use-breakpoint';
+import { ToastContainer } from '@/components/ui/toast';
 
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
@@ -23,6 +27,7 @@ function hasExtension(name: string, ext: string): boolean {
 export function App() {
   useKeyboardShortcuts();
   const t = useT();
+  const isMobile = useIsMobile();
   const hasImage = useMapImageStore((s) => s.image !== null);
   const event = useEventStore((s) => s.event);
   const mapFileName = event?.mapFile?.name;
@@ -237,6 +242,10 @@ export function App() {
         )}
       </main>
 
+      {/* Phone-only: FAB for tool switching + bottom bar for course info */}
+      {isMobile && hasImage && event && <MobileFab />}
+      {isMobile && event && <MobileBottomBar />}
+
       {/* Hidden file input for the "Load Map" button */}
       <input
         ref={mapFileInputRef}
@@ -245,6 +254,8 @@ export function App() {
         onChange={handleMapFileInputChange}
         className="hidden"
       />
+
+      <ToastContainer />
     </div>
   );
 }

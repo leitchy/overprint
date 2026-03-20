@@ -18,8 +18,57 @@ import { ShortcutsModal } from './shortcuts-modal';
 import { GettingStartedDrawer } from './getting-started-drawer';
 import { useT } from '@/i18n/use-t';
 import { fitToView } from '@/components/map/use-map-navigation';
+import { useIsCompact } from '@/hooks/use-breakpoint';
+import { MobileMenuDrawer } from './mobile-menu-drawer';
+import { EventNameEditor } from './event-name-editor';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
+
+/** Undo/Redo buttons for the compact toolbar — subscribes to temporal state via event store. */
+function UndoRedoButtons() {
+  const t = useT();
+  // Re-evaluates when event changes (which happens after every undo/redo)
+  const canUndo = useEventStore(
+    (s) => s.event !== null && useEventStore.temporal.getState().pastStates.length > 0,
+  );
+  const canRedo = useEventStore(
+    (s) => s.event !== null && useEventStore.temporal.getState().futureStates.length > 0,
+  );
+
+  return (
+    <>
+      <div className="h-5 w-px bg-gray-200" />
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => useEventStore.temporal.getState().undo()}
+          disabled={!canUndo}
+          className="flex h-10 w-10 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300"
+          title={t('undo')}
+          aria-label={t('undo')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 7v6h6" />
+            <path d="M3 13a9 9 0 0 1 15.36-6.36" />
+            <path d="M21 12a9 9 0 0 1-15 6.7" />
+          </svg>
+        </button>
+        <button
+          onClick={() => useEventStore.temporal.getState().redo()}
+          disabled={!canRedo}
+          className="flex h-10 w-10 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300"
+          title={t('redo')}
+          aria-label={t('redo')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 7v6h-6" />
+            <path d="M21 13a9 9 0 0 0-15.36-6.36" />
+            <path d="M3 12a9 9 0 0 0 15 6.7" />
+          </svg>
+        </button>
+      </div>
+    </>
+  );
+}
 
 export function Toolbar() {
   const t = useT();
@@ -36,12 +85,11 @@ export function Toolbar() {
   const shortcutsModalOpen = useToolStore((s) => s.shortcutsModalOpen);
   const gettingStartedOpen = useToolStore((s) => s.gettingStartedOpen);
   const hasImage = useMapImageStore((s) => s.image !== null);
-  const setEventName = useEventStore((s) => s.setEventName);
+  const isCompact = useIsCompact();
   const [loading, setLoading] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
-  const [editingEventName, setEditingEventName] = useState(false);
-  const [eventNameDraft, setEventNameDraft] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -449,124 +497,185 @@ export function Toolbar() {
     );
   };
 
+  const menuSections = [
+    { label: t('file'), items: fileMenuItems },
+    { label: t('edit'), items: editMenuItems },
+    { label: t('view'), items: viewMenuItems },
+    ...(hasImage ? [{ label: t('insert'), items: insertMenuItems }] : []),
+    { label: t('help'), items: helpMenuItems },
+  ];
+
   return (
-    <header className="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
+    <>
+      {/* ---- Desktop toolbar (>=1024px) ---- */}
+      {!isCompact && (
+        <header className="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
 
-      {/* Brand */}
-      <span className="text-sm font-semibold text-gray-900">Overprint</span>
-      <span className="text-[10px] text-gray-400 ml-0.5 mr-1">v{__APP_VERSION__}</span>
+          {/* Brand */}
+          <span className="text-sm font-semibold text-gray-900">Overprint</span>
+          <span className="text-[10px] text-gray-400 ml-0.5 mr-1">v{__APP_VERSION__}</span>
 
-      {/* Zone 1 — Menu bar */}
-      <nav className="flex items-center">
-        <FileMenu items={fileMenuItems} label={t('file')} variant="menubar" />
-        <FileMenu items={editMenuItems} label={t('edit')} variant="menubar" />
-        <FileMenu items={viewMenuItems} label={t('view')} variant="menubar" />
-        {hasImage && (
-          <FileMenu items={insertMenuItems} label={t('insert')} variant="menubar" />
-        )}
-        <FileMenu items={helpMenuItems} label={t('help')} variant="menubar" />
-      </nav>
+          {/* Zone 1 — Menu bar */}
+          <nav className="flex items-center">
+            <FileMenu items={fileMenuItems} label={t('file')} variant="menubar" />
+            <FileMenu items={editMenuItems} label={t('edit')} variant="menubar" />
+            <FileMenu items={viewMenuItems} label={t('view')} variant="menubar" />
+            {hasImage && (
+              <FileMenu items={insertMenuItems} label={t('insert')} variant="menubar" />
+            )}
+            <FileMenu items={helpMenuItems} label={t('help')} variant="menubar" />
+          </nav>
 
-      {/* Separator between menus and event name */}
-      <div className="mx-1 h-5 w-px bg-gray-200" />
-
-      {/* Zone 2 — Event name */}
-      {eventName !== undefined && (
-        editingEventName ? (
-          <input
-            autoFocus
-            value={eventNameDraft}
-            onChange={(e) => setEventNameDraft(e.target.value)}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') {
-                const trimmed = eventNameDraft.trim();
-                if (trimmed) setEventName(trimmed);
-                setEditingEventName(false);
-              }
-              if (e.key === 'Escape') {
-                setEditingEventName(false);
-              }
-            }}
-            onBlur={() => {
-              const trimmed = eventNameDraft.trim();
-              if (trimmed) setEventName(trimmed);
-              setEditingEventName(false);
-            }}
-            className="text-sm text-gray-500 border-b border-violet-400 bg-transparent outline-none px-1"
-          />
-        ) : (
-          <span
-            className="group flex items-center gap-1 text-sm text-gray-500 cursor-pointer hover:text-gray-700"
-            onClick={() => { setEditingEventName(true); setEventNameDraft(eventName ?? ''); }}
-            title={t('clickToEditEventName')}
-          >
-            {eventName}
-            <span className="opacity-0 group-hover:opacity-50 text-xs">&#9998;</span>
-          </span>
-        )
-      )}
-
-      {/* Zone 3 + 4 — Tool buttons and descriptions toggle */}
-      {hasImage && (
-        <>
+          {/* Separator between menus and event name */}
           <div className="mx-1 h-5 w-px bg-gray-200" />
-          <div className="flex items-center gap-1">
-            {toolButton({ type: 'pan' }, t('toolPan'))}
-            <button
-              onClick={() => setTool({ type: 'addControl' })}
-              disabled={viewMode === 'allControls'}
-              title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
-              className={`rounded px-3 py-1.5 text-sm font-medium ${
-                activeTool.type === 'addControl'
-                  ? 'bg-violet-600 text-white'
-                  : viewMode === 'allControls'
-                    ? 'cursor-not-allowed bg-gray-100 text-gray-300'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {t('toolAddControl')}
-            </button>
-            {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
-              <>
-                <div className="h-5 w-px bg-gray-200" />
+
+          {/* Zone 2 — Event name */}
+          {eventName !== undefined && (
+            <EventNameEditor
+              eventName={eventName}
+              className="group flex items-center gap-1 hover:text-gray-700"
+              showPencil
+            />
+          )}
+
+          {/* Zone 3 + 4 — Tool buttons and descriptions toggle */}
+          {hasImage && (
+            <>
+              <div className="mx-1 h-5 w-px bg-gray-200" />
+              <div className="flex items-center gap-1">
+                {toolButton({ type: 'pan' }, t('toolPan'))}
                 <button
-                  onClick={() => setTool({ type: 'setPrintArea' })}
-                  title={t('setPrintArea')}
+                  onClick={() => setTool({ type: 'addControl' })}
+                  disabled={viewMode === 'allControls'}
+                  title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
                   className={`rounded px-3 py-1.5 text-sm font-medium ${
-                    activeTool.type === 'setPrintArea'
+                    activeTool.type === 'addControl'
                       ? 'bg-violet-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : viewMode === 'allControls'
+                        ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  {t('setPrintArea')}
+                  {t('toolAddControl')}
                 </button>
-              </>
-            )}
-          </div>
+                {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
+                  <>
+                    <div className="h-5 w-px bg-gray-200" />
+                    <button
+                      onClick={() => setTool({ type: 'setPrintArea' })}
+                      title={t('setPrintArea')}
+                      className={`rounded px-3 py-1.5 text-sm font-medium ${
+                        activeTool.type === 'setPrintArea'
+                          ? 'bg-violet-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {t('setPrintArea')}
+                    </button>
+                  </>
+                )}
+              </div>
 
-          {/* Zone 4 — Descriptions toggle */}
-          <div className="mx-1 h-5 w-px bg-gray-200" />
+              {/* Zone 4 — Descriptions toggle */}
+              <div className="mx-1 h-5 w-px bg-gray-200" />
+              <button
+                onClick={toggleDescriptionsPanel}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${
+                  descriptionsPanelOpen
+                    ? 'bg-violet-100 text-violet-700'
+                    : 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-violet-200 hover:bg-gray-200'
+                }`}
+              >
+                {t('toolDescriptions')}
+              </button>
+            </>
+          )}
+
+          {/* Zone 5 — Right side spacer + loading */}
+          <div className="flex-1" />
+
+          {loading && (
+            <span className="text-sm text-gray-400">{t('loadingMap')}</span>
+          )}
+        </header>
+      )}
+
+      {/* ---- Mobile/tablet toolbar (<1024px) ---- */}
+      {isCompact && (
+        <header className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
+          {/* Hamburger menu */}
           <button
-            onClick={toggleDescriptionsPanel}
-            className={`rounded px-3 py-1.5 text-sm font-medium ${
-              descriptionsPanelOpen
-                ? 'bg-violet-100 text-violet-700'
-                : 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-violet-200 hover:bg-gray-200'
-            }`}
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded text-gray-700 hover:bg-gray-100"
+            aria-label="Menu"
           >
-            {t('toolDescriptions')}
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="5" x2="17" y2="5" />
+              <line x1="3" y1="10" x2="17" y2="10" />
+              <line x1="3" y1="15" x2="17" y2="15" />
+            </svg>
           </button>
-        </>
+
+          {/* Event name (truncated) */}
+          {eventName !== undefined && (
+            <EventNameEditor
+              eventName={eventName}
+              className="min-w-0 flex-1 truncate"
+              inputClassName="min-w-0 flex-1"
+            />
+          )}
+          {eventName === undefined && <div className="flex-1" />}
+
+          {/* Active tool indicator + tool toggle */}
+          {hasImage && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setTool({ type: 'pan' })}
+                className={`rounded px-3 py-2.5 text-sm font-medium ${
+                  activeTool.type === 'pan'
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-gray-100 text-gray-700'
+                }`}
+                title={t('toolPan')}
+              >
+                ✋
+              </button>
+              <button
+                onClick={() => setTool({ type: 'addControl' })}
+                disabled={viewMode === 'allControls'}
+                className={`rounded px-3 py-2.5 text-sm font-medium ${
+                  activeTool.type === 'addControl'
+                    ? 'bg-violet-600 text-white'
+                    : viewMode === 'allControls'
+                      ? 'cursor-not-allowed bg-gray-100 text-gray-300'
+                      : 'bg-gray-100 text-gray-700'
+                }`}
+                title={t('toolAddControl')}
+              >
+                ⊕
+              </button>
+            </div>
+          )}
+
+          {/* Undo / Redo — always visible on compact since keyboard shortcuts may be unavailable */}
+          {hasEvent && (
+            <UndoRedoButtons />
+          )}
+
+          {loading && (
+            <span className="text-xs text-gray-400">{t('loadingMap')}</span>
+          )}
+        </header>
       )}
 
-      {/* Zone 5 — Right side spacer + loading */}
-      <div className="flex-1" />
+      {/* ---- Mobile menu drawer ---- */}
+      <MobileMenuDrawer
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        sections={menuSections}
+      />
 
-      {loading && (
-        <span className="text-sm text-gray-400">{t('loadingMap')}</span>
-      )}
-
+      {/* ---- Modals (shared between desktop/mobile) ---- */}
       {preferencesOpen && (
         <PreferencesModal onClose={() => setPreferencesOpen(false)} />
       )}
@@ -579,6 +688,8 @@ export function Toolbar() {
       {gettingStartedOpen && (
         <GettingStartedDrawer onClose={() => useToolStore.getState().toggleGettingStarted()} />
       )}
+
+      {/* Hidden file inputs (shared) */}
       <input
         ref={fileInputRef}
         data-load-map
@@ -601,6 +712,6 @@ export function Toolbar() {
         onChange={handleIofXmlFileSelected}
         className="hidden"
       />
-    </header>
+    </>
   );
 }

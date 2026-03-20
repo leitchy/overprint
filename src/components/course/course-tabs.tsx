@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEventStore } from '@/stores/event-store';
+import { useToastStore } from '@/stores/toast-store';
 import type { CourseId } from '@/utils/id';
 import { useT } from '@/i18n/use-t';
 
@@ -27,6 +28,9 @@ export function CourseList() {
   const [creating, setCreating] = useState(false);
   const [createValue, setCreateValue] = useState('');
   const createInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline delete confirmation
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<CourseId | null>(null);
 
   useEffect(() => {
     if (renamingId !== null) {
@@ -97,12 +101,22 @@ export function CourseList() {
     }
   }
 
-  function handleDeleteCourse(e: React.MouseEvent, id: CourseId, name: string) {
+  // Auto-cancel delete confirmation after 3s
+  useEffect(() => {
+    if (confirmingDeleteId === null) return;
+    const timer = setTimeout(() => setConfirmingDeleteId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [confirmingDeleteId]);
+
+  function handleDeleteCourse(e: React.MouseEvent, id: CourseId) {
     e.stopPropagation();
-    const confirmed = window.confirm(`Delete course "${name}"?`);
-    if (confirmed) {
-      deleteCourse(id);
-    }
+    setConfirmingDeleteId(id);
+  }
+
+  function handleConfirmDelete(id: CourseId) {
+    deleteCourse(id);
+    setConfirmingDeleteId(null);
+    useToastStore.getState().addToast(t('courseDeleted'));
   }
 
   return (
@@ -128,6 +142,32 @@ export function CourseList() {
       {courses.map((course) => {
         const isActive = course.id === activeCourseId;
         const isRenaming = renamingId === course.id;
+        const isConfirmingDelete = confirmingDeleteId === course.id;
+
+        if (isConfirmingDelete) {
+          return (
+            <div
+              key={course.id}
+              className="flex items-center gap-1 border-l-2 border-l-red-400 bg-red-50 px-3 py-1.5 text-sm"
+            >
+              <span className="flex-1 truncate text-xs text-red-700">
+                {t('confirmDelete')} &ldquo;{course.name}&rdquo;
+              </span>
+              <button
+                className="rounded bg-red-600 px-2 py-0.5 text-xs text-white"
+                onClick={() => handleConfirmDelete(course.id)}
+              >
+                {t('yes')}
+              </button>
+              <button
+                className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700"
+                onClick={() => setConfirmingDeleteId(null)}
+              >
+                {t('no')}
+              </button>
+            </div>
+          );
+        }
 
         return (
           <div
@@ -180,7 +220,7 @@ export function CourseList() {
                 aria-label={`Delete ${course.name}`}
                 title="Delete"
                 className="shrink-0 rounded p-0.5 text-gray-300 hover:text-red-500"
-                onClick={(e) => handleDeleteCourse(e, course.id, course.name)}
+                onClick={(e) => handleDeleteCourse(e, course.id)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
                   <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />

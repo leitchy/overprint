@@ -139,7 +139,7 @@ overprint/
 ## Getting Started
 
 ```bash
-cd /Users/jim/Development/Personal/Overprint
+cd overprint
 pnpm install
 pnpm dev
 ```
