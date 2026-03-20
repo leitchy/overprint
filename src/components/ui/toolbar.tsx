@@ -14,6 +14,8 @@ import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
 import { PrintSettingsModal } from './print-settings';
+import { ShortcutsModal } from './shortcuts-modal';
+import { GettingStartedDrawer } from './getting-started-drawer';
 import { useT } from '@/i18n/use-t';
 import { fitToView } from '@/components/map/use-map-navigation';
 
@@ -31,6 +33,8 @@ export function Toolbar() {
   const setTool = useToolStore((s) => s.setTool);
   const descriptionsPanelOpen = useToolStore((s) => s.descriptionsPanelOpen);
   const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
+  const shortcutsModalOpen = useToolStore((s) => s.shortcutsModalOpen);
+  const gettingStartedOpen = useToolStore((s) => s.gettingStartedOpen);
   const hasImage = useMapImageStore((s) => s.image !== null);
   const setEventName = useEventStore((s) => s.setEventName);
   const [loading, setLoading] = useState(false);
@@ -419,6 +423,11 @@ export function Toolbar() {
     },
   ];
 
+  const helpMenuItems: MenuEntry[] = [
+    { label: t('gettingStarted'), onClick: () => useToolStore.getState().toggleGettingStarted() },
+    { label: t('keyboardShortcuts'), onClick: () => useToolStore.getState().toggleShortcutsModal(), shortcut: '?' },
+  ];
+
   const toolButton = (tool: Tool, label: string) => {
     const isActive = activeTool.type === tool.type &&
       (tool.type !== 'addSpecialItem' ||
@@ -451,6 +460,7 @@ export function Toolbar() {
         {hasImage && (
           <FileMenu items={insertMenuItems} label={t('insert')} variant="menubar" />
         )}
+        <FileMenu items={helpMenuItems} label={t('help')} variant="menubar" />
       </nav>
 
       {/* Separator between menus and event name */}
@@ -558,6 +568,12 @@ export function Toolbar() {
       )}
       {pageSetupOpen && (
         <PrintSettingsModal onClose={() => setPageSetupOpen(false)} />
+      )}
+      {shortcutsModalOpen && (
+        <ShortcutsModal onClose={() => useToolStore.getState().toggleShortcutsModal()} />
+      )}
+      {gettingStartedOpen && (
+        <GettingStartedDrawer onClose={() => useToolStore.getState().toggleGettingStarted()} />
       )}
       <input
         ref={fileInputRef}
