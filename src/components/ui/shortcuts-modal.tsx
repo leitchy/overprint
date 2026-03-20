@@ -130,7 +130,21 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-gray-200 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-400">
+              Overprint v{__APP_VERSION__}
+              {__APP_COMMIT__ !== 'local' && ` (${__APP_COMMIT__.slice(0, 7)})`}
+            </span>
+            <a
+              href="https://github.com/leitchy/overprint/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-violet-500 hover:underline"
+            >
+              {t('whatsNew')}
+            </a>
+          </div>
           <button
             onClick={onClose}
             className="rounded bg-gray-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
