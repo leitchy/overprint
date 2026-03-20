@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { useEventStore } from '@/stores/event-store';
+import { useToolStore } from '@/stores/tool-store';
 import { isEditableTarget } from '@/utils/dom';
 
 /**
  * Global keyboard shortcuts for the app.
  * - Cmd/Ctrl+Z: Undo
  * - Cmd/Ctrl+Shift+Z: Redo
+ * - ?: Keyboard shortcuts modal
  */
 export function useKeyboardShortcuts(): void {
   useEffect(() => {
@@ -21,6 +23,9 @@ export function useKeyboardShortcuts(): void {
       } else if (mod && e.key === 'z' && e.shiftKey) {
         e.preventDefault();
         useEventStore.temporal.getState().redo();
+      } else if (e.key === '?' && !mod) {
+        e.preventDefault();
+        useToolStore.getState().toggleShortcutsModal();
       }
     };
 

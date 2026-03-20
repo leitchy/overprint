@@ -11,6 +11,8 @@ export type Tool =
 interface ToolState {
   activeTool: Tool;
   descriptionsPanelOpen: boolean;
+  shortcutsModalOpen: boolean;
+  gettingStartedOpen: boolean;
   selectedSpecialItemId: SpecialItemId | null;
   /** When non-null, the text item is being edited inline on the canvas */
   editingTextItemId: SpecialItemId | null;
@@ -20,6 +22,8 @@ interface ToolActions {
   setTool: (tool: Tool) => void;
   toggleDescriptionsPanel: () => void;
   setDescriptionsPanelOpen: (open: boolean) => void;
+  toggleShortcutsModal: () => void;
+  toggleGettingStarted: () => void;
   setSelectedSpecialItem: (id: SpecialItemId | null) => void;
   setEditingTextItemId: (id: SpecialItemId | null) => void;
 }
@@ -27,6 +31,8 @@ interface ToolActions {
 export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   activeTool: { type: 'pan' },
   descriptionsPanelOpen: false,
+  shortcutsModalOpen: false,
+  gettingStartedOpen: false,
   selectedSpecialItemId: null,
   editingTextItemId: null,
 
@@ -40,6 +46,14 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
 
   setDescriptionsPanelOpen: (open) => {
     set({ descriptionsPanelOpen: open });
+  },
+
+  toggleShortcutsModal: () => {
+    set((state) => ({ shortcutsModalOpen: !state.shortcutsModalOpen }));
+  },
+
+  toggleGettingStarted: () => {
+    set((state) => ({ gettingStartedOpen: !state.gettingStartedOpen }));
   },
 
   setSelectedSpecialItem: (id) => {
