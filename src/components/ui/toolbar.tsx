@@ -21,6 +21,7 @@ import { fitToView } from '@/components/map/use-map-navigation';
 import { useIsCompact } from '@/hooks/use-breakpoint';
 import { MobileMenuDrawer } from './mobile-menu-drawer';
 import { EventNameEditor } from './event-name-editor';
+import { AuditModal } from './audit-modal';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
 
@@ -90,6 +91,7 @@ export function Toolbar() {
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
 
   const handleNewEvent = () => {
     useEventStore.getState().newEvent('Untitled Event');
@@ -408,6 +410,8 @@ export function Toolbar() {
       disabled: !hasEvent,
     },
     { separator: true },
+    { label: t('eventAudit'), onClick: () => setAuditOpen(true), disabled: !hasEvent },
+    { separator: true },
     { label: t('pageSetup'), onClick: () => setPageSetupOpen(true), disabled: !hasEvent },
     { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
     { separator: true },
@@ -707,6 +711,9 @@ export function Toolbar() {
       )}
       {gettingStartedOpen && (
         <GettingStartedDrawer onClose={() => useToolStore.getState().toggleGettingStarted()} />
+      )}
+      {auditOpen && (
+        <AuditModal onClose={() => setAuditOpen(false)} />
       )}
 
       {/* Hidden file inputs (shared) */}
