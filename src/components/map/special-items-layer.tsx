@@ -207,7 +207,7 @@ const LineItemShape = memo(function LineItemShape({
       <Line
         points={[0, 0, dx, dy]}
         stroke={color}
-        strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
+        strokeWidth={(item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER}
         lineCap="round"
         listening={true}
         hitStrokeWidth={12}
@@ -292,7 +292,7 @@ const RectangleItemShape = memo(function RectangleItemShape({
         width={absW}
         height={absH}
         stroke={color}
-        strokeWidth={DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER}
+        strokeWidth={(item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER}
         fill="transparent"
         listening={true}
       />

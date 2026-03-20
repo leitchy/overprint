@@ -265,10 +265,11 @@ async function renderSpecialItems(
 
       case 'line': {
         const endPos = toPdf(item.endPosition);
+        const lineThickness = (item.lineWidth ?? 2) * effectivePPP;
         page.drawLine({
           start: { x: pos.x, y: pos.y },
           end: { x: endPos.x, y: endPos.y },
-          thickness: 1.5,
+          thickness: lineThickness,
           color: itemColor,
         });
         break;
@@ -278,13 +279,14 @@ async function renderSpecialItems(
         const endPos = toPdf(item.endPosition);
         const rectX = Math.min(pos.x, endPos.x);
         const rectY = Math.min(pos.y, endPos.y);
+        const borderThickness = (item.lineWidth ?? 2) * effectivePPP;
         page.drawRectangle({
           x: rectX,
           y: rectY,
           width: Math.abs(endPos.x - pos.x),
           height: Math.abs(endPos.y - pos.y),
           borderColor: itemColor,
-          borderWidth: 1.5,
+          borderWidth: borderThickness,
         });
         break;
       }
