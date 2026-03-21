@@ -101,8 +101,14 @@ function convertPoint(
   if (vb && vb.renderScale > 0) {
     const u = vb.mmToUnits; // 100 for OCAD (1/100mm), 1000 for OMAP (1/1000mm)
     const xPx = (xMm * u - vb.viewBox.x) * vb.renderScale;
-    // Y-flip within the viewBox: bottom edge (minY + height) minus the map Y position
-    const yPx = (vb.viewBox.y + vb.viewBox.height - yMm * u) * vb.renderScale;
+    // Y conversion differs by SVG structure:
+    // - OCAD (ocad2geojson): uses <g translate(0, T)> where T = 2*vb.y + vb.height,
+    //   so pixel Y = (vb.y + vb.height - yMm * U) * renderScale
+    // - OMAP (our SVG builder): negates Y directly, no transform,
+    //   so pixel Y = (-yMm * U - vb.y) * renderScale
+    const yPx = u === 1000
+      ? (-yMm * u - vb.viewBox.y) * vb.renderScale              // OMAP: direct negation
+      : (vb.viewBox.y + vb.viewBox.height - yMm * u) * vb.renderScale; // OCAD: translate-based
     return { x: xPx, y: yPx };
   }
 

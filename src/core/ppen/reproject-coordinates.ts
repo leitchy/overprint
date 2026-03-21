@@ -27,7 +27,9 @@ function reprojectPoint(
   if (viewBox && viewBox.renderScale > 0) {
     const u = viewBox.mmToUnits;
     const xPx = (xMm * u - viewBox.viewBox.x) * viewBox.renderScale;
-    const yPx = (viewBox.viewBox.y + viewBox.viewBox.height - yMm * u) * viewBox.renderScale;
+    const yPx = u === 1000
+      ? (-yMm * u - viewBox.viewBox.y) * viewBox.renderScale
+      : (viewBox.viewBox.y + viewBox.viewBox.height - yMm * u) * viewBox.renderScale;
     return { x: xPx, y: yPx };
   }
 
