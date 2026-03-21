@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import type { Course, Control, CourseControlType, MapPoint } from '@/core/models/types';
+import type { Course, Control, CourseControlType, MapPoint, LegGap } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
@@ -31,6 +31,7 @@ interface CourseRendererProps {
   onAddBendPoint?: (controlIndex: number, position: MapPoint, insertAt: number) => void;
   onBendPointDragEnd?: (controlIndex: number, bendIndex: number, position: MapPoint) => void;
   onRemoveBendPoint?: (controlIndex: number, bendIndex: number) => void;
+  onGapDragEnd?: (controlIndex: number, gapIndex: number, gap: LegGap) => void;
 }
 
 /**
@@ -75,6 +76,7 @@ export const CourseRenderer = memo(function CourseRenderer({
   onAddBendPoint,
   onBendPointDragEnd,
   onRemoveBendPoint,
+  onGapDragEnd,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -152,6 +154,11 @@ export const CourseRenderer = memo(function CourseRenderer({
             onRemoveBendPoint={
               onRemoveBendPoint
                 ? (bendIdx) => onRemoveBendPoint(i - 1, bendIdx)
+                : undefined
+            }
+            onGapDragEnd={
+              onGapDragEnd
+                ? (gapIdx, gap) => onGapDragEnd(i - 1, gapIdx, gap)
                 : undefined
             }
           />
