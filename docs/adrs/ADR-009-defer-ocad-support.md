@@ -73,4 +73,4 @@ Technically possible but adds build complexity (Rust/C++ toolchain, WASM bundlin
 - [PurplePen OCAD parser](https://github.com/petergolde/PurplePen) — `src/MapModel/MapModel/OcadImport.cs`
 - [OpenOrienteering Mapper OCAD reader](https://github.com/OpenOrienteering/mapper) — C++ implementation
 - PurplePen format specs: `doc/devdocs/OCAD9Format.txt`, `OCAD10Format.txt`
-- [ADR-001: Client-Side Only](ADR-001) — no server dependency
+- [ADR-001: Client-Side Only](../architecture.md) — no server dependency

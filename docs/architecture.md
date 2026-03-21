@@ -222,10 +222,10 @@ real_distance_m = map_distance_mm * scale / 1000
 
 The course overprint must be rendered following IOF specifications:
 
-- **Colour**: Purple/violet — Pantone 814, screen approximation `#B040B0` or similar. PurplePen uses a specific purple; we should match or closely approximate.
-- **Control circle**: 6mm diameter at print scale (ISOM 2017). Gap in circle where it would obscure map detail (implementation: user adjustable, or auto-gap near legs).
-- **Start triangle**: Equilateral, 7mm side length at print scale, point towards first control.
-- **Finish circle**: Double circle, outer 7mm, inner 5mm diameter at print scale.
+- **Colour**: Purple/violet — Pantone 814 approximation `#CD59A4` / `rgb(205, 89, 164)` (matches PurplePen default).
+- **Control circle**: 5.0mm diameter at print scale (ISOM 2017-2); 4.0mm (ISSprOM 2019-2).
+- **Start triangle**: Equilateral, 6.0mm side length at print scale (ISOM 2017-2); 5.0mm (ISSprOM).
+- **Finish circle**: Double circle, outer 5.0mm, inner 3.5mm diameter at print scale.
 - **Legs**: Lines connecting control centres, typically 0.35mm line width at print scale.
 - **Control numbers**: Positioned near control circle, avoiding obscuring map features.
 - **Crossing point**: An X symbol.

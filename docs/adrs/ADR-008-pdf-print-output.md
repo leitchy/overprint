@@ -79,7 +79,7 @@ Vector quality but not a standard print format — users would need to convert t
 
 ## References
 - [pdf-lib documentation](https://pdf-lib.js.org/)
-- [ADR-001: Client-Side Only](ADR-001) — no server dependency
-- [ADR-007: pdf-lib for PDF Export](ADR-007) — library choice
+- [ADR-001: Client-Side Only](../architecture.md) — no server dependency
+- [ADR-007: pdf-lib for PDF Export](../architecture.md) — library choice
 - IOF overprint specifications (see `docs/iof-standards.md`)
 - PurplePen PDF export as prior art
