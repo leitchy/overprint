@@ -1,7 +1,7 @@
 {
   "name": "Overprint Dev Container",
   "image": "mcr.microsoft.com/devcontainers/universal:2",
-  "postCreateCommand": "npm install -g @anthropic-ai/claude-code",
+  "postCreateCommand": "npm cache clean --force && npm install -g @anthropic-ai/claude-code",
   "secrets": {
     "ANTHROPIC_API_KEY": {
       "description": "API key for Claude Code"
