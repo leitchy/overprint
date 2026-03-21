@@ -19,6 +19,10 @@ function clampZoom(zoom: number): number {
 
 interface UseMapNavigationOptions {
   stageRef: React.RefObject<StageType | null>;
+  /** Shared gesture-active flag — set true on touchstart, false after final sync on touchend.
+   *  Passed from MapCanvas so that syncToStore can avoid writing stale values to the store
+   *  while a gesture is in progress. */
+  gestureActiveRef: React.MutableRefObject<boolean>;
 }
 
 /** Print-area drag state — stored as map pixel coordinates. */
@@ -29,7 +33,7 @@ interface PrintAreaDrag {
   endY: number;
 }
 
-export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
+export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigationOptions) {
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
@@ -38,10 +42,17 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
   const isPrintAreaDraggingRef = useRef(false);
   const printAreaDragRef = useRef<PrintAreaDrag | null>(null);
 
-  // Debounced sync to Zustand — only on gesture end
+  // Debounced sync to Zustand — used for wheel/mouse pan gestures only.
+  // Touch gestures do a direct (non-debounced) sync in handleTouchEnd, which
+  // fires before gestureActiveRef is cleared. This debounce must NOT fire while
+  // a touch gesture is active, otherwise it would write a stale zoom value to
+  // the store (triggering the subscriber to reset the stage transform).
   const syncToStore = useCallback(() => {
     if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
     syncTimeoutRef.current = setTimeout(() => {
+      // Bail if a touch gesture is still in progress — the touchend handler
+      // is responsible for the final store sync in that case.
+      if (gestureActiveRef.current) return;
       const stage = stageRef.current;
       if (!stage) return;
       useViewportStore.getState().setViewport({
@@ -50,7 +61,7 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
         panY: stage.y(),
       });
     }, SYNC_DEBOUNCE_MS);
-  }, [stageRef]);
+  }, [stageRef, gestureActiveRef]);
 
   // Focal-point zoom — mutate Stage imperatively for performance
   const applyZoom = useCallback(
@@ -356,11 +367,33 @@ export function useMapNavigation({ stageRef }: UseMapNavigationOptions) {
     [stageRef, applyZoom],
   );
 
-  const handleTouchEnd = useCallback(() => {
-    isPanningRef.current = false;
-    lastTouchDistRef.current = 0;
-    syncToStore();
-  }, [syncToStore]);
+  const handleTouchEnd = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
+    const remaining = e.evt.touches.length;
+    if (remaining === 0) {
+      isPanningRef.current = false;
+      lastTouchDistRef.current = 0;
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      // Sync in Konva's touchend — fires before Konva resets draggable nodes,
+      // so stage.scaleX() still has the correct pinch-zoom value.
+      const stage = stageRef.current;
+      if (stage) {
+        useViewportStore.getState().setViewport({
+          zoom: stage.scaleX(),
+          panX: stage.x(),
+          panY: stage.y(),
+        });
+      }
+      gestureActiveRef.current = false;
+    } else if (remaining === 1) {
+      // Went from pinch to single finger — reset pan start to current finger
+      lastTouchDistRef.current = 0;
+      const touch = e.evt.touches[0];
+      if (touch) {
+        isPanningRef.current = true;
+        panStartRef.current = { x: touch.clientX, y: touch.clientY };
+      }
+    }
+  }, [stageRef]);
 
   const ARROW_PAN_STEP = 50;
 

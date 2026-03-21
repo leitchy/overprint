@@ -40,7 +40,11 @@ export function getStageInstance(): StageType | null {
 }
 
 export function MapCanvas() {
-  const [containerRef, size] = useCanvasSize();
+  /** Shared gesture-active flag — suppresses resize/store updates during touch gestures */
+  const gestureActiveRef = useRef(false);
+  /** Set true after a pinch gesture — suppresses the onDblTap that iOS fires when lifting two fingers */
+  const wasPinchRef = useRef(false);
+  const [containerRef, size] = useCanvasSize(gestureActiveRef);
   const stageRef = useRef<StageType>(null);
   const rubberBandRef = useRef<Konva.Line>(null);
   const courseLayerRef = useRef<Konva.Layer>(null);
@@ -48,9 +52,6 @@ export function MapCanvas() {
   const image = useMapImageStore((s) => s.image);
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
-  const zoom = useViewportStore((s) => s.zoom);
-  const panX = useViewportStore((s) => s.panX);
-  const panY = useViewportStore((s) => s.panY);
   const activeTool = useToolStore((s) => s.activeTool);
 
   // Narrow event store selectors — each subscribes only to its slice
@@ -73,18 +74,21 @@ export function MapCanvas() {
     handleTouchEnd,
     printAreaDragRef,
     isPrintAreaDraggingRef,
-  } = useMapNavigation({ stageRef });
+  } = useMapNavigation({ stageRef, gestureActiveRef });
 
   // Force re-render during print area drag so the preview rectangle updates
   const [printAreaPreview, setPrintAreaPreview] = useState<{
     minX: number; minY: number; maxX: number; maxY: number;
   } | null>(null);
 
-  // Auto-fit when image first loads (or when container size becomes available)
+  // Auto-fit when image first loads (or when container size first becomes available).
+  // Deliberately ignores subsequent size changes to prevent pinch-zoom bounce-back —
+  // iOS triggers container resize during touch gestures.
   const fittedImageRef = useRef<typeof image>(null);
+  const hasFittedRef = useRef(false);
   useEffect(() => {
-    // Skip if no image, or already fitted this image, or container not sized yet
-    if (!image || image === fittedImageRef.current || size.width <= 0 || size.height <= 0) return;
+    if (!image || hasFittedRef.current) return;
+    if (size.width <= 0 || size.height <= 0) return;
 
     const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
     useViewportStore.getState().setViewport(fit);
@@ -96,8 +100,44 @@ export function MapCanvas() {
       stage.batchDraw();
     }
 
+    console.log('[auto-fit] FITTING');
+    const d = document.getElementById('__dbg');
+    if (d) d.textContent = `FIT z=${fit.zoom.toFixed(3)} t=${Date.now()%100000}`;
     fittedImageRef.current = image;
+    hasFittedRef.current = true;
   }, [image, imageWidth, imageHeight, size.width, size.height]);
+
+  // Reset the fit flag when the image changes (new map loaded)
+  useEffect(() => {
+    if (image !== fittedImageRef.current) {
+      hasFittedRef.current = false;
+    }
+  }, [image]);
+
+  // Apply viewport store changes imperatively to the stage.
+  // The Stage is intentionally NOT driven by controlled scaleX/scaleY/x/y props —
+  // doing so causes a bounce-back on iOS pinch-zoom because React re-renders the
+  // Stage with stale store values while the debounced syncToStore is still pending.
+  // Instead, navigation mutates the stage directly and writes back to the store once
+  // the gesture ends. This subscriber handles external viewport changes (e.g. +/- zoom
+  // buttons, fit-to-view) that originate from the store rather than from gestures.
+  useEffect(() => {
+    return useViewportStore.subscribe((state) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      if (gestureActiveRef.current) return;
+      const tol = 0.0001;
+      if (
+        Math.abs(stage.scaleX() - state.zoom) > tol ||
+        Math.abs(stage.x() - state.panX) > tol ||
+        Math.abs(stage.y() - state.panY) > tol
+      ) {
+        stage.scale({ x: state.zoom, y: state.zoom });
+        stage.position({ x: state.panX, y: state.panY });
+        stage.batchDraw();
+      }
+    });
+  }, [stageRef]);
 
   // Cursor management based on tool
   useEffect(() => {
@@ -109,6 +149,34 @@ export function MapCanvas() {
       container.style.cursor = 'default';
     }
   }, [activeTool]);
+
+  // Prevent iOS/Chrome from handling touch gestures on the canvas.
+  // Only preventDefault on touchmove (not touchstart — that blocks Konva's touchend).
+  // Set gesture flag here since this fires before Konva's handler.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.style.touchAction = 'none';
+
+    const onStart = () => {
+      gestureActiveRef.current = true;
+    };
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length >= 2) wasPinchRef.current = true;
+    };
+    const onEnd = () => {
+      // Sync is done in Konva's handleTouchEnd (fires before Konva resets draggables).
+    };
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+    };
+  }, [containerRef, stageRef]);
 
   // Set multiply blend mode on overprint layers so dark map features show through purple.
   // Uses Konva internal _canvas (underscore convention) — stable across Konva versions.
@@ -248,7 +316,7 @@ export function MapCanvas() {
   }, []);
 
   return (
-    <div ref={containerRef} data-map-container className="relative h-full w-full overflow-hidden">
+    <div ref={containerRef} data-map-container className="relative h-full w-full overflow-hidden touch-none">
       {size.width > 0 && size.height > 0 && (
         <Stage
           ref={(node) => {
@@ -258,10 +326,6 @@ export function MapCanvas() {
           }}
           width={size.width}
           height={size.height}
-          scaleX={zoom}
-          scaleY={zoom}
-          x={panX}
-          y={panY}
           onWheel={handleWheel}
           onMouseDown={handleMouseDown}
           onMouseMove={(e) => { handleMouseMove(e); handleMouseMoveForPreview(); updateRubberBand(); }}
@@ -271,8 +335,11 @@ export function MapCanvas() {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onDblTap={(e) => {
-            // Double-tap to fit map — only on empty canvas in pan mode
+            // Double-tap to fit map — only on empty canvas in pan mode.
+            // IMPORTANT: suppress after a pinch gesture — lifting two fingers
+            // registers as a double-tap on iOS, which would reset the zoom.
             if (activeTool.type !== 'pan') return;
+            if (wasPinchRef.current) { wasPinchRef.current = false; return; }
             const stage = stageRef.current;
             if (!stage || e.target !== stage) return;
             const fit = fitToView(imageWidth, imageHeight, size.width, size.height);
