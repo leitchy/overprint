@@ -86,6 +86,15 @@ export function MapCanvas() {
   // iOS triggers container resize during touch gestures.
   const fittedImageRef = useRef<typeof image>(null);
   const hasFittedRef = useRef(false);
+
+  // Reset the fit flag when the image changes (new map loaded).
+  // MUST be declared before the fit effect so it runs first in the same commit.
+  useEffect(() => {
+    if (image !== fittedImageRef.current) {
+      hasFittedRef.current = false;
+    }
+  }, [image]);
+
   useEffect(() => {
     if (!image || hasFittedRef.current) return;
     if (size.width <= 0 || size.height <= 0) return;
@@ -100,19 +109,9 @@ export function MapCanvas() {
       stage.batchDraw();
     }
 
-    console.log('[auto-fit] FITTING');
-    const d = document.getElementById('__dbg');
-    if (d) d.textContent = `FIT z=${fit.zoom.toFixed(3)} t=${Date.now()%100000}`;
     fittedImageRef.current = image;
     hasFittedRef.current = true;
   }, [image, imageWidth, imageHeight, size.width, size.height]);
-
-  // Reset the fit flag when the image changes (new map loaded)
-  useEffect(() => {
-    if (image !== fittedImageRef.current) {
-      hasFittedRef.current = false;
-    }
-  }, [image]);
 
   // Apply viewport store changes imperatively to the stage.
   // The Stage is intentionally NOT driven by controlled scaleX/scaleY/x/y props —
@@ -167,6 +166,10 @@ export function MapCanvas() {
     };
     const onEnd = () => {
       // Sync is done in Konva's handleTouchEnd (fires before Konva resets draggables).
+      // Reset wasPinchRef after a short delay — allows onDblTap to see the flag
+      // and suppress the pinch-end false double-tap, then clears it so future
+      // genuine double-taps work.
+      setTimeout(() => { wasPinchRef.current = false; }, 300);
     };
     el.addEventListener('touchstart', onStart, { passive: true });
     el.addEventListener('touchmove', onMove, { passive: false });
@@ -176,7 +179,7 @@ export function MapCanvas() {
       el.removeEventListener('touchmove', onMove);
       el.removeEventListener('touchend', onEnd);
     };
-  }, [containerRef, stageRef]);
+  }, [containerRef]);
 
   // Set multiply blend mode on overprint layers so dark map features show through purple.
   // Uses Konva internal _canvas (underscore convention) — stable across Konva versions.
