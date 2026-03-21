@@ -46,6 +46,18 @@ export interface CourseControl {
   /** Pixel offset from the default number position. Per-CourseControl so the same
    *  control can have different number positions in different courses. */
   numberOffset?: MapPoint;
+  /** Intermediate waypoints for the outgoing leg (to the next control). */
+  bendPoints?: MapPoint[];
+  /** Visual gaps in the outgoing leg. */
+  legGaps?: LegGap[];
+}
+
+/** A visual gap in a leg line, defined by absolute distances along the polyline. */
+export interface LegGap {
+  /** Distance from leg start along the polyline (map pixels). */
+  startDist: number;
+  /** Distance from leg start where the gap ends (map pixels). */
+  endDist: number;
 }
 
 /** Axis-aligned bounding box in map pixel coordinates. */

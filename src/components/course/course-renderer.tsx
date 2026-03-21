@@ -26,6 +26,11 @@ interface CourseRendererProps {
   onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
   onNumberDragEnd?: (controlIndex: number, offset: MapPoint) => void;
   onLongPressControl?: (controlId: ControlId, screenX: number, screenY: number) => void;
+  /** Enable bend point editing on legs (active course in pan mode). */
+  editLegs?: boolean;
+  onAddBendPoint?: (controlIndex: number, position: MapPoint, insertAt: number) => void;
+  onBendPointDragEnd?: (controlIndex: number, bendIndex: number, position: MapPoint) => void;
+  onRemoveBendPoint?: (controlIndex: number, bendIndex: number) => void;
 }
 
 /**
@@ -66,6 +71,10 @@ export const CourseRenderer = memo(function CourseRenderer({
   onInsertOnLeg,
   onNumberDragEnd,
   onLongPressControl,
+  editLegs = false,
+  onAddBendPoint,
+  onBendPointDragEnd,
+  onRemoveBendPoint,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -92,12 +101,17 @@ export const CourseRenderer = memo(function CourseRenderer({
     }
   }
 
-  // Compute target point for start triangle (position of next control, relative to start)
+  // Compute target point for start triangle (direction toward next point on leg)
+  // If the first leg has bends, point toward the first bend point instead of the second control
+  const firstLegBends = course.controls[0]?.bendPoints;
+  const startTargetPoint = firstLegBends && firstLegBends.length > 0
+    ? firstLegBends[0]!
+    : resolvedControls[1]?.control.position;
   const startTarget: MapPoint | undefined =
-    resolvedControls.length >= 2
+    resolvedControls.length >= 2 && startTargetPoint
       ? {
-          x: resolvedControls[1]!.control.position.x - resolvedControls[0]!.control.position.x,
-          y: resolvedControls[1]!.control.position.y - resolvedControls[0]!.control.position.y,
+          x: startTargetPoint.x - resolvedControls[0]!.control.position.x,
+          y: startTargetPoint.y - resolvedControls[0]!.control.position.y,
         }
       : undefined;
 
@@ -117,9 +131,27 @@ export const CourseRenderer = memo(function CourseRenderer({
             toOffset={shapeOffset(curr.type, dimensions)}
             lineWidth={screenLineWidth}
             color={color}
+            bendPoints={course.controls[i - 1]?.bendPoints}
+            legGaps={course.controls[i - 1]?.legGaps}
+            editable={editLegs}
             onInsert={
               allowLegInsert && onInsertOnLeg
                 ? (pos) => onInsertOnLeg(pos, i)
+                : undefined
+            }
+            onAddBendPoint={
+              onAddBendPoint
+                ? (pos, insertAt) => onAddBendPoint(i - 1, pos, insertAt)
+                : undefined
+            }
+            onBendPointDragEnd={
+              onBendPointDragEnd
+                ? (bendIdx, pos) => onBendPointDragEnd(i - 1, bendIdx, pos)
+                : undefined
+            }
+            onRemoveBendPoint={
+              onRemoveBendPoint
+                ? (bendIdx) => onRemoveBendPoint(i - 1, bendIdx)
                 : undefined
             }
           />
