@@ -6,6 +6,9 @@
 /** IOF overprint purple — Pantone 814 approximation */
 export const OVERPRINT_PURPLE = '#C850A0';
 
+/** Non-current control colour for All Controls view — pink/magenta */
+export const NON_CURRENT_COLOR = '#E8A0D0';
+
 /** Screen line width multiplier — IOF print spec is too thin at screen DPI.
  *  PurplePen also renders thicker on screen. PDF export does NOT use this. */
 export const SCREEN_LINE_MULTIPLIER = 2;

@@ -9,7 +9,7 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, NON_CURRENT_COLOR, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
@@ -281,22 +281,25 @@ export function MapCanvas() {
     [activeCourse],
   );
 
-  // Synthetic "all controls" course — used when viewMode === 'allControls'
-  const allControlsCourse = useMemo((): Course | null => {
+  // Synthetic courses for "all controls" view — splits controls into
+  // active course (purple) and non-current (pink) for visual distinction
+  const nonCurrentControlsCourse = useMemo((): Course | null => {
     if (viewMode !== 'allControls' || !controls) return null;
-    const allControls = Object.values(controls);
-    if (allControls.length === 0) return null;
+    const nonCurrentIds = Object.values(controls).filter(
+      (c) => !activeControlIds.has(c.id),
+    );
+    if (nonCurrentIds.length === 0) return null;
     return {
-      id: 'all-controls' as CourseId,
-      name: 'All controls',
+      id: 'non-current-controls' as CourseId,
+      name: 'Non-current controls',
       courseType: 'score',
-      controls: allControls.map((c) => ({
+      controls: nonCurrentIds.map((c) => ({
         controlId: c.id,
         type: 'control' as const,
       })),
       settings: {},
     };
-  }, [viewMode, controls]);
+  }, [viewMode, controls, activeControlIds]);
 
   // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
   const handleSelectControl = useCallback((id: ControlId) => {
@@ -377,26 +380,28 @@ export function MapCanvas() {
           {/* Course overprint layer — multiply blend so dark map features show through */}
           <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
-              /* All-controls view: all controls (no legs) + active course legs */
+              /* All-controls view: active course (purple with legs) + non-current controls (pink) */
               <>
-                {/* Active course legs rendered first (behind controls) in purple */}
-                {activeCourse && dimensions && controls && (
+                {/* Non-current controls in pink (behind active course) */}
+                {nonCurrentControlsCourse && dimensions && controls && (
                   <CourseRenderer
-                    course={activeCourse}
+                    course={nonCurrentControlsCourse}
                     controls={controls}
                     dimensions={dimensions}
-                    selectedControlId={null}
+                    selectedControlId={selectedControlId}
                     draggable={false}
                     allowLegInsert={false}
-                    showNumbers={false}
-                    onSelectControl={() => {}}
+                    showNumbers={true}
+                    color={NON_CURRENT_COLOR}
+                    numberOutline={true}
+                    onSelectControl={handleSelectControl}
                     onDragControlEnd={() => {}}
                   />
                 )}
-                {/* All controls overlay (no legs, with numbers) */}
-                {allControlsCourse && dimensions && controls && (
+                {/* Active course in purple with legs and controls */}
+                {activeCourse && dimensions && controls && (
                   <CourseRenderer
-                    course={allControlsCourse}
+                    course={activeCourse}
                     controls={controls}
                     dimensions={dimensions}
                     selectedControlId={selectedControlId}

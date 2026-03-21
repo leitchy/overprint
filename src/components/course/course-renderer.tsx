@@ -18,6 +18,8 @@ interface CourseRendererProps {
   courseId?: CourseId;
   color?: string;
   showNumbers?: boolean;
+  /** White outline around control numbers (e.g., non-current controls in All Controls view) */
+  numberOutline?: boolean;
   clickable?: boolean;
   /** Control IDs to skip rendering shapes for (but still use for leg positions). */
   hideControlIds?: Set<ControlId>;
@@ -65,6 +67,7 @@ export const CourseRenderer = memo(function CourseRenderer({
   courseId,
   color = OVERPRINT_PURPLE,
   showNumbers = true,
+  numberOutline = false,
   clickable = false,
   hideControlIds,
   onSelectControl,
@@ -194,6 +197,7 @@ export const CourseRenderer = memo(function CourseRenderer({
           startTarget={(type === 'start' || type === 'mapExchange') ? startTarget : undefined}
           color={color}
           showNumber={showNumbers}
+          numberOutline={numberOutline}
           score={course.courseType === 'score' ? score : undefined}
           clickable={clickable}
           numberOffset={numberOffset}
