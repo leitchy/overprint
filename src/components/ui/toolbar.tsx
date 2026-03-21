@@ -25,7 +25,9 @@ import { AuditModal } from './audit-modal';
 import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
+// Include '*/*' fallback so iOS Safari doesn't grey out files with unknown
+// extensions (.ocd, .omap, .xmap have no registered MIME types on iOS).
+const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap,*/*';
 
 /** Undo/Redo buttons for the compact toolbar — subscribes to temporal state via event store. */
 function UndoRedoButtons() {
