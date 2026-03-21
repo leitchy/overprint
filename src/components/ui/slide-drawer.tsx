@@ -139,7 +139,7 @@ export function SlideDrawer({
         ref={drawerRef}
         role="dialog"
         aria-modal="true"
-        className="fixed top-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl touch-none overflow-y-auto overscroll-contain"
+        className="fixed top-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl overflow-y-auto overscroll-contain"
         style={{
           width,
           ...(side === 'right' ? { right: 0 } : { left: 0 }),
