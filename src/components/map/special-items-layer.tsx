@@ -17,6 +17,7 @@ import type {
   LineItem,
   RectangleItem,
   DescriptionBoxItem,
+  ImageItem,
   IofSymbolItem,
   MapPoint,
 } from '@/core/models/types';
@@ -574,6 +575,60 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
   );
 });
 
+const ImageItemShape = memo(function ImageItemShape({
+  item,
+  isSelected,
+  draggable,
+  onSelect,
+  onDragEnd,
+}: ItemProps<ImageItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+  const [image, setImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => setImage(img);
+    img.src = item.imageDataUrl;
+  }, [item.imageDataUrl]);
+
+  const w = Math.abs(item.endPosition.x - item.position.x);
+  const h = Math.abs(item.endPosition.y - item.position.y);
+
+  return (
+    <Group
+      x={item.position.x}
+      y={item.position.y}
+      draggable={draggable}
+      onClick={(e: KonvaEventObject<MouseEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onTap={(e: KonvaEventObject<TouchEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+        const pos = { x: e.target.x(), y: e.target.y() };
+        onDragEnd(pos);
+      }}
+    >
+      {isSelected && (
+        <Rect
+          x={-2}
+          y={-2}
+          width={w + 4}
+          height={h + 4}
+          stroke={SELECTION_COLOR}
+          strokeWidth={1.5}
+          dash={SELECTION_DASH}
+          fill="transparent"
+          listening={false}
+        />
+      )}
+      {image && (
+        <KonvaImage image={image} x={0} y={0} width={w} height={h} />
+      )}
+      {/* Hit target when image hasn't loaded */}
+      {!image && (
+        <Rect x={0} y={0} width={w} height={h} fill="rgba(200,200,200,0.3)" />
+      )}
+    </Group>
+  );
+});
+
 const IofSymbolItemShape = memo(function IofSymbolItemShape({
   item,
   isSelected,
@@ -934,6 +989,22 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                   } as Partial<SpecialItem>);
                 }}
                 onUpdate={(updates) => updateSpecialItem(item.id, updates)}
+              />
+            );
+          case 'image':
+            return (
+              <ImageItemShape
+                key={item.id}
+                item={item}
+                {...commonProps}
+                onDragEnd={(pos) => {
+                  const iw = item.endPosition.x - item.position.x;
+                  const ih = item.endPosition.y - item.position.y;
+                  updateSpecialItem(item.id, {
+                    position: pos,
+                    endPosition: { x: pos.x + iw, y: pos.y + ih },
+                  } as Partial<SpecialItem>);
+                }}
               />
             );
           default:

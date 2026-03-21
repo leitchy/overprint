@@ -584,9 +584,20 @@ export function importPpen(
       case 'forbidden-route':
         specialItems.push({ ...baseProps, type: 'forbiddenRoute' });
         break;
-      case 'image':
-        // Custom images not supported — skip silently (logged once below)
+      case 'image': {
+        if (loc1) {
+          const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
+          const imageDataEl = getChild(soEl, 'image-data');
+          const format = imageDataEl ? (getAttr(imageDataEl, 'format') ?? 'png') : 'png';
+          const base64 = imageDataEl?.textContent?.trim() ?? '';
+          if (base64) {
+            const imageDataUrl = `data:image/${format};base64,${base64}`;
+            const fileName = getTextContent(soEl, 'text') || undefined;
+            specialItems.push({ ...baseProps, type: 'image', endPosition: pos2, imageDataUrl, fileName });
+          }
+        }
         break;
+      }
       default:
         warnings.push({
           type: 'unsupported-feature',
@@ -594,15 +605,6 @@ export function importPpen(
         });
         break;
     }
-  }
-
-  // Consolidated warning for skipped image objects
-  const imageCount = specialObjectEls.filter(el => getAttr(el, 'kind') === 'image').length;
-  if (imageCount > 0) {
-    warnings.push({
-      type: 'unsupported-feature',
-      message: `${imageCount} custom image(s) skipped — not yet supported`,
-    });
   }
 
   // -----------------------------------------------------------------------
