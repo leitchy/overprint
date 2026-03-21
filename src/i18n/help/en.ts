@@ -24,6 +24,15 @@ export const helpContent: HelpContent = {
         'After loading, set the correct map scale in the Map Settings panel that appears below the toolbar.',
     },
     {
+      title: 'Import from PurplePen',
+      body:
+        'Already have courses in PurplePen? Use File \u2192 Open from PurplePen to import a .ppen file, ' +
+        'or drag and drop it onto the canvas. All courses, controls, descriptions, leg bend points, and ' +
+        'embedded images are imported. For best results, load the map file first (OCAD or OMAP), then ' +
+        'import the .ppen \u2014 controls will be placed accurately on the map. You can also drop both ' +
+        'files together. Use the eye icons in the course list to toggle which courses are visible.',
+    },
+    {
       title: 'Set up courses',
       body:
         'Create a course using the "Add course" button in the course panel (bottom-left). ' +
