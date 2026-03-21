@@ -377,20 +377,38 @@ export function MapCanvas() {
           {/* Course overprint layer — multiply blend so dark map features show through */}
           <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
-              /* All-controls view: synthetic score course with no legs */
-              allControlsCourse && dimensions && controls && (
-                <CourseRenderer
-                  course={allControlsCourse}
-                  controls={controls}
-                  dimensions={dimensions}
-                  selectedControlId={selectedControlId}
-                  draggable={false}
-                  allowLegInsert={false}
-                  showNumbers={true}
-                  onSelectControl={handleSelectControl}
-                  onDragControlEnd={() => { /* no-op */ }}
-                />
-              )
+              /* All-controls view: all controls (no legs) + active course legs */
+              <>
+                {/* Active course legs rendered first (behind) in grey */}
+                {activeCourse && dimensions && controls && (
+                  <CourseRenderer
+                    course={activeCourse}
+                    controls={controls}
+                    dimensions={dimensions}
+                    selectedControlId={null}
+                    draggable={false}
+                    allowLegInsert={false}
+                    showNumbers={false}
+                    color="#C0C0C0"
+                    onSelectControl={() => {}}
+                    onDragControlEnd={() => {}}
+                  />
+                )}
+                {/* All controls overlay (no legs, with numbers) */}
+                {allControlsCourse && dimensions && controls && (
+                  <CourseRenderer
+                    course={allControlsCourse}
+                    controls={controls}
+                    dimensions={dimensions}
+                    selectedControlId={selectedControlId}
+                    draggable={false}
+                    allowLegInsert={false}
+                    showNumbers={true}
+                    onSelectControl={handleSelectControl}
+                    onDragControlEnd={() => {}}
+                  />
+                )}
+              </>
             ) : (
               /* Course view: active course (purple) + background courses (grey).
                  Background controls render AFTER active course so they get hit
