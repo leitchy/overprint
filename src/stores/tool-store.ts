@@ -6,7 +6,8 @@ export type Tool =
   | { type: 'pan' }
   | { type: 'addControl' }
   | { type: 'addSpecialItem'; itemType: SpecialItemType }
-  | { type: 'setPrintArea' };
+  | { type: 'setPrintArea' }
+  | { type: 'calibrate' };
 
 export type MobilePanel = 'none' | 'course' | 'descriptions' | 'menu';
 

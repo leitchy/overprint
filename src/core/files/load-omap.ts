@@ -52,12 +52,15 @@ interface OmapObject {
   text?: string;
 }
 
+import type { GeoReference } from '@/core/models/types';
+
 interface LoadOmapResult {
   image: HTMLImageElement;
   width: number;
   height: number;
   scale: number | null;
   dpi: number;
+  georef: GeoReference | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +100,64 @@ function extractScale(doc: Document): number | null {
   if (!geo) return null;
   const scale = numAttr(geo, 'scale', 0);
   return scale >= 100 && scale < 1_000_000 ? scale : null;
+}
+
+/**
+ * Extract full georeferencing data from <georeferencing> element.
+ *
+ * OMAP stores:
+ *   <georeferencing scale="15000" grivation="1.5">
+ *     <projected_crs id="UTM zone 55S">
+ *       <spec language="PROJ.4">+proj=utm +zone=55 +south ...</spec>
+ *       <ref_point x="689345.67" y="6077123.45"/>
+ *     </projected_crs>
+ *   </georeferencing>
+ *
+ * The `id` attribute is a human label, NOT an EPSG code — we use the PROJ.4 string.
+ * Grivation is in degrees → convert to radians.
+ */
+function extractGeoRef(
+  doc: Document,
+  scale: number | null,
+  renderScale: number,
+  vbMinX: number,
+  vbMinY: number,
+  vbHeight: number,
+): GeoReference | null {
+  if (!scale) return null;
+
+  const geo = q(doc, 'georeferencing');
+  if (!geo) return null;
+
+  const grivationDeg = numAttr(geo, 'grivation', 0);
+
+  // Find projected_crs element (may be namespaced or bare)
+  const projCrs = q(geo, 'projected_crs');
+  if (!projCrs) return null;
+
+  // Extract PROJ.4 string from <spec language="PROJ.4">
+  const specEl = q(projCrs, 'spec');
+  if (!specEl) return null;
+  const projString = specEl.textContent?.trim();
+  if (!projString) return null;
+
+  // Extract reference point (easting/northing in projected CRS metres)
+  const refPoint = q(projCrs, 'ref_point');
+  const easting = refPoint ? numAttr(refPoint, 'x', 0) : 0;
+  const northing = refPoint ? numAttr(refPoint, 'y', 0) : 0;
+
+  return {
+    projDef: projString,
+    easting,
+    northing,
+    scale,
+    grivation: (grivationDeg * Math.PI) / 180,
+    source: 'omap',
+    paperUnit: 'thousandths-mm',
+    viewBoxOrigin: { x: vbMinX, y: vbMinY },
+    viewBoxHeight: vbHeight,
+    renderScale,
+  };
 }
 
 function extractColors(doc: Document): Map<number, OmapColor> {
@@ -435,11 +496,13 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
   // Build SVG
   const svgString = buildSvg(objects, symbols, colors);
 
-  // Compute rasterization dimensions from SVG viewBox
+  // Compute rasterization dimensions from SVG viewBox (capture all 4 values)
   const viewBoxMatch = svgString.match(/viewBox="([^"]+)"/);
-  let svgWidth = 1000, svgHeight = 1000;
+  let vbMinX = 0, vbMinY = 0, svgWidth = 1000, svgHeight = 1000;
   if (viewBoxMatch) {
     const parts = viewBoxMatch[1]!.split(/\s+/);
+    vbMinX = parseFloat(parts[0]!);
+    vbMinY = parseFloat(parts[1]!);
     svgWidth = parseFloat(parts[2]!);
     svgHeight = parseFloat(parts[3]!);
   }
@@ -470,11 +533,15 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
   const svgWidthMm = svgWidth / 1000;
   const dpi = svgWidthMm > 0 ? (pixelWidth * 25.4) / svgWidthMm : 150;
 
+  // Extract georeferencing from OMAP XML
+  const georef = extractGeoRef(doc, scale, renderScale, vbMinX, vbMinY, svgHeight);
+
   return {
     image,
     width: image.naturalWidth,
     height: image.naturalHeight,
     scale,
     dpi,
+    georef,
   };
 }

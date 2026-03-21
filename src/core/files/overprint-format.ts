@@ -10,26 +10,38 @@ interface OverprintFileEnvelope {
   formatId: string;
   version: string;
   event: OverprintEvent;
+  /** Base64-encoded map image (data URL). When present, the image is auto-loaded. */
+  embeddedMapImage?: string;
 }
 
 /**
  * Serialize an OverprintEvent to a JSON string for saving as .overprint file.
- * The map image is NOT included — only mapFile metadata (name, type, scale, dpi).
+ * The map image is NOT included by default — only mapFile metadata.
+ * Pass `embeddedMapImage` (a data URL) to create a self-contained file.
  */
-export function serializeEvent(event: OverprintEvent): string {
+export function serializeEvent(event: OverprintEvent, embeddedMapImage?: string): string {
   const envelope: OverprintFileEnvelope = {
     formatId: FORMAT_ID,
     version: event.version,
     event,
   };
+  if (embeddedMapImage) {
+    envelope.embeddedMapImage = embeddedMapImage;
+  }
   return JSON.stringify(envelope, null, 2);
+}
+
+export interface DeserializeResult {
+  event: OverprintEvent;
+  embeddedMapImage?: string;
 }
 
 /**
  * Deserialize a .overprint JSON string back to an OverprintEvent.
  * Validates format ID and version, restores branded IDs.
+ * Returns the event and optionally an embedded map image data URL.
  */
-export function deserializeEvent(json: string): OverprintEvent {
+export function deserializeEvent(json: string): DeserializeResult {
   const parsed: unknown = JSON.parse(json);
 
   if (!parsed || typeof parsed !== 'object') {
@@ -60,7 +72,11 @@ export function deserializeEvent(json: string): OverprintEvent {
   }
 
   // Restore branded IDs and apply defaults for forward compatibility
-  return restoreBrandedIds(rawEvent as unknown as OverprintEvent);
+  const event = restoreBrandedIds(rawEvent as unknown as OverprintEvent);
+  const embeddedMapImage = typeof envelope['embeddedMapImage'] === 'string'
+    ? envelope['embeddedMapImage'] as string
+    : undefined;
+  return { event, embeddedMapImage };
 }
 
 /**
