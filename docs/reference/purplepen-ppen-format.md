@@ -99,6 +99,8 @@ Shared control pool. Each control has a unique integer `id` (NOT the control cod
 
 **Important**: The `id` attribute is NOT the control code. `<control id="50">` can have `<code>105</code>`. Course-controls reference by `id`, not `code`.
 
+Controls may also have `<gaps>` and `<circle-gaps>` children (bitmask and angular ranges for where the control circle should have gaps to avoid obscuring map features). These are scale-specific and currently not imported.
+
 ### `<course>`
 
 Course definition. References the first node in a linked list of course-controls.
@@ -249,6 +251,8 @@ y="115.118271"   → 115.12mm from origin, upward
 
 For OCAD files, the origin is the OCAD file's coordinate origin (0, 0) in the OCAD internal coordinate system. PurplePen converts OCAD's 1/100mm units to mm.
 
+**Important**: PurplePen sets `kind="OCAD"` in `<map>` for BOTH `.ocd` and `.omap` files. The actual file extension determines the coordinate unit: OCAD uses 1/100mm internally, OMAP uses 1/1000mm. The conversion formula needs to multiply by the correct factor (100 vs 1000).
+
 ### Converting to Overprint pixel coordinates
 
 Overprint stores positions in pixels from the top-left of the map image (Y-down). The conversion depends on the map type.
@@ -260,15 +264,16 @@ The OCAD loader (via ocad2geojson) renders the map as an SVG with:
 - A `<g transform="translate(0, T)">` that shifts Y-negated content into the viewBox
 - A `renderScale` factor from SVG units to pixels
 
-**The correct conversion formula** (verified with real Mt Taylor OCAD at 1:5000):
+**The correct conversion formula** (verified with Mt Taylor OCAD 1:5000 and Radford College OMAP 1:3000):
 
 ```
-px_x = (x_mm * 100 - viewBox.x) * renderScale
-px_y = (viewBox.y + viewBox.height - y_mm * 100) * renderScale
+px_x = (x_mm * U - viewBox.x) * renderScale
+px_y = (viewBox.y + viewBox.height - y_mm * U) * renderScale
 ```
 
 Where:
-- `x_mm * 100` converts PurplePen mm to OCAD 1/100mm units
+- `U` = unit multiplier: **100** for OCAD (1/100mm), **1000** for OMAP (1/1000mm)
+- `x_mm * U` converts PurplePen mm to the map file's internal coordinate units
 - `viewBox.x` is the SVG viewBox minX (left edge of rendered content)
 - `viewBox.y + viewBox.height` is the SVG viewBox bottom edge (in SVG Y-down space, this is the maximum Y, which corresponds to the minimum OCAD Y after negation)
 - `renderScale` = `pixelWidth / viewBox.width`

@@ -73,6 +73,8 @@ function mmToPx(mmValue: number, dpi: number): number {
 export interface ViewBoxParams {
   viewBox: { x: number; y: number; width: number; height: number };
   renderScale: number;
+  /** Coordinate unit divisor: 100 for OCAD (1/100mm), 1000 for OMAP (1/1000mm). */
+  mmToUnits: number;
 }
 
 /**
@@ -97,9 +99,10 @@ function convertPoint(
 ): MapPoint {
   // OCAD/OMAP: use viewBox-aware conversion
   if (vb && vb.renderScale > 0) {
-    const xPx = (xMm * 100 - vb.viewBox.x) * vb.renderScale;
-    // Y-flip within the viewBox: bottom edge (minY + height) minus the OCAD Y position
-    const yPx = (vb.viewBox.y + vb.viewBox.height - yMm * 100) * vb.renderScale;
+    const u = vb.mmToUnits; // 100 for OCAD (1/100mm), 1000 for OMAP (1/1000mm)
+    const xPx = (xMm * u - vb.viewBox.x) * vb.renderScale;
+    // Y-flip within the viewBox: bottom edge (minY + height) minus the map Y position
+    const yPx = (vb.viewBox.y + vb.viewBox.height - yMm * u) * vb.renderScale;
     return { x: xPx, y: yPx };
   }
 

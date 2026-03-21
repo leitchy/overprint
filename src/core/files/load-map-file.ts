@@ -130,7 +130,11 @@ async function applyPendingReproject(): Promise<void> {
   if (!dpi || dpi <= 0) return;
 
   const viewBox = (event.mapFile.viewBox && event.mapFile.renderScale)
-    ? { viewBox: event.mapFile.viewBox, renderScale: event.mapFile.renderScale }
+    ? {
+        viewBox: event.mapFile.viewBox,
+        renderScale: event.mapFile.renderScale,
+        mmToUnits: event.mapFile.type === 'omap' ? 1000 : 100,
+      }
     : undefined;
 
   const { reprojectPpenCoordinates } = await import('@/core/ppen/reproject-coordinates');
@@ -231,7 +235,11 @@ export async function importPpenFile(file: File): Promise<boolean> {
 
   // ViewBox params for OCAD/OMAP maps — needed for correct coordinate conversion
   const viewBox = (hasMap && currentMapFile.viewBox && currentMapFile.renderScale)
-    ? { viewBox: currentMapFile.viewBox, renderScale: currentMapFile.renderScale }
+    ? {
+        viewBox: currentMapFile.viewBox,
+        renderScale: currentMapFile.renderScale,
+        mmToUnits: currentMapFile.type === 'omap' ? 1000 : 100,
+      }
     : undefined;
 
   try {
