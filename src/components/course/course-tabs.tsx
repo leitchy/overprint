@@ -140,16 +140,16 @@ export function CourseList() {
 
       {/* Thin separator + visibility bulk controls */}
       {courses.length > 1 && (
-        <div className="mx-3 flex items-center justify-end gap-1 border-t border-gray-100 py-0.5">
+        <div className="mx-3 flex items-center justify-end gap-1 border-t border-gray-100 py-1 max-lg:py-1.5">
           <button
-            className="text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 rounded"
+            className="rounded px-1.5 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1"
             onClick={() => showAllCourses()}
           >
             {t('showAll')}
           </button>
           <span className="text-[10px] text-gray-300">&middot;</span>
           <button
-            className="text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 rounded"
+            className="rounded px-1.5 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1"
             onClick={() => hideAllCourses()}
           >
             {t('hideAll')}
@@ -208,7 +208,7 @@ export function CourseList() {
                 aria-label={isVisible ? `Hide ${course.name}` : `Show ${course.name}`}
                 aria-pressed={isVisible}
                 title={isVisible ? `Hide ${course.name}` : `Show ${course.name}`}
-                className="shrink-0 rounded p-0.5 focus:outline-none focus:ring-1 focus:ring-violet-300"
+                className="shrink-0 rounded p-0.5 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:p-1.5"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleCourseVisibility(course.id);
