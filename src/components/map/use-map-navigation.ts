@@ -38,7 +38,6 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const lastTouchDistRef = useRef(0);
-  const lastTouchCenterRef = useRef({ x: 0, y: 0 });
   const isPrintAreaDraggingRef = useRef(false);
   const printAreaDragRef = useRef<PrintAreaDrag | null>(null);
 
@@ -314,10 +313,6 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
           const dx = t0.clientX - t1.clientX;
           const dy = t0.clientY - t1.clientY;
           lastTouchDistRef.current = Math.sqrt(dx * dx + dy * dy);
-          lastTouchCenterRef.current = {
-            x: (t0.clientX + t1.clientX) / 2,
-            y: (t0.clientY + t1.clientY) / 2,
-          };
         }
       }
     },
@@ -360,7 +355,6 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
           }
 
           lastTouchDistRef.current = dist;
-          lastTouchCenterRef.current = center;
         }
       }
     },
