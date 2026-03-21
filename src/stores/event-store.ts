@@ -111,6 +111,7 @@ interface EventActions {
   // Leg gaps
   addLegGap: (courseId: CourseId, controlIndex: number, gap: LegGap) => void;
   removeLegGap: (courseId: CourseId, controlIndex: number, gapIndex: number) => void;
+  updateLegGap: (courseId: CourseId, controlIndex: number, gapIndex: number, gap: LegGap) => void;
 
   // Control type (crossing point / map exchange)
   setCourseControlType: (courseId: CourseId, controlIndex: number, type: CourseControlType) => void;
@@ -576,6 +577,16 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!cc?.legGaps) return;
           cc.legGaps.splice(gapIndex, 1);
           if (cc.legGaps.length === 0) cc.legGaps = undefined;
+        });
+      },
+
+      updateLegGap: (courseId, controlIndex, gapIndex, gap) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (!cc?.legGaps?.[gapIndex]) return;
+          cc.legGaps[gapIndex] = gap;
         });
       },
 

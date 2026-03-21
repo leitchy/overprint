@@ -379,6 +379,11 @@ export function MapCanvas() {
                         useEventStore.getState().removeBendPoint(activeCourseId, controlIndex, bendIndex);
                       }
                     }}
+                    onGapDragEnd={(controlIndex, gapIndex, gap) => {
+                      if (activeCourseId) {
+                        useEventStore.getState().updateLegGap(activeCourseId, controlIndex, gapIndex, gap);
+                      }
+                    }}
                   />
                 )}
 
