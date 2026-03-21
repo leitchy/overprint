@@ -77,6 +77,7 @@ export function Toolbar() {
   const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventFileInputRef = useRef<HTMLInputElement>(null);
+  const ppenInputRef = useRef<HTMLInputElement>(null);
   const iofXmlInputRef = useRef<HTMLInputElement>(null);
   const event = useEventStore((s) => s.event);
   const eventName = event?.name;
@@ -179,6 +180,18 @@ export function Toolbar() {
     const file = e.target.files?.[0];
     if (!file) return;
     await loadEventFile(file);
+    e.target.value = '';
+  };
+
+  const handleOpenPpen = () => {
+    ppenInputRef.current?.click();
+  };
+
+  const handlePpenFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const { importPpenFile } = await import('@/core/files/load-map-file');
+    await importPpenFile(file);
     e.target.value = '';
   };
 
@@ -401,6 +414,7 @@ export function Toolbar() {
     { label: t('newEvent'), onClick: handleNewEvent },
     { separator: true },
     { label: t('openEvent'), onClick: handleOpenEvent },
+    { label: t('openPpen'), onClick: handleOpenPpen },
     { label: t('saveEvent'), onClick: handleSave, disabled: !hasEvent },
     { label: t('saveWithMap'), onClick: handleSaveWithMap, disabled: !hasEvent || !hasImage },
     { separator: true },
@@ -776,6 +790,13 @@ export function Toolbar() {
         type="file"
         accept=".overprint"
         onChange={handleEventFileSelected}
+        className="hidden"
+      />
+      <input
+        ref={ppenInputRef}
+        type="file"
+        accept=".ppen"
+        onChange={handlePpenFileSelected}
         className="hidden"
       />
       <input

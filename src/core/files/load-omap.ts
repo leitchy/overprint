@@ -61,6 +61,8 @@ interface LoadOmapResult {
   scale: number | null;
   dpi: number;
   georef: GeoReference | null;
+  viewBox: { x: number; y: number; width: number; height: number };
+  renderScale: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -543,5 +545,7 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
     scale,
     dpi,
     georef,
+    viewBox: { x: vbMinX, y: vbMinY, width: svgWidth, height: svgHeight },
+    renderScale,
   };
 }

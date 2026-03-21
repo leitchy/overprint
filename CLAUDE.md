@@ -146,6 +146,7 @@ overprint/
 - All-controls view (view all controls across courses without selecting a course)
 - GPS-based control placement (georef extraction from OCAD/OMAP, proj4 transforms, manual calibration, GPS UI, auto-follow, wake lock)
 - Save with embedded map images (self-contained .overprint files)
+- PurplePen .ppen file import (linked-list course parsing, IOF description mapping, OCAD viewBox coordinate conversion)
 
 ## Getting Started
 
