@@ -28,6 +28,10 @@ import { BottomSheet } from '@/components/ui/bottom-sheet';
 import { ControlContextMenu } from '@/components/course/control-context-menu';
 import { CenterReticle } from '@/components/map/center-reticle';
 import { NudgePad } from '@/components/ui/nudge-pad';
+import { GpsBridge } from '@/components/map/gps-bridge';
+import { GpsPositionLayer } from '@/components/map/gps-position-layer';
+import { GpsStatusChip } from '@/components/map/gps-status-chip';
+import { CalibrationPanel } from '@/components/map/calibration-panel';
 import { hapticConfirm } from '@/utils/haptics';
 
 // Module-level stage reference — allows toolbar and export utilities to access
@@ -142,7 +146,7 @@ export function MapCanvas() {
   useEffect(() => {
     const container = stageRef.current?.container();
     if (!container) return;
-    if (activeTool.type === 'addControl' || activeTool.type === 'addSpecialItem' || activeTool.type === 'setPrintArea') {
+    if (activeTool.type === 'addControl' || activeTool.type === 'addSpecialItem' || activeTool.type === 'setPrintArea' || activeTool.type === 'calibrate') {
       container.style.cursor = 'crosshair';
     } else {
       container.style.cursor = 'default';
@@ -491,6 +495,9 @@ export function MapCanvas() {
             )}
           </Layer>
 
+          {/* GPS position layer — blue dot + accuracy circle */}
+          <GpsPositionLayer />
+
           {/* Rubber-band preview line — multiply blend to match course layer */}
           <Layer ref={rubberBandLayerRef} listening={false}>
             <KonvaLine
@@ -532,6 +539,12 @@ export function MapCanvas() {
           )}
         </Stage>
       )}
+      {/* GPS bridge (non-rendering) — connects GPS hook to geo-transform pipeline */}
+      <GpsBridge />
+      {/* Calibration panel for non-georeferenced maps */}
+      <CalibrationPanel />
+      {/* GPS status chip — DOM overlay */}
+      <GpsStatusChip />
       <TextFormatToolbar />
       <InlineTextEditor />
       {image && (

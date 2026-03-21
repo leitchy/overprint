@@ -46,13 +46,28 @@ describe('serializeEvent', () => {
     expect(parsed.event.courses).toHaveLength(1);
     expect(Object.keys(parsed.event.controls)).toHaveLength(2);
   });
+
+  it('includes embedded map image when provided', () => {
+    const event = makeTestEvent();
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const json = serializeEvent(event, dataUrl);
+    const parsed = JSON.parse(json);
+    expect(parsed.embeddedMapImage).toBe(dataUrl);
+  });
+
+  it('omits embedded map image when not provided', () => {
+    const event = makeTestEvent();
+    const json = serializeEvent(event);
+    const parsed = JSON.parse(json);
+    expect(parsed.embeddedMapImage).toBeUndefined();
+  });
 });
 
 describe('deserializeEvent', () => {
   it('round-trips correctly', () => {
     const original = makeTestEvent();
     const json = serializeEvent(original);
-    const restored = deserializeEvent(json);
+    const { event: restored } = deserializeEvent(json);
 
     expect(restored.name).toBe(original.name);
     expect(restored.id).toBe(original.id);
@@ -63,7 +78,7 @@ describe('deserializeEvent', () => {
   it('restores control codes', () => {
     const original = makeTestEvent();
     const json = serializeEvent(original);
-    const restored = deserializeEvent(json);
+    const { event: restored } = deserializeEvent(json);
 
     const codes = Object.values(restored.controls).map((c) => c.code).sort();
     expect(codes).toEqual([31, 32]);
@@ -72,7 +87,7 @@ describe('deserializeEvent', () => {
   it('restores course control references', () => {
     const original = makeTestEvent();
     const json = serializeEvent(original);
-    const restored = deserializeEvent(json);
+    const { event: restored } = deserializeEvent(json);
 
     const course = restored.courses[0]!;
     expect(course.controls).toHaveLength(2);
@@ -88,7 +103,7 @@ describe('deserializeEvent', () => {
   it('restores settings with defaults', () => {
     const original = makeTestEvent();
     const json = serializeEvent(original);
-    const restored = deserializeEvent(json);
+    const { event: restored } = deserializeEvent(json);
 
     expect(restored.settings.printScale).toBe(15000);
     expect(restored.settings.pageSetup.paperSize).toBe('A4');
@@ -119,8 +134,23 @@ describe('deserializeEvent', () => {
     delete raw.event.settings.pageSetup;
     const json = JSON.stringify(raw);
 
-    const restored = deserializeEvent(json);
+    const { event: restored } = deserializeEvent(json);
     expect(restored.settings.pageSetup.paperSize).toBe('A4');
     expect(restored.settings.pageSetup.margins.top).toBe(10);
+  });
+
+  it('returns embedded map image when present', () => {
+    const event = makeTestEvent();
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const json = serializeEvent(event, dataUrl);
+    const { embeddedMapImage } = deserializeEvent(json);
+    expect(embeddedMapImage).toBe(dataUrl);
+  });
+
+  it('returns undefined embedded image when not present', () => {
+    const event = makeTestEvent();
+    const json = serializeEvent(event);
+    const { embeddedMapImage } = deserializeEvent(json);
+    expect(embeddedMapImage).toBeUndefined();
   });
 });

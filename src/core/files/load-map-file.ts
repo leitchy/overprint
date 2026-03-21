@@ -9,6 +9,7 @@ import { detectMapFileType } from './detect-file-type';
 import { loadRasterImage } from './load-raster';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
+import { useGpsStore } from '@/stores/gps-store';
 
 /**
  * Load a map file (raster/PDF/OCAD) into the stores.
@@ -45,6 +46,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
         type: 'raster',
         scale: existingMapFile?.scale ?? 15000,
         dpi: existingMapFile?.dpi ?? 150,
+        georef: existingMapFile?.georef,
       });
     } else if (fileType === 'pdf') {
       const { loadPdfAsImage } = await import('./load-pdf');
@@ -57,6 +59,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
         type: 'pdf',
         scale: existingMapFile?.scale ?? 15000,
         dpi,
+        georef: existingMapFile?.georef,
       });
     } else if (fileType === 'ocad') {
       const { loadOcadMap } = await import('./load-ocad');
@@ -70,6 +73,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
         type: 'ocad',
         scale: result.scale ?? existingMapFile?.scale ?? 15000,
         dpi: result.dpi,
+        georef: result.georef ?? undefined,
       });
     } else if (fileType === 'omap') {
       const { loadOmapMap } = await import('./load-omap');
@@ -81,6 +85,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
         type: 'omap',
         scale: result.scale ?? existingMapFile?.scale ?? 15000,
         dpi: result.dpi,
+        georef: result.georef ?? undefined,
       });
     }
     return true;
@@ -99,8 +104,23 @@ export async function loadEventFile(file: File): Promise<boolean> {
   try {
     const { deserializeEvent } = await import('./overprint-format');
     const text = await file.text();
-    const loadedEvent = deserializeEvent(text);
+    const { event: loadedEvent, embeddedMapImage } = deserializeEvent(text);
+    // Reset GPS state before replacing the event — georef may change
+    useGpsStore.getState().reset();
     useEventStore.getState().loadEvent(loadedEvent);
+
+    // Auto-load embedded map image if present
+    if (embeddedMapImage) {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          useMapImageStore.getState().setImage(img, img.naturalWidth, img.naturalHeight);
+          resolve();
+        };
+        img.onerror = () => reject(new Error('Failed to load embedded map image'));
+        img.src = embeddedMapImage;
+      });
+    }
     return true;
   } catch (err) {
     console.error('Failed to open event:', err);

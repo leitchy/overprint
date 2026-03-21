@@ -27,3 +27,4 @@ tests/fixtures/exports/
 tests/fixtures/events/
 tsconfig.tsbuildinfo
 tests/fixtures/PP-examples/
+.playwright-mcp/

@@ -5,11 +5,48 @@ export interface MapPoint {
   y: number; // Pixels from top of map image
 }
 
+/** A ground-truth point linking map pixels to GPS coordinates (for manual calibration). */
+export interface CalibrationPoint {
+  /** Map pixel coordinates */
+  mapPoint: MapPoint;
+  /** WGS84 longitude (degrees) */
+  lon: number;
+  /** WGS84 latitude (degrees) */
+  lat: number;
+}
+
+/** Georeferencing data extracted from OCAD/OMAP or computed via manual calibration. */
+export interface GeoReference {
+  /** EPSG code (number) or PROJ.4 string (string) for projected CRS */
+  projDef: number | string;
+  /** Projected origin X (metres) */
+  easting: number;
+  /** Projected origin Y (metres) */
+  northing: number;
+  /** Map scale denominator */
+  scale: number;
+  /** Grid-to-magnetic north angle (radians) */
+  grivation: number;
+  /** Source of this georef data */
+  source: 'ocad' | 'omap' | 'calibration';
+  /** Paper coordinate unit — needed for correct scale factor */
+  paperUnit: 'hundredths-mm' | 'thousandths-mm';
+  /** SVG viewBox origin for paper→pixel mapping */
+  viewBoxOrigin: { x: number; y: number };
+  /** SVG viewBox height — required for Y-flip */
+  viewBoxHeight: number;
+  /** SVG-to-pixel render scale factor */
+  renderScale: number;
+  /** Manual calibration points (for raster/PDF) */
+  calibrationPoints?: CalibrationPoint[];
+}
+
 export interface MapFile {
   name: string;
   type: 'raster' | 'pdf' | 'ocad' | 'omap';
   scale: number;  // e.g. 10000 for 1:10000
   dpi: number;    // Resolution for coordinate mapping
+  georef?: GeoReference;
 }
 
 export interface ControlDescription {
