@@ -553,7 +553,9 @@ export function importPpen(
         specialItems.push({ ...baseProps, type: 'text', text, fontSize: 14, fontWeight: 'normal' });
         break;
       }
-      case 'line': {
+      case 'line':
+      case 'boundary': {
+        // boundary = course boundary marker (short line segment at map edge)
         if (loc1) {
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
           specialItems.push({ ...baseProps, type: 'line', endPosition: pos2 });
@@ -582,6 +584,9 @@ export function importPpen(
       case 'forbidden-route':
         specialItems.push({ ...baseProps, type: 'forbiddenRoute' });
         break;
+      case 'image':
+        // Custom images not supported — skip silently (logged once below)
+        break;
       default:
         warnings.push({
           type: 'unsupported-feature',
@@ -589,6 +594,15 @@ export function importPpen(
         });
         break;
     }
+  }
+
+  // Consolidated warning for skipped image objects
+  const imageCount = specialObjectEls.filter(el => getAttr(el, 'kind') === 'image').length;
+  if (imageCount > 0) {
+    warnings.push({
+      type: 'unsupported-feature',
+      message: `${imageCount} custom image(s) skipped — not yet supported`,
+    });
   }
 
   // -----------------------------------------------------------------------
