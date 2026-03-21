@@ -21,4 +21,4 @@ export function isIOSOrIPadOS(): boolean {
  */
 export const MAP_FILE_ACCEPT = isIOSOrIPadOS()
   ? '*/*'
-  : 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
+  : 'image/png,image/jpeg,image/gif,image/tiff,image/bmp,application/pdf,.ocd,.omap,.xmap';
