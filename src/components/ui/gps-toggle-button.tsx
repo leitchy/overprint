@@ -48,6 +48,21 @@ export function GpsToggleButton({ compact }: GpsToggleButtonProps) {
   const handleClick = () => {
     if (isActive) {
       setEnabled(false);
+    } else if (status === 'denied') {
+      // Show platform-specific help for re-enabling location
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+      let help: string;
+      if (isIOS && isSafari) {
+        help = 'Go to Settings > Safari > Location Services, then reload this page';
+      } else if (isIOS) {
+        help = 'Go to Settings > Chrome > Location, then reload this page';
+      } else {
+        help = 'Tap the lock icon in the address bar > Site settings > Location > Allow';
+      }
+      useToastStore.getState().addToast(help, 6000);
+      // Try again — some browsers allow re-prompting after settings change
+      setEnabled(true);
     } else if (needsCalibration) {
       if (!hasImage) {
         useToastStore.getState().addToast('Load a map first to use GPS', 3000);
