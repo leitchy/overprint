@@ -1,9 +1,11 @@
 import type { Control, CourseControl } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
-import { mapDistanceMetres } from './distance';
+import { mapDistanceMetres, pixelsToMetres } from './distance';
+import { polylineLength } from './leg-path';
 
 /**
  * Calculate total course length in metres by summing leg distances.
+ * For bent legs, follows the polyline path through bend points.
  */
 export function calculateCourseLength(
   courseControls: CourseControl[],
@@ -22,12 +24,14 @@ export function calculateCourseLength(
     const currControl = controls[curr.controlId];
     if (!prevControl || !currControl) continue;
 
-    total += mapDistanceMetres(
-      prevControl.position,
-      currControl.position,
-      scale,
-      dpi,
-    );
+    if (prev.bendPoints && prev.bendPoints.length > 0) {
+      // Bent leg: sum polyline path through bend points
+      const pathPoints = [prevControl.position, ...prev.bendPoints, currControl.position];
+      total += pixelsToMetres(polylineLength(pathPoints), scale, dpi);
+    } else {
+      // Straight leg: direct distance
+      total += mapDistanceMetres(prevControl.position, currControl.position, scale, dpi);
+    }
   }
 
   return total;

@@ -340,13 +340,11 @@ export function MapCanvas() {
                     onInsertOnLeg={(position, afterIndex) => {
                       const store = useEventStore.getState();
                       if (!store.activeCourseId || !store.event) return;
-                      // Create a new control and insert at the leg position
                       const code = Math.max(
                         30,
                         ...Object.values(store.event.controls).map((c) => c.code),
                       ) + 1;
                       const control = createControl(code, position);
-                      // Add to controls pool via immer mutation
                       useEventStore.setState((state) => {
                         if (state.event) {
                           state.event.controls[control.id] = control;
@@ -357,6 +355,29 @@ export function MapCanvas() {
                         control.id,
                         afterIndex,
                       );
+                    }}
+                    editLegs={activeTool.type === 'pan'}
+                    onAddBendPoint={(controlIndex, position, insertAt) => {
+                      if (activeCourseId) {
+                        useEventStore.getState().addBendPoint(activeCourseId, controlIndex, insertAt, position);
+                      }
+                    }}
+                    onBendPointDragEnd={(controlIndex, bendIndex, position) => {
+                      if (activeCourseId) {
+                        const store = useEventStore.getState();
+                        const course = store.event?.courses.find((c) => c.id === activeCourseId);
+                        const cc = course?.controls[controlIndex];
+                        if (cc?.bendPoints) {
+                          const updated = [...cc.bendPoints];
+                          updated[bendIndex] = position;
+                          store.setBendPoints(activeCourseId, controlIndex, updated);
+                        }
+                      }
+                    }}
+                    onRemoveBendPoint={(controlIndex, bendIndex) => {
+                      if (activeCourseId) {
+                        useEventStore.getState().removeBendPoint(activeCourseId, controlIndex, bendIndex);
+                      }
                     }}
                   />
                 )}

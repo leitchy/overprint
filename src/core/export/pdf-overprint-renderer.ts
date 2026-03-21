@@ -9,6 +9,7 @@ import type {
 } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
+import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { IOF_OVERPRINT_MM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
@@ -85,25 +86,57 @@ export function renderOverprint(
       const curr = resolved[i]!;
       const prevPdf = ctx.toPdf(prev.control.position);
       const currPdf = ctx.toPdf(curr.control.position);
+      const cc = course.controls[i - 1];
+      const bendPoints = cc?.bendPoints?.map((bp) => ctx.toPdf(bp));
+      const hasBends = bendPoints && bendPoints.length > 0;
 
-      const endpoints = shortenedLeg(prevPdf, currPdf, shapeOffset(prev.type), shapeOffset(curr.type));
-      if (endpoints) {
-        page.drawLine({
-          start: { x: endpoints[0].x, y: endpoints[0].y },
-          end: { x: endpoints[1].x, y: endpoints[1].y },
-          thickness: lineWidth,
-          color: PURPLE,
-        });
+      const path = hasBends
+        ? buildLegPath(prevPdf, currPdf, bendPoints, shapeOffset(prev.type), shapeOffset(curr.type))
+        : (() => {
+            const ep = shortenedLeg(prevPdf, currPdf, shapeOffset(prev.type), shapeOffset(curr.type));
+            return ep ? [ep[0], ep[1]] : null;
+          })();
+
+      if (path) {
+        const subPaths = cc?.legGaps && cc.legGaps.length > 0
+          ? splitPathByGaps(path, cc.legGaps)
+          : [path];
+
+        for (const subPath of subPaths) {
+          if (subPath.length === 2) {
+            // Simple straight segment
+            page.drawLine({
+              start: { x: subPath[0]!.x, y: subPath[0]!.y },
+              end: { x: subPath[1]!.x, y: subPath[1]!.y },
+              thickness: lineWidth,
+              color: PURPLE,
+            });
+          } else if (subPath.length > 2) {
+            // Polyline via SVG path for proper joins at bends
+            const svgPath = subPath
+              .map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+              .join(' ');
+            page.drawSvgPath(svgPath, {
+              borderColor: PURPLE,
+              borderWidth: lineWidth,
+            });
+          }
+        }
       }
     }
   }
 
   // Compute start triangle target direction (in PDF space)
+  // Start triangle target direction — point toward first bend point if bends exist
+  const firstLegBends = course.controls[0]?.bendPoints;
   const startTarget: MapPoint | undefined =
     resolved.length >= 2
       ? (() => {
           const p0 = ctx.toPdf(resolved[0]!.control.position);
-          const p1 = ctx.toPdf(resolved[1]!.control.position);
+          const targetPos = firstLegBends && firstLegBends.length > 0
+            ? firstLegBends[0]!
+            : resolved[1]!.control.position;
+          const p1 = ctx.toPdf(targetPos);
           return { x: p1.x - p0.x, y: p1.y - p0.y };
         })()
       : undefined;
