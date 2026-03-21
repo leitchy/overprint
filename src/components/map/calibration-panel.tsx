@@ -16,7 +16,8 @@ import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
 import { useGpsStore } from '@/stores/gps-store';
 import { useT } from '@/i18n/use-t';
-import { computeAffineTransform } from '@/core/geometry/affine-calibration';
+import proj4 from 'proj4';
+import { computeAffineTransform, computeResiduals } from '@/core/geometry/affine-calibration';
 import type { CalibrationPoint, GeoReference } from '@/core/models/types';
 
 type CalibrationStep =
@@ -43,6 +44,7 @@ export function CalibrationPanel() {
   const [currentPoint, setCurrentPoint] = useState<PartialPoint | null>(null);
   const [targetCount, setTargetCount] = useState(2);
   const [warnings, setWarnings] = useState<string[]>([]);
+  const [residuals, setResiduals] = useState<number[]>([]);
 
   // GPS position for "Use current GPS" button
   const gpsPosition = useGpsStore((s) => s.position);
@@ -132,6 +134,18 @@ export function CalibrationPanel() {
     } else {
       const result = computeAffineTransform(updated);
       setWarnings(result?.warnings ?? []);
+
+      // Compute per-point residuals for 3+ points
+      if (result && updated.length >= 3) {
+        const projected = updated.map((pt) => {
+          const [e, n] = proj4('EPSG:4326', result.projDef, [pt.lon, pt.lat]);
+          return { e, n };
+        });
+        setResiduals(computeResiduals(updated, projected, result.matrix));
+      } else {
+        setResiduals([]);
+      }
+
       setStep('confirm');
     }
   };
@@ -147,6 +161,7 @@ export function CalibrationPanel() {
     setCurrentPoint(null);
     setTargetCount(2);
     setWarnings([]);
+    setResiduals([]);
   };
 
   const handleApply = () => {
@@ -322,6 +337,11 @@ export function CalibrationPanel() {
               <div key={i} className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-700">
                 <span className="font-medium">Point {i + 1}:</span>{' '}
                 {p.lat.toFixed(6)}, {p.lon.toFixed(6)} → map ({Math.round(p.mapPoint.x)}, {Math.round(p.mapPoint.y)})
+                {residuals[i] !== undefined && (
+                  <span className={`ml-2 ${residuals[i]! > 10 ? 'text-amber-600' : 'text-green-600'}`}>
+                    (error: {residuals[i]!.toFixed(1)}px)
+                  </span>
+                )}
               </div>
             ))}
           </div>

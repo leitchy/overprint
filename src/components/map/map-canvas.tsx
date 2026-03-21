@@ -32,6 +32,7 @@ import { GpsBridge } from '@/components/map/gps-bridge';
 import { GpsPositionLayer } from '@/components/map/gps-position-layer';
 import { GpsStatusChip } from '@/components/map/gps-status-chip';
 import { CalibrationPanel } from '@/components/map/calibration-panel';
+import { GpsPlaceButton } from '@/components/map/gps-place-button';
 import { hapticConfirm } from '@/utils/haptics';
 
 // Module-level stage reference — allows toolbar and export utilities to access
@@ -600,6 +601,9 @@ export function MapCanvas() {
 
       {/* Nudge pad for fine positioning (touch only) */}
       {isTouch && selectedControlId && <NudgePad />}
+
+      {/* GPS "Place at GPS" button (tablet/desktop only — phone uses CenterReticle) */}
+      {breakpoint !== 'sm' && <GpsPlaceButton />}
 
       {/* Center-reticle placement mode (phone only) */}
       {breakpoint === 'sm' && isTouch && activeTool.type === 'addControl' && (
