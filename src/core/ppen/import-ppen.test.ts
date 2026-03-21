@@ -394,7 +394,7 @@ describe('importPpen — defensive parsing', () => {
         <all-controls print-scale="5000" />
         <descriptions lang="en" />
       </event>
-      <special-object id="1" kind="image">
+      <special-object id="1" kind="custom-widget">
         <location x="10" y="10" />
       </special-object>
     </course-scribe-event>`;

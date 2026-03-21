@@ -30,8 +30,8 @@ describe('overprintPixelDimensions', () => {
     // Circle radius: 5/2 * 150/25.4 = 14.76
     expect(dims.circleRadius).toBeCloseTo(14.76, 1);
 
-    // Line width: 0.35 * 150/25.4 = 2.07
-    expect(dims.lineWidth).toBeCloseTo(2.07, 1);
+    // Line width: 0.2 * 150/25.4 = 1.18
+    expect(dims.lineWidth).toBeCloseTo(1.18, 1);
 
     // Number size: 4 * 150/25.4 = 23.62
     expect(dims.numberSize).toBeCloseTo(23.62, 1);

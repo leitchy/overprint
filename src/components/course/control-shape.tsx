@@ -22,6 +22,8 @@ interface ControlShapeProps {
   startTarget?: MapPoint; // For start triangle — direction to point toward
   color?: string;
   showNumber?: boolean;
+  /** White outline around control numbers — used for non-current controls in All Controls view */
+  numberOutline?: boolean;
   score?: number; // For score courses — displayed beside the control
   clickable?: boolean; // shows copy cursor on hover (for background control reuse)
   numberOffset?: MapPoint; // Current offset for the sequence number label
@@ -41,6 +43,7 @@ export const ControlShape = memo(function ControlShape({
   startTarget,
   color = OVERPRINT_PURPLE,
   showNumber = true,
+  numberOutline = false,
   score,
   clickable = false,
   numberOffset,
@@ -201,6 +204,8 @@ export const ControlShape = memo(function ControlShape({
           fontSize={numberSize}
           fill={color}
           fontStyle="bold"
+          stroke={numberOutline ? '#FFFFFF' : undefined}
+          strokeWidth={numberOutline ? 2 : undefined}
           draggable={!!onNumberDragEnd}
           listening={!!onNumberDragEnd}
           onDragStart={(e) => {

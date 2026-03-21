@@ -71,6 +71,7 @@ Last updated: 2026-03-22
 | 28 | Per-course appearance overrides | M | 2 | not started | Override circle size, line weight per course |
 | 31 | Dark mode | M | 2 | not started | Theme toggle — canvas + UI |
 | 37 | Map auto-dim manual control | S | 3 | not started | Checkbox + slider in appearance UI to dim map behind overprint |
+| 40 | Display colour configuration | S | 3 | not started | Collapsible "Appearance" section in Page Setup: active course, background course, and non-current control colours. Currently hardcoded (#C850A0 purple, #C0C0C0 grey, #E8A0D0 pink) |
 
 ---
 

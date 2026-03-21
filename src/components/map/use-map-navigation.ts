@@ -210,7 +210,7 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
             });
           } else {
             // IOF symbols — click to place
-            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'descriptionBox'>;
+            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'descriptionBox' | 'image'>;
             store.addSpecialItem({
               id: generateSpecialItemId(),
               type: symType,

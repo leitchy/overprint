@@ -28,7 +28,7 @@ describe('createEvent', () => {
     const event = createEvent('Test');
     expect(event.settings.printScale).toBe(15000);
     expect(event.settings.controlCircleDiameter).toBe(5.0);
-    expect(event.settings.lineWidth).toBe(0.35);
+    expect(event.settings.lineWidth).toBe(0.2);
     expect(event.settings.numberSize).toBe(4.0);
     expect(event.settings.descriptionStandard).toBe('2024');
     expect(event.settings.mapStandard).toBe('ISOM2017');

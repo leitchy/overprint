@@ -25,8 +25,11 @@ function reprojectPoint(
 
   // OCAD/OMAP: use viewBox-aware conversion
   if (viewBox && viewBox.renderScale > 0) {
-    const xPx = (xMm * 100 - viewBox.viewBox.x) * viewBox.renderScale;
-    const yPx = (viewBox.viewBox.y + viewBox.viewBox.height - yMm * 100) * viewBox.renderScale;
+    const u = viewBox.mmToUnits;
+    const xPx = (xMm * u - viewBox.viewBox.x) * viewBox.renderScale;
+    const yPx = u === 1000
+      ? (-yMm * u - viewBox.viewBox.y) * viewBox.renderScale
+      : (viewBox.viewBox.y + viewBox.viewBox.height - yMm * u) * viewBox.renderScale;
     return { x: xPx, y: yPx };
   }
 

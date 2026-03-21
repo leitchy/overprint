@@ -9,7 +9,7 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, NON_CURRENT_COLOR, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
@@ -68,6 +68,7 @@ export function MapCanvas() {
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
   const viewMode = useEventStore((s) => s.viewMode);
+  const visibleCourseIds = useEventStore((s) => s.visibleCourseIds);
 
   const {
     handleWheel,
@@ -272,30 +273,33 @@ export function MapCanvas() {
     [courses, activeCourseId],
   );
   const backgroundCourses = useMemo(
-    () => courses?.filter((c) => c.id !== activeCourseId) ?? [],
-    [courses, activeCourseId],
+    () => courses?.filter((c) => c.id !== activeCourseId && visibleCourseIds[c.id]) ?? [],
+    [courses, activeCourseId, visibleCourseIds],
   );
   const activeControlIds = useMemo(
     () => new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []),
     [activeCourse],
   );
 
-  // Synthetic "all controls" course — used when viewMode === 'allControls'
-  const allControlsCourse = useMemo((): Course | null => {
+  // Synthetic courses for "all controls" view — splits controls into
+  // active course (purple) and non-current (pink) for visual distinction
+  const nonCurrentControlsCourse = useMemo((): Course | null => {
     if (viewMode !== 'allControls' || !controls) return null;
-    const allControls = Object.values(controls);
-    if (allControls.length === 0) return null;
+    const nonCurrentIds = Object.values(controls).filter(
+      (c) => !activeControlIds.has(c.id),
+    );
+    if (nonCurrentIds.length === 0) return null;
     return {
-      id: 'all-controls' as CourseId,
-      name: 'All controls',
+      id: 'non-current-controls' as CourseId,
+      name: 'Non-current controls',
       courseType: 'score',
-      controls: allControls.map((c) => ({
+      controls: nonCurrentIds.map((c) => ({
         controlId: c.id,
         type: 'control' as const,
       })),
       settings: {},
     };
-  }, [viewMode, controls]);
+  }, [viewMode, controls, activeControlIds]);
 
   // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
   const handleSelectControl = useCallback((id: ControlId) => {
@@ -376,20 +380,39 @@ export function MapCanvas() {
           {/* Course overprint layer — multiply blend so dark map features show through */}
           <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
-              /* All-controls view: synthetic score course with no legs */
-              allControlsCourse && dimensions && controls && (
-                <CourseRenderer
-                  course={allControlsCourse}
-                  controls={controls}
-                  dimensions={dimensions}
-                  selectedControlId={selectedControlId}
-                  draggable={false}
-                  allowLegInsert={false}
-                  showNumbers={true}
-                  onSelectControl={handleSelectControl}
-                  onDragControlEnd={() => { /* no-op */ }}
-                />
-              )
+              /* All-controls view: active course (purple with legs) + non-current controls (pink) */
+              <>
+                {/* Non-current controls in pink (behind active course) */}
+                {nonCurrentControlsCourse && dimensions && controls && (
+                  <CourseRenderer
+                    course={nonCurrentControlsCourse}
+                    controls={controls}
+                    dimensions={dimensions}
+                    selectedControlId={selectedControlId}
+                    draggable={false}
+                    allowLegInsert={false}
+                    showNumbers={true}
+                    color={NON_CURRENT_COLOR}
+                    numberOutline={true}
+                    onSelectControl={handleSelectControl}
+                    onDragControlEnd={() => {}}
+                  />
+                )}
+                {/* Active course in purple with legs and controls */}
+                {activeCourse && dimensions && controls && (
+                  <CourseRenderer
+                    course={activeCourse}
+                    controls={controls}
+                    dimensions={dimensions}
+                    selectedControlId={selectedControlId}
+                    draggable={false}
+                    allowLegInsert={false}
+                    showNumbers={true}
+                    onSelectControl={handleSelectControl}
+                    onDragControlEnd={() => {}}
+                  />
+                )}
+              </>
             ) : (
               /* Course view: active course (purple) + background courses (grey).
                  Background controls render AFTER active course so they get hit

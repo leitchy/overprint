@@ -178,6 +178,7 @@ export type SpecialItemType =
   | 'line'
   | 'rectangle'
   | 'descriptionBox'
+  | 'image'
   | 'outOfBounds'
   | 'dangerousArea'
   | 'waterLocation'
@@ -218,11 +219,20 @@ export interface DescriptionBoxItem extends SpecialItemBase {
   endPosition: MapPoint;
 }
 
+export interface ImageItem extends SpecialItemBase {
+  type: 'image';
+  endPosition: MapPoint;          // bottom-right corner
+  /** Base64 data URL (e.g., data:image/png;base64,...) */
+  imageDataUrl: string;
+  /** Original filename for display purposes */
+  fileName?: string;
+}
+
 export interface IofSymbolItem extends SpecialItemBase {
   type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute';
 }
 
-export type SpecialItem = TextItem | LineItem | RectangleItem | DescriptionBoxItem | IofSymbolItem;
+export type SpecialItem = TextItem | LineItem | RectangleItem | DescriptionBoxItem | ImageItem | IofSymbolItem;
 
 export interface OverprintEvent {
   id: EventId;

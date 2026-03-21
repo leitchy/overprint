@@ -73,6 +73,8 @@ function mmToPx(mmValue: number, dpi: number): number {
 export interface ViewBoxParams {
   viewBox: { x: number; y: number; width: number; height: number };
   renderScale: number;
+  /** Coordinate unit divisor: 100 for OCAD (1/100mm), 1000 for OMAP (1/1000mm). */
+  mmToUnits: number;
 }
 
 /**
@@ -97,9 +99,16 @@ function convertPoint(
 ): MapPoint {
   // OCAD/OMAP: use viewBox-aware conversion
   if (vb && vb.renderScale > 0) {
-    const xPx = (xMm * 100 - vb.viewBox.x) * vb.renderScale;
-    // Y-flip within the viewBox: bottom edge (minY + height) minus the OCAD Y position
-    const yPx = (vb.viewBox.y + vb.viewBox.height - yMm * 100) * vb.renderScale;
+    const u = vb.mmToUnits; // 100 for OCAD (1/100mm), 1000 for OMAP (1/1000mm)
+    const xPx = (xMm * u - vb.viewBox.x) * vb.renderScale;
+    // Y conversion differs by SVG structure:
+    // - OCAD (ocad2geojson): uses <g translate(0, T)> where T = 2*vb.y + vb.height,
+    //   so pixel Y = (vb.y + vb.height - yMm * U) * renderScale
+    // - OMAP (our SVG builder): negates Y directly, no transform,
+    //   so pixel Y = (-yMm * U - vb.y) * renderScale
+    const yPx = u === 1000
+      ? (-yMm * u - vb.viewBox.y) * vb.renderScale              // OMAP: direct negation
+      : (vb.viewBox.y + vb.viewBox.height - yMm * u) * vb.renderScale; // OCAD: translate-based
     return { x: xPx, y: yPx };
   }
 
@@ -544,7 +553,9 @@ export function importPpen(
         specialItems.push({ ...baseProps, type: 'text', text, fontSize: 14, fontWeight: 'normal' });
         break;
       }
-      case 'line': {
+      case 'line':
+      case 'boundary': {
+        // boundary = course boundary marker (short line segment at map edge)
         if (loc1) {
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
           specialItems.push({ ...baseProps, type: 'line', endPosition: pos2 });
@@ -573,6 +584,20 @@ export function importPpen(
       case 'forbidden-route':
         specialItems.push({ ...baseProps, type: 'forbiddenRoute' });
         break;
+      case 'image': {
+        if (loc1) {
+          const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
+          const imageDataEl = getChild(soEl, 'image-data');
+          const format = imageDataEl ? (getAttr(imageDataEl, 'format') ?? 'png') : 'png';
+          const base64 = imageDataEl?.textContent?.trim() ?? '';
+          if (base64) {
+            const imageDataUrl = `data:image/${format};base64,${base64}`;
+            const fileName = getTextContent(soEl, 'text') || undefined;
+            specialItems.push({ ...baseProps, type: 'image', endPosition: pos2, imageDataUrl, fileName });
+          }
+        }
+        break;
+      }
       default:
         warnings.push({
           type: 'unsupported-feature',
