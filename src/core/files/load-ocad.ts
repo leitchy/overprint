@@ -16,6 +16,8 @@ interface LoadOcadResult {
   dpi: number;          // Effective DPI of the rendered image
   arrayBuffer: ArrayBuffer;
   georef: GeoReference | null;
+  viewBox: { x: number; y: number; width: number; height: number };
+  renderScale: number;
 }
 
 export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
@@ -110,6 +112,8 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
     dpi,
     arrayBuffer,
     georef,
+    viewBox: { x: svgMinX, y: svgMinY, width: svgWidth, height: svgHeight },
+    renderScale,
   };
 }
 

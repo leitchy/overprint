@@ -47,6 +47,14 @@ export interface MapFile {
   scale: number;  // e.g. 10000 for 1:10000
   dpi: number;    // Resolution for coordinate mapping
   georef?: GeoReference;
+  /** True when coordinates were imported in mm (e.g. from .ppen) and need
+   *  re-projection once the actual map image is loaded. */
+  pendingCoordinateTransform?: boolean;
+  /** SVG viewBox for OCAD/OMAP maps (1/100mm or 1/1000mm units).
+   *  Required for correct .ppen coordinate conversion independently of georef. */
+  viewBox?: { x: number; y: number; width: number; height: number };
+  /** SVG-to-pixel render scale factor for OCAD/OMAP maps. */
+  renderScale?: number;
 }
 
 export interface ControlDescription {

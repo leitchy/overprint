@@ -6,7 +6,7 @@ Prioritised backlog derived from [PurplePen gap analysis](../research/purplepen-
 **Value**: 1 (nice-to-have) → 5 (critical for real-world use)
 **Status**: done / not started / in progress
 
-Last updated: 2026-03-21
+Last updated: 2026-03-22
 
 ---
 
@@ -26,6 +26,7 @@ Last updated: 2026-03-21
 | — | Multi-page PDF export | v0.12.0 | All courses in one PDF, per-course page orientation |
 | — | Batch PDF export | v0.12.0 | Each course as separate PDF |
 | — | Save with embedded map | v0.13.0 | Self-contained .overprint files with base64 map image |
+| 18 | PurplePen .ppen import | v0.14.0 | Parse PP's XML format, linked-list courses, IOF descriptions, viewBox-aware OCAD coordinate conversion |
 | — | 8 UI languages + 22 IOF description languages | v0.10.0 | en, fr, de, es, fi, it, sv, ja |
 
 ---
@@ -103,7 +104,7 @@ Last updated: 2026-03-21
 
 | # | Task | Effort | Value | Status | Notes |
 |---|---|---|---|---|---|
-| 18 | PurplePen .ppen import | L | 4 | not started | Parse PP's XML format — migration path for existing users |
+| 18 | PurplePen .ppen import | L | 4 | done | Parse PP's XML format — migration path for existing users |
 | 19 | IOF XML v2 export | S | 2 | not started | Legacy format for older electronic punching systems |
 | 20 | OCAD export (write .ocd) | XL | 2 | not started | Write overprint back into OCAD files — complex binary format |
 | 21 | OOM export (write .omap) | L | 2 | not started | Write overprint into OOM XML format |
@@ -149,7 +150,6 @@ Highest value items not yet done, ordered by value/effort ratio:
 3. **#3 Bulk code renumbering** — S effort, value 3
 4. **#13 All controls cross-reference** — S effort, value 3
 5. **#37 Map auto-dim** — S effort, value 3
-6. **#18 PurplePen .ppen import** — L effort, value 4. Key for user adoption
-7. **#30 PWA / offline mode** — M effort, value 3. Critical for field use alongside GPS
-8. **#4 Context menus** — M effort, value 3
-9. **#8 CMYK overprint (PDF)** — XL effort, value 4. Biggest remaining print quality gap
+6. **#30 PWA / offline mode** — M effort, value 3. Critical for field use alongside GPS
+7. **#4 Context menus** — M effort, value 3
+8. **#8 CMYK overprint (PDF)** — XL effort, value 4. Biggest remaining print quality gap

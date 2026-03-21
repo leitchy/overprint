@@ -9,7 +9,7 @@ import { useMapImageStore } from '@/stores/map-image-store';
 import { useEventStore } from '@/stores/event-store';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
 import { detectMapFileType } from '@/core/files/detect-file-type';
-import { loadMapFile, loadEventFile, importIofXmlFile } from '@/core/files/load-map-file';
+import { loadMapFile, loadEventFile, importIofXmlFile, importPpenFile } from '@/core/files/load-map-file';
 import { useT } from '@/i18n/use-t';
 import { useIsMobile } from '@/hooks/use-breakpoint';
 import { ToastContainer } from '@/components/ui/toast';
@@ -72,18 +72,26 @@ export function App() {
 
     // Categorise files by type
     const overprintFiles = files.filter((f) => hasExtension(f.name, '.overprint'));
+    const ppenFiles = files.filter((f) => hasExtension(f.name, '.ppen'));
     const xmlFiles = files.filter((f) => hasExtension(f.name, '.xml'));
     const mapFiles = files.filter((f) => detectMapFileType(f) !== 'unknown');
 
     setDropLoading(true);
 
     try {
-      // --- Scenario: .overprint + map file dropped together ---
+      // --- Scenario: event file + map file dropped together ---
       // Load the event first so its saved scale/dpi is in the store, then load
-      // the map — no prompt required.
-      if (overprintFiles.length > 0 && mapFiles.length > 0) {
-        const overprintFile = overprintFiles[0]!;
-        const loaded = await loadEventFile(overprintFile);
+      // the map — no prompt required.  Works for both .overprint and .ppen.
+      const hasEventFile = overprintFiles.length > 0 || ppenFiles.length > 0;
+
+      if (hasEventFile && mapFiles.length > 0) {
+        // Prefer .overprint over .ppen if both are present
+        let loaded = false;
+        if (overprintFiles.length > 0) {
+          loaded = await loadEventFile(overprintFiles[0]!);
+        } else if (ppenFiles.length > 0) {
+          loaded = await importPpenFile(ppenFiles[0]!);
+        }
 
         if (loaded) {
           // The event's mapFile.name tells us which dropped file is the map.
@@ -94,17 +102,17 @@ export function App() {
               : mapFiles[0]!;
           await loadMapFile(matchingMap);
         }
-
-        // Process any remaining overprint files beyond the first
-        for (const f of overprintFiles.slice(1)) {
-          await loadEventFile(f);
-        }
       } else {
         // --- General scenario: process each file by type ---
 
         // .overprint files first
         for (const f of overprintFiles) {
           await loadEventFile(f);
+        }
+
+        // .ppen files next (creates new event)
+        for (const f of ppenFiles) {
+          await importPpenFile(f);
         }
 
         // Map files next

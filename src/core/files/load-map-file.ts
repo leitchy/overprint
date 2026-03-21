@@ -10,6 +10,7 @@ import { loadRasterImage } from './load-raster';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useGpsStore } from '@/stores/gps-store';
+import { useToastStore } from '@/stores/toast-store';
 
 /**
  * Load a map file (raster/PDF/OCAD) into the stores.
@@ -33,9 +34,10 @@ export async function loadMapFile(file: File): Promise<boolean> {
     useEventStore.getState().newEvent('Untitled Event');
   }
 
-  // If the event already has mapFile metadata (from a .overprint load), keep
-  // its saved scale/dpi so calibration survives a map reload.
+  // If the event already has mapFile metadata (from a .overprint or .ppen load),
+  // keep its saved scale/dpi so calibration survives a map reload.
   const existingMapFile = useEventStore.getState().event?.mapFile;
+  const hasPendingTransform = existingMapFile?.pendingCoordinateTransform === true;
 
   try {
     if (fileType === 'raster') {
@@ -74,6 +76,8 @@ export async function loadMapFile(file: File): Promise<boolean> {
         scale: result.scale ?? existingMapFile?.scale ?? 15000,
         dpi: result.dpi,
         georef: result.georef ?? undefined,
+        viewBox: result.viewBox,
+        renderScale: result.renderScale,
       });
     } else if (fileType === 'omap') {
       const { loadOmapMap } = await import('./load-omap');
@@ -86,13 +90,53 @@ export async function loadMapFile(file: File): Promise<boolean> {
         scale: result.scale ?? existingMapFile?.scale ?? 15000,
         dpi: result.dpi,
         georef: result.georef ?? undefined,
+        viewBox: result.viewBox,
+        renderScale: result.renderScale,
       });
     }
+
+    // After loading a map, check if there are pending coordinate transforms
+    // from a .ppen import that happened before the map was loaded.
+    if (hasPendingTransform) {
+      await applyPendingReproject();
+    }
+
     return true;
   } catch (err) {
     console.error('Failed to load map:', err);
     return false;
   }
+}
+
+/**
+ * Re-project all coordinates from identity-mm space using the now-loaded map.
+ * Called after loading a map when hasPendingTransform was true.
+ */
+async function applyPendingReproject(): Promise<void> {
+  const event = useEventStore.getState().event;
+  if (!event?.mapFile) return;
+
+  const mapImage = useMapImageStore.getState().image;
+  const mapHeightPx =
+    mapImage instanceof HTMLCanvasElement
+      ? mapImage.height
+      : mapImage instanceof HTMLImageElement
+        ? mapImage.naturalHeight
+        : 0;
+
+  if (mapHeightPx === 0) return;
+
+  const dpi = event.mapFile.dpi;
+  if (!dpi || dpi <= 0) return;
+
+  const viewBox = (event.mapFile.viewBox && event.mapFile.renderScale)
+    ? { viewBox: event.mapFile.viewBox, renderScale: event.mapFile.renderScale }
+    : undefined;
+
+  const { reprojectPpenCoordinates } = await import('@/core/ppen/reproject-coordinates');
+  const reprojected = reprojectPpenCoordinates(event, dpi, mapHeightPx, viewBox);
+  useEventStore.getState().loadEvent(reprojected);
+  useToastStore.getState().addToast('Controls repositioned to match loaded map');
 }
 
 /**
@@ -159,6 +203,69 @@ export async function importIofXmlFile(file: File): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('IOF XML import failed:', err);
+    return false;
+  }
+}
+
+/**
+ * Import a PurplePen `.ppen` file, creating a new event.
+ *
+ * If a map is already loaded, coordinates are converted immediately.
+ * Otherwise, coordinates are stored in mm and re-projected when the map loads.
+ *
+ * @returns `true` when the import succeeded, `false` otherwise.
+ */
+export async function importPpenFile(file: File): Promise<boolean> {
+  const mapImage = useMapImageStore.getState().image;
+  const mapHeightPx =
+    mapImage instanceof HTMLCanvasElement
+      ? mapImage.height
+      : mapImage instanceof HTMLImageElement
+        ? mapImage.naturalHeight
+        : 0;
+
+  // If a map is loaded, use its real DPI; otherwise use identity-mm mode
+  const currentMapFile = useEventStore.getState().event?.mapFile;
+  const hasMap = mapHeightPx > 0 && currentMapFile;
+  const dpi = hasMap ? currentMapFile.dpi : 25.4; // 25.4 → 1mm = 1px
+
+  // ViewBox params for OCAD/OMAP maps — needed for correct coordinate conversion
+  const viewBox = (hasMap && currentMapFile.viewBox && currentMapFile.renderScale)
+    ? { viewBox: currentMapFile.viewBox, renderScale: currentMapFile.renderScale }
+    : undefined;
+
+  try {
+    const xmlString = await file.text();
+    const { importPpen } = await import('@/core/ppen/import-ppen');
+    const { event, mapFileName, warnings } = importPpen(
+      xmlString,
+      dpi,
+      hasMap ? mapHeightPx : 0,
+      viewBox,
+    );
+
+    // Flag for deferred re-projection when importing without a map
+    if (!hasMap && event.mapFile) {
+      event.mapFile.pendingCoordinateTransform = true;
+    }
+
+    // Reset GPS state before replacing the event
+    useGpsStore.getState().reset();
+    useEventStore.getState().loadEvent(event);
+
+    // Surface warnings
+    for (const w of warnings) {
+      useToastStore.getState().addToast(w.message, 4000);
+    }
+
+    // Prompt user to load the referenced map if no map is loaded
+    if (!hasMap && mapFileName) {
+      useToastStore.getState().addToast(`Load map file: ${mapFileName}`, 5000);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('PurplePen import failed:', err);
     return false;
   }
 }
