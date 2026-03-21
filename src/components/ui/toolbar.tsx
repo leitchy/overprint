@@ -22,6 +22,8 @@ import { useIsCompact } from '@/hooks/use-breakpoint';
 import { MobileMenuDrawer } from './mobile-menu-drawer';
 import { EventNameEditor } from './event-name-editor';
 import { AuditModal } from './audit-modal';
+import { GpsToggleButton } from './gps-toggle-button';
+import { useGpsStore } from '@/stores/gps-store';
 
 const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
 
@@ -94,8 +96,15 @@ export function Toolbar() {
   const [auditOpen, setAuditOpen] = useState(false);
 
   const handleNewEvent = () => {
+    // Preserve map image and mapFile metadata — user wants a fresh event, not to lose the map.
+    const existingMapFile = useEventStore.getState().event?.mapFile;
+    useGpsStore.getState().reset();
     useEventStore.getState().newEvent('Untitled Event');
-    useMapImageStore.getState().clear();
+    if (existingMapFile && useMapImageStore.getState().image) {
+      useEventStore.getState().setMapFile(existingMapFile);
+    } else {
+      useMapImageStore.getState().clear();
+    }
   };
 
   const handleCloseMap = () => {
@@ -126,6 +135,39 @@ export function Toolbar() {
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Save failed:', err);
+    }
+  };
+
+  const handleSaveWithMap = async () => {
+    const currentEvent = useEventStore.getState().event;
+    const mapImage = useMapImageStore.getState().image;
+    if (!currentEvent || !mapImage) return;
+
+    // Render the map image to a data URL
+    const canvas = document.createElement('canvas');
+    const w = mapImage instanceof HTMLCanvasElement ? mapImage.width : (mapImage as HTMLImageElement).naturalWidth;
+    const h = mapImage instanceof HTMLCanvasElement ? mapImage.height : (mapImage as HTMLImageElement).naturalHeight;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(mapImage, 0, 0);
+    const dataUrl = canvas.toDataURL('image/png');
+
+    const suggestedName = `${currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.overprint`;
+    try {
+      if ('showSaveFilePicker' in window) {
+        const handle = await window.showSaveFilePicker({ suggestedName });
+        const json = serializeEvent(currentEvent, dataUrl);
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+      } else {
+        const json = serializeEvent(currentEvent, dataUrl);
+        await saveString(json, suggestedName);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('Save with map failed:', err);
     }
   };
 
@@ -360,6 +402,7 @@ export function Toolbar() {
     { separator: true },
     { label: t('openEvent'), onClick: handleOpenEvent },
     { label: t('saveEvent'), onClick: handleSave, disabled: !hasEvent },
+    { label: t('saveWithMap'), onClick: handleSaveWithMap, disabled: !hasEvent || !hasImage },
     { separator: true },
     { label: t('loadMap'), onClick: handleLoadMap, disabled: loading },
     { label: t('closeMap'), onClick: handleCloseMap, disabled: !hasImage },
@@ -598,6 +641,8 @@ export function Toolbar() {
                     </button>
                   </>
                 )}
+                <div className="h-5 w-px bg-gray-200" />
+                <GpsToggleButton />
               </div>
 
               {/* Zone 4 — Descriptions toggle */}
@@ -650,7 +695,7 @@ export function Toolbar() {
           )}
           {eventName === undefined && <div className="flex-1" />}
 
-          {/* Active tool indicator + tool toggle */}
+          {/* Active tool indicator + tool toggle + GPS */}
           {hasImage && (
             <div className="flex items-center gap-1">
               <button
@@ -678,6 +723,7 @@ export function Toolbar() {
               >
                 ⊕
               </button>
+              <GpsToggleButton compact />
             </div>
           )}
 

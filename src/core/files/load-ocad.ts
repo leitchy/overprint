@@ -6,6 +6,8 @@ if (typeof (globalThis as any).Buffer === 'undefined') {
   (globalThis as any).Buffer = Buffer;
 }
 
+import type { GeoReference } from '@/core/models/types';
+
 interface LoadOcadResult {
   image: HTMLImageElement;
   width: number;
@@ -13,6 +15,7 @@ interface LoadOcadResult {
   scale: number | null; // Map scale extracted from OCAD metadata
   dpi: number;          // Effective DPI of the rendered image
   arrayBuffer: ArrayBuffer;
+  georef: GeoReference | null;
 }
 
 export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
@@ -33,12 +36,16 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
 
   const svgEl = svgResult;
 
-  // Parse viewBox to get OCAD coordinate dimensions
+  // Parse viewBox to get OCAD coordinate dimensions (all 4 values)
   const viewBox = svgEl.getAttribute('viewBox')?.split(/[\s,]+/);
+  let svgMinX = 0;
+  let svgMinY = 0;
   let svgWidth = 0;
   let svgHeight = 0;
 
   if (viewBox && viewBox.length === 4) {
+    svgMinX = parseFloat(viewBox[0]!);
+    svgMinY = parseFloat(viewBox[1]!);
     svgWidth = parseFloat(viewBox[2]!);
     svgHeight = parseFloat(viewBox[3]!);
   }
@@ -92,6 +99,9 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   const svgWidthMm = svgWidth / 100;  // Convert 1/100mm to mm
   const dpi = svgWidthMm > 0 ? (pixelWidth * 25.4) / svgWidthMm : 150;
 
+  // Extract georeferencing from OCAD CRS metadata
+  const georef = extractGeoRef(ocadFile, scale, renderScale, svgMinX, svgMinY, svgHeight);
+
   return {
     image,
     width: image.naturalWidth,
@@ -99,6 +109,7 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
     scale,
     dpi,
     arrayBuffer,
+    georef,
   };
 }
 
@@ -156,6 +167,45 @@ function injectRectangleObjects(svgEl: SVGElement, ocadFile: any): void {
     polygon.setAttribute('stroke-width', '30');
 
     targetGroup.appendChild(polygon);
+  }
+}
+
+/**
+ * Extract georeferencing data from OCAD CRS metadata.
+ *
+ * Uses ocadFile.getCrs() which returns { code, easting, northing, grivation, ... }.
+ * code=0 means no CRS → returns null.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractGeoRef(
+  ocadFile: any,
+  scale: number | null,
+  renderScale: number,
+  svgMinX: number,
+  svgMinY: number,
+  svgHeight: number,
+): GeoReference | null {
+  try {
+    if (!scale) return null;
+
+    const crs = ocadFile.getCrs?.();
+    if (!crs || crs.code === 0) return null;
+
+    return {
+      projDef: crs.code,
+      easting: crs.easting ?? 0,
+      northing: crs.northing ?? 0,
+      scale,
+      // OCAD grivation is in degrees — convert to radians
+      grivation: ((crs.grivation ?? 0) * Math.PI) / 180,
+      source: 'ocad',
+      paperUnit: 'hundredths-mm',
+      viewBoxOrigin: { x: svgMinX, y: svgMinY },
+      viewBoxHeight: svgHeight,
+      renderScale,
+    };
+  } catch {
+    return null;
   }
 }
 

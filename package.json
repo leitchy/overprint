@@ -1,6 +1,6 @@
 {
   "name": "overprint",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "private": true,
   "type": "module",
   "description": "Web-based orienteering course setting software",
@@ -28,6 +28,7 @@
     "ocad2geojson": "^2.1.20",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^5.5.207",
+    "proj4": "^2.20.4",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-konva": "^19.2.3",
@@ -40,6 +41,7 @@
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-basic-ssl": "^2.2.0",
     "@vitejs/plugin-react": "^6.0.1",
     "jsdom": "^29.0.0",
     "tailwindcss": "^4.2.1",

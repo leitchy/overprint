@@ -142,6 +142,13 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
           isPrintAreaDraggingRef.current = true;
           printAreaDragRef.current = { startX: pos.x, startY: pos.y, endX: pos.x, endY: pos.y };
         }
+      } else if (activeTool.type === 'calibrate') {
+        // Dispatch calibration tap with map-space coordinates
+        e.evt.preventDefault();
+        const pos = stage.getRelativePointerPosition();
+        if (pos) {
+          window.dispatchEvent(new CustomEvent('calibration-tap', { detail: { x: pos.x, y: pos.y } }));
+        }
       } else if (activeTool.type === 'addControl') {
         // Add control at click position (in map-image coordinates)
         e.evt.preventDefault();
