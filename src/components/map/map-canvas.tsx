@@ -68,6 +68,7 @@ export function MapCanvas() {
   const activeCourseId = useEventStore((s) => s.activeCourseId);
   const selectedControlId = useEventStore((s) => s.selectedControlId);
   const viewMode = useEventStore((s) => s.viewMode);
+  const visibleCourseIds = useEventStore((s) => s.visibleCourseIds);
 
   const {
     handleWheel,
@@ -272,8 +273,8 @@ export function MapCanvas() {
     [courses, activeCourseId],
   );
   const backgroundCourses = useMemo(
-    () => courses?.filter((c) => c.id !== activeCourseId) ?? [],
-    [courses, activeCourseId],
+    () => courses?.filter((c) => c.id !== activeCourseId && visibleCourseIds[c.id]) ?? [],
+    [courses, activeCourseId, visibleCourseIds],
   );
   const activeControlIds = useMemo(
     () => new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []),

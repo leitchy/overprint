@@ -57,6 +57,8 @@ interface EventState {
   activeCourseId: CourseId | null;
   selectedControlId: ControlId | null;
   viewMode: ViewMode;
+  /** Which background courses are visible on the canvas. Keyed by CourseId string. */
+  visibleCourseIds: Record<string, boolean>;
 }
 
 interface EventActions {
@@ -74,6 +76,11 @@ interface EventActions {
   setActiveCourse: (id: CourseId | null) => void;
   showAllControls: () => void;
   setSelectedControl: (id: ControlId | null) => void;
+
+  // Background course visibility
+  toggleCourseVisibility: (id: CourseId) => void;
+  showAllCourses: () => void;
+  hideAllCourses: () => void;
 
   // Control-to-course operations (public API)
   addControlToCourse: (position: MapPoint) => void;
@@ -148,6 +155,7 @@ export const useEventStore = create<EventState & EventActions>()(
       activeCourseId: null,
       selectedControlId: null,
       viewMode: 'course',
+      visibleCourseIds: {},
 
       newEvent: (name: string) => {
         set((state) => {
@@ -157,6 +165,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.activeCourseId = null;
           state.selectedControlId = null;
           state.viewMode = 'course';
+          state.visibleCourseIds = {};
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -249,6 +258,7 @@ export const useEventStore = create<EventState & EventActions>()(
           if (index === -1) return;
 
           state.event.courses.splice(index, 1);
+          delete state.visibleCourseIds[id];
 
           // TODO: orphan control cleanup — controls that belong only to this
           // course remain in the pool but don't affect display (just nextControlCode)
@@ -285,6 +295,37 @@ export const useEventStore = create<EventState & EventActions>()(
       setSelectedControl: (id: ControlId | null) => {
         set((state) => {
           state.selectedControlId = id;
+        });
+      },
+
+      // --- Background course visibility ---
+
+      toggleCourseVisibility: (id: CourseId) => {
+        set((state) => {
+          if (state.visibleCourseIds[id]) {
+            delete state.visibleCourseIds[id];
+          } else {
+            state.visibleCourseIds[id] = true;
+          }
+        });
+      },
+
+      showAllCourses: () => {
+        set((state) => {
+          if (!state.event) return;
+          const vis: Record<string, boolean> = {};
+          for (const course of state.event.courses) {
+            if (course.id !== state.activeCourseId) {
+              vis[course.id] = true;
+            }
+          }
+          state.visibleCourseIds = vis;
+        });
+      },
+
+      hideAllCourses: () => {
+        set((state) => {
+          state.visibleCourseIds = {};
         });
       },
 
@@ -488,6 +529,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.activeCourseId = event.courses[0]?.id ?? null;
           state.selectedControlId = null;
           state.viewMode = event.courses.length > 0 ? 'course' : 'allControls';
+          state.visibleCourseIds = {};
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
