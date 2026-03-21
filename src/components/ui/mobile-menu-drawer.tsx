@@ -54,7 +54,7 @@ export function MobileMenuDrawer({ open, onClose, sections }: MobileMenuDrawerPr
         <span className="text-[10px] text-gray-400 ml-1">v{__APP_VERSION__}</span>
       </div>
 
-      <nav className="py-2">
+      <nav className="flex-1 overflow-y-auto overscroll-contain py-2">
         {sections.map((section) => (
           <div key={section.label}>
             {/* Section header */}
