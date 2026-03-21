@@ -29,9 +29,10 @@ import { ControlContextMenu } from '@/components/course/control-context-menu';
 import { CenterReticle } from '@/components/map/center-reticle';
 import { NudgePad } from '@/components/ui/nudge-pad';
 import { GpsBridge } from '@/components/map/gps-bridge';
-import { GpsPositionLayer } from '@/components/map/gps-position-layer';
+import { GpsPositionIndicator } from '@/components/map/gps-position-layer';
 import { GpsStatusChip } from '@/components/map/gps-status-chip';
 import { CalibrationPanel } from '@/components/map/calibration-panel';
+import { GpsPlaceButton } from '@/components/map/gps-place-button';
 import { hapticConfirm } from '@/utils/haptics';
 
 // Module-level stage reference — allows toolbar and export utilities to access
@@ -495,9 +496,6 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* GPS position layer — blue dot + accuracy circle */}
-          <GpsPositionLayer />
-
           {/* Rubber-band preview line — multiply blend to match course layer */}
           <Layer ref={rubberBandLayerRef} listening={false}>
             <KonvaLine
@@ -514,16 +512,11 @@ export function MapCanvas() {
           {/* Special items layer — interactive annotations above the overprint */}
           <SpecialItemsLayer />
 
-          {/* Print boundary layer — non-interactive, only in course view */}
-          {viewMode === 'course' && (
-            <Layer listening={false}>
-              <PrintBoundary />
-            </Layer>
-          )}
-
-          {/* Print area drag preview — shown while dragging the setPrintArea tool */}
-          {printAreaPreview && (
-            <Layer listening={false}>
+          {/* Overlay layer — GPS dot, print boundary, print area preview (non-interactive) */}
+          <Layer listening={false}>
+            <GpsPositionIndicator />
+            {viewMode === 'course' && <PrintBoundary />}
+            {printAreaPreview && (
               <KonvaRect
                 x={printAreaPreview.minX}
                 y={printAreaPreview.minY}
@@ -535,8 +528,8 @@ export function MapCanvas() {
                 dash={[8, 4]}
                 perfectDrawEnabled={false}
               />
-            </Layer>
-          )}
+            )}
+          </Layer>
         </Stage>
       )}
       {/* GPS bridge (non-rendering) — connects GPS hook to geo-transform pipeline */}
@@ -600,6 +593,9 @@ export function MapCanvas() {
 
       {/* Nudge pad for fine positioning (touch only) */}
       {isTouch && selectedControlId && <NudgePad />}
+
+      {/* GPS "Place at GPS" button (tablet/desktop only — phone uses CenterReticle) */}
+      {breakpoint !== 'sm' && <GpsPlaceButton />}
 
       {/* Center-reticle placement mode (phone only) */}
       {breakpoint === 'sm' && isTouch && activeTool.type === 'addControl' && (

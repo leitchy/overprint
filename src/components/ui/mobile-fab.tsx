@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
+import { useGpsStore } from '@/stores/gps-store';
 import type { Tool } from '@/stores/tool-store';
 import { useT } from '@/i18n/use-t';
 
@@ -9,11 +10,15 @@ export function MobileFab() {
   const activeTool = useToolStore((s) => s.activeTool);
   const setTool = useToolStore((s) => s.setTool);
   const viewMode = useEventStore((s) => s.viewMode);
+  const gpsEnabled = useGpsStore((s) => s.enabled);
+  const gpsStatus = useGpsStore((s) => s.status);
   const [expanded, setExpanded] = useState(false);
+
+  const gpsActive = gpsEnabled && (gpsStatus === 'active' || gpsStatus === 'poor-signal');
 
   const tools: { tool: Tool; label: string; icon: string }[] = [
     { tool: { type: 'pan' }, label: t('toolPan'), icon: '✋' },
-    { tool: { type: 'addControl' }, label: t('toolAddControl'), icon: '⊕' },
+    { tool: { type: 'addControl' }, label: t('toolAddControl'), icon: gpsActive ? '📡' : '⊕' },
   ];
 
   const primaryTool = activeTool.type === 'addControl'
@@ -46,7 +51,11 @@ export function MobileFab() {
       <button
         onClick={handlePrimaryClick}
         onContextMenu={(e) => { e.preventDefault(); handleLongPress(); }}
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-600 text-white text-xl shadow-lg active:bg-violet-700"
+        className={`flex h-14 w-14 items-center justify-center rounded-full text-white text-xl shadow-lg ${
+          gpsActive && activeTool.type === 'addControl'
+            ? 'bg-blue-600 active:bg-blue-700'
+            : 'bg-violet-600 active:bg-violet-700'
+        }`}
         title={primaryTool.label}
         aria-label={primaryTool.label}
       >

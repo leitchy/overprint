@@ -35,7 +35,7 @@ Overprint is a side project / fun build. The goal is to bring orienteering cours
 - **CSS**: Tailwind CSS v4
 - **Package manager**: pnpm
 - **Testing**: Vitest + React Testing Library
-- **Deployment**: Static site (Cloudflare Pages, Vercel, or Netlify) — no backend needed
+- **Deployment**: Cloudflare Pages at overprint.com.au (static site, no backend)
 
 ## Project Structure
 
@@ -60,10 +60,12 @@ overprint/
 │   ├── core/
 │   │   ├── models/            # Domain types: Course, Control, Event, etc.
 │   │   ├── iof/               # IOF XML import/export, symbol database
-│   │   ├── files/             # Map file loaders (PDF, raster, OCAD), save/load
-│   │   ├── geometry/          # Distance calc, coordinate transforms, overprint dimensions
-│   │   └── export/            # PDF course map, description sheet, image export
-│   ├── stores/                # Zustand stores (event, map-image, viewport, tool, app-settings)
+│   │   ├── files/             # Map file loaders (PDF, raster, OCAD, OMAP), save/load
+│   │   ├── geometry/          # Distance calc, GPS↔pixel transforms, affine calibration, overprint dimensions
+│   │   ├── export/            # PDF course map, description sheet, image export
+│   │   └── descriptions/     # Canvas-based description renderer
+│   ├── stores/                # Zustand stores (event, map-image, viewport, tool, gps, app-settings)
+│   ├── hooks/                 # GPS position, wake lock, breakpoint, touch detection
 │   ├── i18n/                  # Translations, language lists, useT() hook
 │   └── utils/                 # Branded ID types
 ├── tests/
@@ -133,8 +135,17 @@ overprint/
 - Multi-page PDF export (all courses in one PDF, per-course page orientation)
 
 - Score course support (toggle, point values, no legs, sorted descriptions)
-
 - Batch export: each course as separate PDF (via directory picker or auto-download fallback)
+- Special items: text, lines, rectangles, description boxes, IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route)
+- Overprint blending (multiply blend on screen — dark map features show through purple)
+- PDF vector preservation (re-embed original PDF pages in export)
+- Leg bend points (draggable waypoints to route legs around obstacles)
+- Leg gaps (hide segments of legs through uncrossable features)
+- Duplicate course
+- Event audit / validation (missing descriptions, duplicate codes, short/long legs, unused controls)
+- All-controls view (view all controls across courses without selecting a course)
+- GPS-based control placement (georef extraction from OCAD/OMAP, proj4 transforms, manual calibration, GPS UI, auto-follow, wake lock)
+- Save with embedded map images (self-contained .overprint files)
 
 ## Getting Started
 

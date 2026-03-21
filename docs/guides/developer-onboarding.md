@@ -23,7 +23,7 @@ This guide walks you through setting up a local development environment, running
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Node.js | 20+ | Runtime |
-| npm | 10+ | Package manager (bundled with Node) |
+| pnpm | 9+ | Package manager |
 | Git | latest | Version control (SSH remotes only) |
 
 ### Installing prerequisites (macOS with MacPorts)
@@ -31,6 +31,9 @@ This guide walks you through setting up a local development environment, running
 ```bash
 # Node.js
 sudo port install nodejs20
+
+# pnpm
+sudo port install pnpm
 
 # Git (if not already installed)
 sudo port install git
@@ -56,13 +59,13 @@ git remote set-url origin git@github.com:leitchy/overprint.git
 ### Install dependencies
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### Verify installation
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 The app should open at `http://localhost:5173` (Vite default).
@@ -73,13 +76,13 @@ The app should open at `http://localhost:5173` (Vite default).
 
 ```bash
 # Development server with hot reload
-npm run dev
+pnpm dev
 
 # Production build
-npm run build
+pnpm build
 
 # Preview production build locally
-npm run preview
+pnpm preview
 ```
 
 ---
@@ -88,13 +91,13 @@ npm run preview
 
 ```bash
 # Unit tests
-npm test
+pnpm test
 
 # Watch mode
-npm run test:watch
+pnpm test:watch
 
 # Coverage report
-npm run test:coverage
+pnpm test:coverage
 ```
 
 ---
@@ -104,13 +107,13 @@ npm run test:coverage
 ### Linting
 
 ```bash
-npm run lint
+pnpm lint
 ```
 
 ### Type checking
 
 ```bash
-npm run typecheck
+pnpm typecheck
 ```
 
 ### Pre-commit workflow
@@ -118,7 +121,7 @@ npm run typecheck
 Before submitting changes, run all checks:
 
 ```bash
-npm run lint && npm run typecheck && npm test
+pnpm lint && pnpm typecheck && pnpm test
 ```
 
 ---
@@ -137,19 +140,18 @@ overprint/
 │   ├── core/
 │   │   ├── models/            # Domain types: Course, Control, Event
 │   │   ├── iof/               # IOF XML import/export
-│   │   ├── files/             # Map file loaders (PDF, raster, omap)
-│   │   └── geometry/          # Distance calc, coordinate transforms
+│   │   ├── files/             # Map file loaders (PDF, raster, OCAD, OMAP)
+│   │   ├── geometry/          # Geo-transform, affine-calibration, distance, overprint-dimensions
+│   │   └── export/            # PDF course map, description sheet, image export
+│   ├── hooks/                 # use-gps-position, use-wake-lock, use-breakpoint, use-is-touch
 │   ├── stores/                # Zustand stores
 │   └── utils/                 # Shared utilities
-├── public/
-│   └── symbols/               # IOF control description symbol SVGs
 ├── docs/
 │   ├── adrs/                  # Architecture Decision Records
 │   ├── guides/                # This guide, workflows
 │   ├── plans/                 # Implementation plans
 │   ├── reference/             # Standards, specs
-│   ├── research/              # Exploration, spikes
-│   └── archive/               # Superseded docs
+│   └── research/              # Exploration, spikes
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts

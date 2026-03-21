@@ -1,0 +1,15 @@
+{
+  "name": "Overprint Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    }
+  },
+  "postCreateCommand": "npm install -g @anthropic-ai/claude-code || true",
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "API key for Claude Code"
+    }
+  }
+}

@@ -3,6 +3,7 @@ import Konva from 'konva';
 import type { Stage as StageType } from 'konva/lib/Stage';
 import { useViewportStore, MIN_ZOOM, MAX_ZOOM } from '@/stores/viewport-store';
 import { useToolStore } from '@/stores/tool-store';
+import { useGpsStore } from '@/stores/gps-store';
 import { useEventStore } from '@/stores/event-store';
 import { generateSpecialItemId } from '@/utils/id';
 import { isEditableTarget } from '@/utils/dom';
@@ -297,6 +298,10 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
     if (isPanningRef.current) {
       isPanningRef.current = false;
       syncToStore();
+      // Suspend GPS auto-follow on manual pan
+      if (useGpsStore.getState().enabled && useGpsStore.getState().followMode) {
+        useGpsStore.getState().suspendFollow();
+      }
     }
   }, [syncToStore]);
 
@@ -385,6 +390,10 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
         });
       }
       gestureActiveRef.current = false;
+      // Suspend GPS auto-follow on manual touch pan
+      if (useGpsStore.getState().enabled && useGpsStore.getState().followMode) {
+        useGpsStore.getState().suspendFollow();
+      }
     } else if (remaining === 1) {
       // Went from pinch to single finger — reset pan start to current finger
       lastTouchDistRef.current = 0;

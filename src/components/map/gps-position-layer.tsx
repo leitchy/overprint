@@ -1,8 +1,8 @@
 /**
- * GPS Position Layer — Konva layer rendering the GPS blue dot and accuracy circle.
+ * GPS Position Indicator — Konva Group rendering the GPS blue dot and accuracy circle.
  *
- * Renders above the course overprint layer, below special items.
- * Non-interactive (listening={false}).
+ * Rendered as a Group (not a Layer) to avoid exceeding Konva's recommended
+ * 3-5 layer limit. Parent component places this in an appropriate layer.
  *
  * Visual elements:
  * - Accuracy circle: semi-transparent blue fill + blue stroke
@@ -11,7 +11,7 @@
  * - Not rendered when GPS is inactive or has no map point
  */
 
-import { Layer, Circle, Group } from 'react-konva';
+import { Circle, Group } from 'react-konva';
 import { useGpsStore } from '@/stores/gps-store';
 import type { GpsStatus } from '@/stores/gps-store';
 
@@ -33,7 +33,7 @@ function dotColor(status: GpsStatus): string {
   }
 }
 
-export function GpsPositionLayer() {
+export function GpsPositionIndicator() {
   const mapPoint = useGpsStore((s) => s.mapPoint);
   const accuracyRadiusPx = useGpsStore((s) => s.accuracyRadiusPx);
   const status = useGpsStore((s) => s.status);
@@ -44,33 +44,31 @@ export function GpsPositionLayer() {
   const showAccuracyCircle = accuracyRadiusPx !== null && accuracyRadiusPx > 0 && accuracyRadiusPx < 5000;
 
   return (
-    <Layer listening={false}>
-      <Group x={mapPoint.x} y={mapPoint.y}>
-        {/* Accuracy circle */}
-        {showAccuracyCircle && (
-          <Circle
-            radius={accuracyRadiusPx!}
-            fill={ACCURACY_FILL}
-            stroke={ACCURACY_STROKE}
-            strokeWidth={1.5}
-            perfectDrawEnabled={false}
-          />
-        )}
-
-        {/* White outer ring for contrast */}
+    <Group x={mapPoint.x} y={mapPoint.y}>
+      {/* Accuracy circle */}
+      {showAccuracyCircle && (
         <Circle
-          radius={7}
-          fill="white"
+          radius={accuracyRadiusPx!}
+          fill={ACCURACY_FILL}
+          stroke={ACCURACY_STROKE}
+          strokeWidth={1.5}
           perfectDrawEnabled={false}
         />
+      )}
 
-        {/* Coloured inner dot */}
-        <Circle
-          radius={5}
-          fill={dotColor(status)}
-          perfectDrawEnabled={false}
-        />
-      </Group>
-    </Layer>
+      {/* White outer ring for contrast */}
+      <Circle
+        radius={7}
+        fill="white"
+        perfectDrawEnabled={false}
+      />
+
+      {/* Coloured inner dot */}
+      <Circle
+        radius={5}
+        fill={dotColor(status)}
+        perfectDrawEnabled={false}
+      />
+    </Group>
   );
 }

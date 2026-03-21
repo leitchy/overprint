@@ -3,8 +3,9 @@
  * to the geo-transform pipeline and updates the GPS store with map coordinates.
  *
  * Also handles:
+ * - Auto-follow viewport panning (keeps GPS dot visible)
  * - Screen wake lock (keeps screen on during field use)
- * - Permission denied toast
+ * - Permission denied / signal lost toasts
  * - Warm-up guidance toast on first enable
  */
 
@@ -13,8 +14,12 @@ import { useGpsPosition } from '@/hooks/use-gps-position';
 import { useWakeLock } from '@/hooks/use-wake-lock';
 import { useGpsStore } from '@/stores/gps-store';
 import { useEventStore } from '@/stores/event-store';
+import { useViewportStore } from '@/stores/viewport-store';
 import { useToastStore } from '@/stores/toast-store';
 import { gpsToMapPixels } from '@/core/geometry/geo-transform';
+
+/** Seconds before auto-follow re-engages after manual pan */
+const FOLLOW_RESUME_DELAY = 8000;
 
 export function GpsBridge() {
   // Activate the GPS position hook (manages watchPosition lifecycle)
@@ -23,6 +28,9 @@ export function GpsBridge() {
   const position = useGpsStore((s) => s.position);
   const enabled = useGpsStore((s) => s.enabled);
   const status = useGpsStore((s) => s.status);
+  const mapPoint = useGpsStore((s) => s.mapPoint);
+  const followMode = useGpsStore((s) => s.followMode);
+  const followSuspendedAt = useGpsStore((s) => s.followSuspendedAt);
   const setMapPoint = useGpsStore((s) => s.setMapPoint);
   const georef = useEventStore((s) => s.event?.mapFile?.georef);
 
@@ -33,7 +41,7 @@ export function GpsBridge() {
   const prevStatusRef = useRef(status);
   const hasShownWarmupRef = useRef(false);
 
-  // Toast on permission denied
+  // --- Toast on status transitions ---
   useEffect(() => {
     if (status === 'denied' && prevStatusRef.current !== 'denied') {
       useToastStore.getState().addToast(
@@ -41,14 +49,31 @@ export function GpsBridge() {
         5000,
       );
     }
-    // Toast on first GPS signal lost
     if (status === 'lost' && prevStatusRef.current !== 'lost') {
       useToastStore.getState().addToast('GPS signal lost', 3000);
     }
     prevStatusRef.current = status;
   }, [status]);
 
-  // Warm-up toast on first enable
+  // --- Extended lost toast (60s without fix) ---
+  const lostTimestampRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (status === 'lost') {
+      if (!lostTimestampRef.current) lostTimestampRef.current = Date.now();
+      const timer = setTimeout(() => {
+        if (useGpsStore.getState().status === 'lost') {
+          useToastStore.getState().addToast(
+            'GPS signal lost. Move outside to restore.',
+            5000,
+          );
+        }
+      }, 60000);
+      return () => clearTimeout(timer);
+    }
+    lostTimestampRef.current = null;
+  }, [status]);
+
+  // --- Warm-up toast on first enable ---
   useEffect(() => {
     if (enabled && !hasShownWarmupRef.current) {
       hasShownWarmupRef.current = true;
@@ -62,34 +87,45 @@ export function GpsBridge() {
     }
   }, [enabled]);
 
-  // Transform GPS position to map pixels whenever position or georef changes
+  // --- 30s acquiring timeout toast ---
+  useEffect(() => {
+    if (status !== 'acquiring') return;
+    const timer = setTimeout(() => {
+      if (useGpsStore.getState().status === 'acquiring') {
+        useToastStore.getState().addToast(
+          'GPS signal not found. Are you indoors?',
+          5000,
+        );
+      }
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  // --- Transform GPS position to map pixels ---
   useEffect(() => {
     if (!enabled || !position || !georef) {
       setMapPoint(null, null);
       return;
     }
 
-    const mapPoint = gpsToMapPixels(position.lon, position.lat, georef);
-    if (!mapPoint) {
+    const mp = gpsToMapPixels(position.lon, position.lat, georef);
+    if (!mp) {
       setMapPoint(null, null);
       return;
     }
 
-    // Compute accuracy radius in map pixels.
-    // For calibration georef, use a second point offset by accuracy metres
-    // to determine the pixel scale. For OCAD/OMAP, use paper-unit math.
+    // Compute accuracy radius in map pixels
     let accuracyRadiusPx: number | null = null;
     if (georef.source === 'calibration') {
-      // Offset ~accuracy metres east and measure pixel distance
-      const degPerMetre = 1 / 111320; // approximate at mid-latitudes
+      const degPerMetre = 1 / 111320;
       const offsetPoint = gpsToMapPixels(
         position.lon + position.accuracy * degPerMetre,
         position.lat,
         georef,
       );
       if (offsetPoint) {
-        const dx = offsetPoint.x - mapPoint.x;
-        const dy = offsetPoint.y - mapPoint.y;
+        const dx = offsetPoint.x - mp.x;
+        const dy = offsetPoint.y - mp.y;
         accuracyRadiusPx = Math.sqrt(dx * dx + dy * dy);
       }
     } else {
@@ -98,9 +134,56 @@ export function GpsBridge() {
       accuracyRadiusPx = accuracyPaperUnits * georef.renderScale;
     }
 
-    setMapPoint(mapPoint, accuracyRadiusPx);
+    setMapPoint(mp, accuracyRadiusPx);
   }, [position, georef, enabled, setMapPoint]);
 
-  // This component renders nothing — it's a pure side-effect bridge
+  // --- Auto-follow: pan viewport to keep GPS dot visible ---
+  useEffect(() => {
+    if (!enabled || !mapPoint || !followMode) return;
+    if (status !== 'active' && status !== 'poor-signal' && status !== 'acquiring') return;
+
+    // Get the map container to know viewport size
+    const container = document.querySelector('[data-map-container]');
+    if (!container) return;
+    const { width: cw, height: ch } = container.getBoundingClientRect();
+    if (cw <= 0 || ch <= 0) return;
+
+    const { zoom, panX, panY } = useViewportStore.getState();
+
+    // Convert GPS map-space point to screen-space
+    const screenX = mapPoint.x * zoom + panX;
+    const screenY = mapPoint.y * zoom + panY;
+
+    // Check if GPS dot is within the viewport with 10% padding
+    const padX = cw * 0.1;
+    const padY = ch * 0.1;
+    const inView =
+      screenX >= padX && screenX <= cw - padX &&
+      screenY >= padY && screenY <= ch - padY;
+
+    if (!inView) {
+      // Pan to center the GPS dot
+      const newPanX = cw / 2 - mapPoint.x * zoom;
+      const newPanY = ch / 2 - mapPoint.y * zoom;
+      useViewportStore.getState().setPan(newPanX, newPanY);
+    }
+  }, [mapPoint, enabled, followMode, status]);
+
+  // --- Auto-resume follow after 8s timeout ---
+  useEffect(() => {
+    if (!enabled || followMode || followSuspendedAt === null) return;
+
+    const elapsed = Date.now() - followSuspendedAt;
+    const remaining = Math.max(0, FOLLOW_RESUME_DELAY - elapsed);
+
+    const timer = setTimeout(() => {
+      if (useGpsStore.getState().enabled && !useGpsStore.getState().followMode) {
+        useGpsStore.getState().resumeFollow();
+      }
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [enabled, followMode, followSuspendedAt]);
+
   return null;
 }

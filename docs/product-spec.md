@@ -46,79 +46,79 @@ A free, web-based orienteering course setting tool that runs on any device with 
 ### Phase 0 — Foundation
 **Goal**: Get a working canvas with a map and interactive controls.
 
-- [ ] Project scaffolding (Vite + React + TypeScript + Tailwind)
-- [ ] Map loading: raster images (PNG, JPEG)
-- [ ] Map loading: PDF (first page, rasterised to canvas)
-- [ ] Canvas: pan and zoom (mouse wheel, trackpad, touch pinch)
-- [ ] Canvas: display map at correct aspect ratio
-- [ ] Map scale configuration (user enters scale, e.g. 1:10000)
-- [ ] Data model: Event, Course, Control, Leg
+- [x] Project scaffolding (Vite + React + TypeScript + Tailwind)
+- [x] Map loading: raster images (PNG, JPEG)
+- [x] Map loading: PDF (first page, rasterised to canvas)
+- [x] Canvas: pan and zoom (mouse wheel, trackpad, touch pinch)
+- [x] Canvas: display map at correct aspect ratio
+- [x] Map scale configuration (user enters scale, e.g. 1:10000)
+- [x] Data model: Event, Course, Control, Leg
 
 ### Phase 1 — Core Course Setting
 **Goal**: Place controls, see courses, get descriptions.
 
-- [ ] Map loading: OCAD files via ocad2geojson (see ADR-010)
-- [ ] Control placement: click to add control at map position
-- [ ] Start triangle rendering
-- [ ] Finish circle rendering (double circle, IOF spec)
-- [ ] Connecting legs between consecutive controls
-- [ ] Control code assignment (auto-incrementing from 31)
-- [ ] Control number display on map (course sequence number)
-- [ ] Drag to reposition controls
-- [ ] Delete control
-- [ ] Insert control between existing controls
-- [ ] Reorder controls within a course
-- [ ] Course length calculation (using map scale + pixel distance)
-- [ ] Undo/redo (minimum 50 levels)
+- [x] Map loading: OCAD files via ocad2geojson (see ADR-010)
+- [x] Control placement: click to add control at map position
+- [x] Start triangle rendering
+- [x] Finish circle rendering (double circle, IOF spec)
+- [x] Connecting legs between consecutive controls
+- [x] Control code assignment (auto-incrementing from 31)
+- [x] Control number display on map (course sequence number)
+- [x] Drag to reposition controls
+- [x] Delete control
+- [x] Insert control between existing controls
+- [x] Reorder controls within a course
+- [x] Course length calculation (using map scale + pixel distance)
+- [x] Undo/redo (minimum 50 levels)
 
 ### Phase 2 — Control Descriptions
 **Goal**: IOF-standard description sheets.
 
-- [ ] IOF 2024 control description symbol set (SVG icons)
-- [ ] Description editor: click column to set symbol for each control
-- [ ] 8-column description sheet renderer
-- [ ] Auto-generated textual descriptions (English first)
-- [ ] Description sheet: display alongside map or as overlay
+- [x] IOF 2024 control description symbol set (SVG icons)
+- [x] Description editor: click column to set symbol for each control
+- [x] 8-column description sheet renderer
+- [x] Auto-generated textual descriptions (English first)
+- [x] Description sheet: display alongside map or as overlay
 
 ### Phase 3 — Import/Export
 **Goal**: Interoperate with the orienteering ecosystem.
 
-- [ ] Save/load event as Overprint JSON format
-- [ ] Export IOF XML v3 (course data for electronic punching systems)
-- [ ] Export PDF: map with purple course overprint
-- [ ] Export PDF: control description sheets
-- [ ] Export PNG/JPEG of course map
-- [ ] Import IOF XML v3 (load courses from other software)
+- [x] Save/load event as Overprint JSON format
+- [x] Export IOF XML v3 (course data for electronic punching systems)
+- [x] Export PDF: map with purple course overprint
+- [x] Export PDF: control description sheets
+- [x] Export PNG/JPEG of course map
+- [x] Import IOF XML v3 (load courses from other software)
 
 ### Phase 4 — Multi-Course & Advanced
 **Goal**: Handle real-world event complexity.
 
-- [ ] Multiple courses per event
-- [ ] Course list panel: switch between courses
-- [ ] Shared controls across courses (same code, synced descriptions)
-- [ ] All-controls map view
-- [ ] Score/rogaine courses (unordered, with point values)
-- [ ] Map exchange (butterfly loops, map swap points)
+- [x] Multiple courses per event
+- [x] Course list panel: switch between courses
+- [x] Shared controls across courses (same code, synced descriptions)
+- [x] All-controls map view
+- [x] Score/rogaine courses (unordered, with point values)
+- [x] Map exchange (butterfly loops, map swap points)
 - [ ] Relay variations / gaffling (basic)
 - [ ] Competitor load calculation per control/leg
 
 ### Phase 5 — Map Format Support
 **Goal**: Native orienteering map file support beyond OCAD.
 
-- [ ] OpenOrienteering Mapper (.omap) file loading — XML format, render map layers to canvas
-- [ ] OpenOrienteering Mapper (.xmap) support
+- [x] OpenOrienteering Mapper (.omap) file loading — XML format, render map layers to canvas
+- [x] OpenOrienteering Mapper (.xmap) support
 - [ ] Map layer visibility toggles
 
 ### Phase 6 — Polish & Community
 **Goal**: Production-ready for the orienteering community.
 
-- [ ] Localisation / i18n (at minimum: English, French, German, Swedish, Norwegian)
-- [ ] Textual control descriptions in multiple languages
-- [ ] Touch-optimised UI for tablets
-- [ ] Keyboard shortcuts
-- [ ] Print-specific layout and DPI handling
+- [x] Localisation / i18n (at minimum: English, French, German, Swedish, Norwegian)
+- [x] Textual control descriptions in multiple languages
+- [x] Touch-optimised UI for tablets
+- [x] Keyboard shortcuts
+- [x] Print-specific layout and DPI handling
 - [ ] Purple Pen .ppen file import (XML-based format)
-- [ ] Event audit / course validation checks
+- [x] Event audit / course validation checks
 - [ ] GPX export of control locations
 - [ ] Customise course appearance (circle size, line width, number size)
 - [ ] Dark mode
@@ -146,3 +146,23 @@ For a side project, "success" is:
 - Can load a real orienteering map and set a course on it
 - A course setter at a local event can use it instead of PurplePen for a simple event
 - At least one person who isn't Jim uses it and finds it useful
+
+## Beyond Original Phases — Additional Implemented Features
+
+The following features were implemented outside the original phase plan:
+
+- **GPS-based control placement** (v0.13.0) — place controls using device GPS coordinates
+- **Special items** — text labels, lines, rectangles, description boxes, IOF symbols as map annotations
+- **Leg bend points** — add intermediate waypoints to legs for routing around features
+- **Leg gaps** — boundary markers where legs cross map features
+- **Duplicate course** — clone an existing course as a starting point
+- **Overprint blending** — multiply blend mode on screen for realistic purple overlay
+- **PDF vector preservation** — re-embed original PDF pages in exported PDFs (no rasterisation loss)
+- **Save with embedded map images** — .overprint files include the map data for portability
+- **All-controls view** — see every control across all courses on the map at once
+- **Multi-page PDF export** — all courses in one PDF with per-course page orientation
+- **Batch PDF export** — each course as a separate PDF via directory picker or auto-download fallback
+- **Print settings** — page size, orientation, margins, print scale configuration
+- **Print boundary overlay** — optional on-canvas preview of the print page extent
+- **Crossing points** — X symbol for mandatory crossing locations
+- **Getting started guide** — in-app onboarding for new users

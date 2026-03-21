@@ -4,7 +4,7 @@
 
 Orienteering course setters work in the field with a phone/tablet. Currently Overprint has no way to use GPS to place controls — you must manually position them on the map. This feature lets the user walk to a feature, tap "Place here", and place a control at their real GPS position on the orienteering map. Requires georeferencing the map (auto from OCAD/OMAP, or manual calibration for raster/PDF).
 
-Full UX spec: [docs/gps-control-placement-ux-spec.md](docs/gps-control-placement-ux-spec.md)
+Full UX spec: [GPS Control Placement UX Spec](../gps-control-placement-ux-spec.md)
 
 ---
 
