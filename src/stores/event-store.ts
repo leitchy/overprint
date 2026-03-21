@@ -13,6 +13,7 @@ import type {
   MapPoint,
   OverprintEvent,
   SpecialItem,
+  LegGap,
 } from '@/core/models/types';
 import type { ControlId, CourseId, SpecialItemId } from '@/utils/id';
 import { generateCourseId } from '@/utils/id';
@@ -101,6 +102,15 @@ interface EventActions {
 
   // Number offset (per-course draggable number position)
   setNumberOffset: (courseId: CourseId, controlIndex: number, offset: MapPoint) => void;
+
+  // Leg bend points
+  setBendPoints: (courseId: CourseId, controlIndex: number, bendPoints: MapPoint[] | undefined) => void;
+  addBendPoint: (courseId: CourseId, controlIndex: number, insertAt: number, point: MapPoint) => void;
+  removeBendPoint: (courseId: CourseId, controlIndex: number, bendIndex: number) => void;
+
+  // Leg gaps
+  addLegGap: (courseId: CourseId, controlIndex: number, gap: LegGap) => void;
+  removeLegGap: (courseId: CourseId, controlIndex: number, gapIndex: number) => void;
 
   // Control type (crossing point / map exchange)
   setCourseControlType: (courseId: CourseId, controlIndex: number, type: CourseControlType) => void;
@@ -387,7 +397,16 @@ export const useEventStore = create<EventState & EventActions>()(
 
           const [removed] = course.controls.splice(fromIndex, 1);
           if (removed) {
+            // Clear bend/gap data on the moved control and its new neighbours
+            // (leg geometry is meaningless after reorder)
+            removed.bendPoints = undefined;
+            removed.legGaps = undefined;
             course.controls.splice(toIndex, 0, removed);
+            // Clear bends on the control now before the moved one
+            if (toIndex > 0) {
+              const prev = course.controls[toIndex - 1];
+              if (prev) { prev.bendPoints = undefined; prev.legGaps = undefined; }
+            }
             deriveCourseControlTypes(course.controls);
           }
         });
@@ -402,9 +421,41 @@ export const useEventStore = create<EventState & EventActions>()(
           // Duplicate guard — do not insert if control already in course
           if (course.controls.some((cc) => cc.controlId === controlId)) return;
 
+          // Split bend points if inserting on a bent leg
+          const prevCC = atIndex > 0 ? course.controls[atIndex - 1] : undefined;
+          if (prevCC?.bendPoints && prevCC.bendPoints.length > 0) {
+            // Find which segment the insertion is on (approximate: use midpoint split)
+            // The inserted control's position determines the split, but we don't have
+            // easy access to the geometry here. Use a simple heuristic: split bend
+            // points roughly in half for the two new legs.
+            const control = state.event.controls[controlId];
+            const prevControl = state.event.controls[prevCC.controlId];
+            if (control && prevControl) {
+              // Find the nearest bend point to the insertion position
+              const bends = prevCC.bendPoints;
+              let bestIdx = 0;
+              let bestDist = Infinity;
+              for (let i = 0; i < bends.length; i++) {
+                const dx = bends[i]!.x - control.position.x;
+                const dy = bends[i]!.y - control.position.y;
+                const d = dx * dx + dy * dy;
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+              }
+              // Split: bends before the nearest go to the first leg, bends after go to the new control's leg
+              const firstLegBends = bends.slice(0, bestIdx);
+              const secondLegBends = bends.slice(bestIdx + 1);
+              prevCC.bendPoints = firstLegBends.length > 0 ? firstLegBends : undefined;
+              // The new CourseControl will get the second leg's bends after insertion
+              var newCCBendPoints: MapPoint[] | undefined = secondLegBends.length > 0 ? secondLegBends : undefined;
+            }
+            // Drop leg gaps — too complex to remap
+            prevCC.legGaps = undefined;
+          }
+
           const courseControl: CourseControl = {
             controlId,
             type: 'control',
+            bendPoints: typeof newCCBendPoints !== 'undefined' ? newCCBendPoints : undefined,
           };
           course.controls.splice(atIndex, 0, courseControl);
           deriveCourseControlTypes(course.controls);
@@ -468,6 +519,63 @@ export const useEventStore = create<EventState & EventActions>()(
           if (cc) {
             cc.numberOffset = offset;
           }
+        });
+      },
+
+      // --- Leg bend points ---
+
+      setBendPoints: (courseId, controlIndex, bendPoints) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (cc) cc.bendPoints = bendPoints;
+        });
+      },
+
+      addBendPoint: (courseId, controlIndex, insertAt, point) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (!cc) return;
+          if (!cc.bendPoints) cc.bendPoints = [];
+          cc.bendPoints.splice(insertAt, 0, point);
+        });
+      },
+
+      removeBendPoint: (courseId, controlIndex, bendIndex) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (!cc?.bendPoints) return;
+          cc.bendPoints.splice(bendIndex, 1);
+          if (cc.bendPoints.length === 0) cc.bendPoints = undefined;
+        });
+      },
+
+      // --- Leg gaps ---
+
+      addLegGap: (courseId, controlIndex, gap) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (!cc) return;
+          if (!cc.legGaps) cc.legGaps = [];
+          cc.legGaps.push(gap);
+        });
+      },
+
+      removeLegGap: (courseId, controlIndex, gapIndex) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const cc = course?.controls[controlIndex];
+          if (!cc?.legGaps) return;
+          cc.legGaps.splice(gapIndex, 1);
+          if (cc.legGaps.length === 0) cc.legGaps = undefined;
         });
       },
 
