@@ -379,7 +379,7 @@ export function MapCanvas() {
             {viewMode === 'allControls' ? (
               /* All-controls view: all controls (no legs) + active course legs */
               <>
-                {/* Active course legs rendered first (behind) in grey */}
+                {/* Active course legs rendered first (behind controls) in purple */}
                 {activeCourse && dimensions && controls && (
                   <CourseRenderer
                     course={activeCourse}
@@ -389,7 +389,6 @@ export function MapCanvas() {
                     draggable={false}
                     allowLegInsert={false}
                     showNumbers={false}
-                    color="#C0C0C0"
                     onSelectControl={() => {}}
                     onDragControlEnd={() => {}}
                   />
