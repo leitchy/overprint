@@ -9,7 +9,8 @@
  * with correct colors) — not full ISOM symbol rendering. Good enough for
  * course setting.
  *
- * Coordinates are in 1/1000mm on paper with Y-up. We negate Y for SVG.
+ * Coordinates are in 1/1000mm on paper with Y-down (Qt convention, origin top-left).
+ * Both OMAP and SVG use Y-down, so no Y negation is needed.
  * RGB color values are floats 0.0–1.0 in the XML.
  */
 
@@ -304,7 +305,7 @@ function extractObjects(doc: Document): OmapObject[] {
         for (const coordEl of coordEls) {
           coords.push({
             x: numAttr(coordEl, 'x', 0),
-            y: -numAttr(coordEl, 'y', 0), // Negate Y: OOM Y-up → SVG Y-down
+            y: numAttr(coordEl, 'y', 0), // OMAP and SVG both use Y-down
           });
         }
       } else {
@@ -320,7 +321,7 @@ function extractObjects(doc: Document): OmapObject[] {
               const x = Number(parts[0]);
               const y = Number(parts[1]);
               if (Number.isFinite(x) && Number.isFinite(y)) {
-                coords.push({ x, y: -y }); // Negate Y
+                coords.push({ x, y }); // OMAP and SVG both use Y-down
               }
             }
           }
