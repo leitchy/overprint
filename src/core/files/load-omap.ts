@@ -477,7 +477,7 @@ function buildSvg(
     const escaped = obj.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Font properties from symbol
-    const fontFamily = sym.fontFamily ? `"${sym.fontFamily}", sans-serif` : 'sans-serif';
+    const fontFamily = sym.fontFamily ? `'${sym.fontFamily}', sans-serif` : 'sans-serif';
     const fontWeight = sym.fontBold ? 'bold' : 'normal';
     const fontStyle = sym.fontItalic ? 'italic' : 'normal';
 
