@@ -142,25 +142,27 @@ export function CourseList() {
 
       {/* Thin separator + visibility bulk controls */}
       {courses.length > 1 && (
-        <div className="mx-3 flex flex-wrap items-center justify-end gap-x-1 border-t border-gray-100 py-1 max-lg:py-1.5">
+        <div className="mx-3 flex flex-wrap items-center justify-end gap-x-1.5 border-t border-gray-100 py-1 max-lg:py-1.5">
+          {/* Toggle — pill style, stays highlighted when active */}
           <button
-            className={`rounded px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1 ${
-              showNonCurrentControls ? 'text-pink-500 font-medium' : 'text-gray-400 hover:text-gray-600'
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2.5 max-lg:py-1 ${
+              showNonCurrentControls
+                ? 'bg-violet-100 text-violet-700 font-medium'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
             }`}
             onClick={() => toggleNonCurrentControls()}
           >
             {t('showAllControls')}
           </button>
-          <span className="text-[10px] text-gray-300">&middot;</span>
+          {/* One-shot actions — plain text links */}
           <button
-            className="rounded px-1.5 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1"
+            className="text-[10px] text-gray-400 underline decoration-gray-300 hover:text-gray-600 hover:decoration-gray-400 focus:outline-none max-lg:text-xs"
             onClick={() => showAllCourses()}
           >
             {t('showAllCourses')}
           </button>
-          <span className="text-[10px] text-gray-300">&middot;</span>
           <button
-            className="rounded px-1.5 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1"
+            className="text-[10px] text-gray-400 underline decoration-gray-300 hover:text-gray-600 hover:decoration-gray-400 focus:outline-none max-lg:text-xs"
             onClick={() => hideAllCourses()}
           >
             {t('hideAll')}
