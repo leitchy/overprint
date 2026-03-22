@@ -17,7 +17,7 @@ import { ToastContainer } from '@/components/ui/toast';
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
+import { MAP_FILE_ACCEPT } from '@/utils/platform';
 
 /** Return true if the filename has the given extension (case-insensitive). */
 function hasExtension(name: string, ext: string): boolean {
@@ -258,7 +258,7 @@ export function App() {
       <input
         ref={mapFileInputRef}
         type="file"
-        accept={ACCEPTED_FILE_TYPES}
+        accept={MAP_FILE_ACCEPT}
         onChange={handleMapFileInputChange}
         className="hidden"
       />

@@ -25,7 +25,7 @@ import { AuditModal } from './audit-modal';
 import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
 
-const ACCEPTED_FILE_TYPES = 'image/png,image/jpeg,image/gif,image/tiff,application/pdf,.ocd,.omap,.xmap';
+import { MAP_FILE_ACCEPT } from '@/utils/platform';
 
 /** Undo/Redo buttons for the compact toolbar — subscribes to temporal state via event store. */
 function UndoRedoButtons() {
@@ -781,7 +781,7 @@ export function Toolbar() {
         ref={fileInputRef}
         data-load-map
         type="file"
-        accept={ACCEPTED_FILE_TYPES}
+        accept={MAP_FILE_ACCEPT}
         onChange={handleFileSelected}
         className="hidden"
       />
