@@ -186,18 +186,33 @@ export function CoursePanel({
               </div>
             )}
 
-            {/* Show finish toggle — only when viewing a non-final part */}
-            {isMultiPart && courseId && activePartIndex !== null && activePartIndex < totalParts - 1 && (
-              <label className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-500 max-lg:text-xs max-lg:py-1">
-                <input
-                  type="checkbox"
-                  className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
-                  checked={course?.partOptions?.[activePartIndex]?.showFinish ?? false}
-                  onChange={(e) => setPartShowFinish(courseId, activePartIndex, e.target.checked)}
-                />
-                {t('showFinishOnPart')}
-              </label>
-            )}
+            {/* Finish circle radio — which part shows the finish? Default = last part.
+                Hidden on "All Parts". Checked+disabled on the owning part. Clickable on others. */}
+            {isMultiPart && courseId && activePartIndex !== null && (() => {
+              // Which part currently owns the finish? Default = last part.
+              const finishPart = course?.partOptions?.findIndex((po) => po?.showFinish) ?? -1;
+              const ownerPart = finishPart >= 0 ? finishPart : totalParts - 1;
+              const isOwner = activePartIndex === ownerPart;
+              return (
+                <label className={`mt-1 flex items-center gap-1.5 text-[10px] max-lg:text-xs max-lg:py-1 ${
+                  isOwner ? 'text-violet-600' : 'text-gray-500 cursor-pointer'
+                }`}>
+                  <input
+                    type="checkbox"
+                    className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
+                    checked={isOwner}
+                    disabled={isOwner}
+                    onChange={() => {
+                      // Move finish to this part — clear all others
+                      for (let i = 0; i < totalParts; i++) {
+                        setPartShowFinish(courseId, i, i === activePartIndex);
+                      }
+                    }}
+                  />
+                  {t('showFinishOnPart')}
+                </label>
+              );
+            })()}
           </div>
 
           {/* Control list */}
