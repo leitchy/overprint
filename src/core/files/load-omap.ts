@@ -38,6 +38,14 @@ interface OmapSymbol {
   hidden: boolean;
   /** Area uses pattern fill (no solid inner_color) — render semi-transparent */
   patternFill: boolean;
+  /** Text symbol: font family name (e.g., "Arial", "Calibri") */
+  fontFamily?: string;
+  /** Text symbol: bold flag */
+  fontBold?: boolean;
+  /** Text symbol: italic flag */
+  fontItalic?: boolean;
+  /** Text symbol: line spacing multiplier (e.g., 1.0) */
+  lineSpacing?: number;
 }
 
 interface OmapCoord {
@@ -51,6 +59,10 @@ interface OmapObject {
   symbolId: number;
   coords: OmapCoord[];
   text?: string;
+  /** Text horizontal alignment: 0=left, 1=center, 2=right */
+  hAlign?: number;
+  /** Text vertical alignment: 0=top, 1=middle, 2=baseline */
+  vAlign?: number;
 }
 
 import type { GeoReference } from '@/core/models/types';
@@ -205,6 +217,10 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let fillColorIndex = -1;
     let fontSize = 4000;
     let patternFill = false;
+    let textFontFamily: string | undefined;
+    let textFontBold = false;
+    let textFontItalic = false;
+    let textLineSpacing = 1;
 
     if (type === 2) {
       // Line symbol
@@ -248,9 +264,17 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       const textSym = q(el, 'text_symbol');
       if (textSym) {
         const textEl = q(textSym, 'text');
-        if (textEl) colorIndex = numAttr(textEl, 'color', -1);
+        if (textEl) {
+          colorIndex = numAttr(textEl, 'color', -1);
+          textLineSpacing = numAttr(textEl, 'line_spacing', 1);
+        }
         const fontEl = q(textSym, 'font');
-        if (fontEl) fontSize = numAttr(fontEl, 'size', 4000);
+        if (fontEl) {
+          fontSize = numAttr(fontEl, 'size', 4000);
+          textFontFamily = fontEl.getAttribute('family') ?? undefined;
+          textFontBold = fontEl.getAttribute('bold') === 'true';
+          textFontItalic = fontEl.getAttribute('italic') === 'true';
+        }
       }
     } else if (type === 16) {
       // Combined symbol — extract first line and first area sub-symbol
@@ -270,7 +294,11 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       }
     }
 
-    symbols.set(id, { id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patternFill });
+    symbols.set(id, {
+      id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patternFill,
+      fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
+      lineSpacing: textLineSpacing,
+    });
   }
 
   return symbols;
@@ -331,12 +359,16 @@ function extractObjects(doc: Document): OmapObject[] {
       if (coords.length === 0) continue;
 
       let text: string | undefined;
+      let hAlign: number | undefined;
+      let vAlign: number | undefined;
       if (type === 4) {
         const textEl = q(objEl, 'text');
         if (textEl) text = textEl.textContent ?? undefined;
+        hAlign = numAttr(objEl, 'h_align', 0);
+        vAlign = numAttr(objEl, 'v_align', 0);
       }
 
-      objects.push({ type, symbolId, coords, text });
+      objects.push({ type, symbolId, coords, text, hAlign, vAlign });
     }
   }
 
@@ -352,6 +384,27 @@ function colorStr(colors: Map<number, OmapColor>, index: number): string {
   const c = colors.get(index);
   if (!c) return 'rgb(0,0,0)'; // Unknown color → black
   return `rgb(${c.r},${c.g},${c.b})`;
+}
+
+/** Measure text width in pixels using an offscreen canvas context.
+ *  Uses the same fallback font that the SVG data URL will use,
+ *  so the measured width matches the rendered width exactly. */
+let _measureCtx: CanvasRenderingContext2D | null = null;
+function measureTextWidth(
+  text: string,
+  fontFamily: string,
+  fontSize: number,       // in OMAP units (1/1000mm)
+  fontWeight: string,
+  fontStyle: string,
+  renderScale: number,    // pixels per OMAP unit
+): number {
+  const pixelSize = fontSize * renderScale;
+  if (!_measureCtx) {
+    _measureCtx = document.createElement('canvas').getContext('2d');
+  }
+  if (!_measureCtx) return 0;
+  _measureCtx.font = `${fontStyle} ${fontWeight} ${pixelSize}px ${fontFamily}`;
+  return _measureCtx.measureText(text).width;
 }
 
 function buildSvg(
@@ -436,6 +489,10 @@ function buildSvg(
     parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
   }
 
+  // Compute renderScale for text measurement (same formula as the caller)
+  const longestSide = Math.max(vbW, vbH);
+  const svgRenderScale = longestSide > 0 ? 4000 / longestSide : 1;
+
   // Text
   for (const obj of texts) {
     if (!obj.text) continue;
@@ -443,7 +500,50 @@ function buildSvg(
     const fill = colorStr(colors, sym.colorIndex);
     const c = obj.coords[0]!;
     const escaped = obj.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    parts.push(`<text x="${c.x}" y="${c.y}" fill="${fill}" font-family="sans-serif" font-size="${sym.fontSize}">${escaped}</text>`);
+
+    // Font properties from symbol
+    const fontFamily = sym.fontFamily ? `'${sym.fontFamily}', sans-serif` : 'sans-serif';
+    const fontWeight = sym.fontBold ? 'bold' : 'normal';
+    const fontStyle = sym.fontItalic ? 'italic' : 'normal';
+
+    // Vertical alignment
+    const baseline = obj.vAlign === 2 ? 'auto' : obj.vAlign === 1 ? 'central' : 'hanging';
+
+    const lines = escaped.split('\n').filter(l => l.trim() !== '');
+    const lineHeight = sym.lineSpacing ?? 1;
+
+    // For center/right alignment, pre-measure text and adjust X coordinate.
+    // SVG text-anchor depends on the rendered font width, but data URL SVGs
+    // can't access system fonts. By measuring with canvas (same fallback font)
+    // and using text-anchor="start" with adjusted X, centering is exact.
+    const needsAdjust = obj.hAlign === 1 || obj.hAlign === 2;
+
+    const emitLine = (lineText: string, baseX: number): { x: number; anchor: string } => {
+      if (!needsAdjust) return { x: baseX, anchor: 'start' };
+      const measuredPx = measureTextWidth(lineText, fontFamily, sym.fontSize, fontWeight, fontStyle, svgRenderScale);
+      const measuredUnits = measuredPx / svgRenderScale;
+      if (obj.hAlign === 1) return { x: baseX - measuredUnits / 2, anchor: 'start' };
+      return { x: baseX - measuredUnits, anchor: 'start' }; // right
+    };
+
+    const attrs = (anchor: string) =>
+      `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"`;
+
+    if (lines.length <= 1) {
+      const lineText = lines[0] ?? '';
+      const adj = emitLine(lineText, c.x);
+      parts.push(`<text x="${adj.x}" y="${c.y}" ${attrs(adj.anchor)}>${lineText}</text>`);
+    } else {
+      // For multi-line, adjust each line independently
+      const firstAdj = emitLine(lines[0]!, c.x);
+      parts.push(`<text x="${firstAdj.x}" y="${c.y}" ${attrs(firstAdj.anchor)}>`);
+      for (let i = 0; i < lines.length; i++) {
+        const adj = emitLine(lines[i]!, c.x);
+        const dy = i === 0 ? '0' : `${lineHeight}em`;
+        parts.push(`<tspan x="${adj.x}" dy="${dy}">${lines[i]}</tspan>`);
+      }
+      parts.push('</text>');
+    }
   }
 
   parts.push('</svg>');

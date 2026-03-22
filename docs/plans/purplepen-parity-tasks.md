@@ -50,6 +50,7 @@ Last updated: 2026-03-22
 |---|---|---|---|---|---|
 | 8 | Overprint blending (PDF/CMYK) | XL | 4 | not started | CMYK overprint in exported PDFs — requires pdf-lib colour space work |
 | 24 | CMYK colour space in PDF | L | 2 | not started | Professional print shop support. Depends on #8 |
+| 41 | OMAP text rendering quality | M | 3 | not started | Font matching, CMYK colour accuracy, multi-line text wrapping, text positioning. Currently title/scale/credit text from OMAP maps renders with wrong size, colour, and line breaks |
 
 ---
 
@@ -72,6 +73,9 @@ Last updated: 2026-03-22
 | 31 | Dark mode | M | 2 | not started | Theme toggle — canvas + UI |
 | 37 | Map auto-dim manual control | S | 3 | not started | Checkbox + slider in appearance UI to dim map behind overprint |
 | 40 | Display colour configuration | S | 3 | not started | Collapsible "Appearance" section in Page Setup: active course, background course, and non-current control colours. Currently hardcoded (#C850A0 purple, #C0C0C0 grey, #E8A0D0 pink) |
+| 46 | ISSprOM 2019 overprint dimensions | S | 3 | not started | Sprint maps use different circle/finish sizes (6.35mm vs 5.35mm). Select constants based on map standard. PP source: NormalCourseAppearance |
+| 47 | Course appearance scaling | S | 2 | not started | Multipliers for circle size, line width, number height (PP pattern: CourseAppearance). Allows fine-tuning without changing base standard |
+| 48 | Control circle gaps | M | 2 | not started | User-placed angle-based gaps in control circles. PP model: CircleGap with startAngle/stopAngle per control per scale |
 
 ---
 
@@ -98,6 +102,10 @@ Last updated: 2026-03-22
 |---|---|---|---|---|---|
 | 12 | Competitor load analysis | M | 3 | not started | Count expected visitors per control/leg. Table or heat-map |
 | 38 | Special item properties panel | M | 3 | not started | Edit font, colour, size, course assignment for selected items |
+| 42 | Auto number placement | M | 4 | not started | PP algorithm: 32 angles around circle, maximin distance to nearby objects (legs, circles, numbers). Two-pass: custom first, then auto |
+| 43 | Nearby controls validation | S | 4 | not started | Flag control pairs < 100m apart, especially same Column D symbol (confusable). Add to event audit |
+| 44 | Both-direction legs validation | S | 3 | not started | Warn when two courses run the same leg in opposite directions. Add to event audit |
+| 45 | Missing description E-column validation | S | 2 | not started | Warn when Column D has junction/between but Column E is empty |
 
 ---
 
@@ -147,10 +155,13 @@ Last updated: 2026-03-22
 Highest value items not yet done, ordered by value/effort ratio:
 
 1. **#2 Auto-save** — S effort, value 4. Prevents data loss, essential for field use
-2. **#5 GPX export** — S effort, value 3. Trivial now with georef pipeline
-3. **#3 Bulk code renumbering** — S effort, value 3
-4. **#13 All controls cross-reference** — S effort, value 3
-5. **#37 Map auto-dim** — S effort, value 3
-6. **#30 PWA / offline mode** — M effort, value 3. Critical for field use alongside GPS
-7. **#4 Context menus** — M effort, value 3
-8. **#8 CMYK overprint (PDF)** — XL effort, value 4. Biggest remaining print quality gap
+2. **#42 Auto number placement** — M effort, value 4. PP's 32-angle maximin algorithm
+3. **#43 Nearby controls validation** — S effort, value 4. Flag < 100m pairs with same symbol
+4. **#5 GPX export** — S effort, value 3. Trivial now with georef pipeline
+5. **#3 Bulk code renumbering** — S effort, value 3
+6. **#46 ISSprOM 2019 dimensions** — S effort, value 3. Correct sprint overprint sizes
+7. **#13 All controls cross-reference** — S effort, value 3
+8. **#37 Map auto-dim** — S effort, value 3
+9. **#30 PWA / offline mode** — M effort, value 3. Critical for field use alongside GPS
+10. **#4 Context menus** — M effort, value 3
+11. **#8 CMYK overprint (PDF)** — XL effort, value 4. Biggest remaining print quality gap

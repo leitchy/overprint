@@ -69,6 +69,19 @@ function mmToPx(mmValue: number, dpi: number): number {
   return (mmValue / 25.4) * dpi;
 }
 
+/** Convert PurplePen CMYK colour string "C,M,Y,K" (0-1 each) to hex. */
+function cmykToHex(cmykStr: string): string {
+  const parts = cmykStr.split(',').map(Number);
+  const c = parts[0] ?? 0;
+  const m = parts[1] ?? 0;
+  const y = parts[2] ?? 0;
+  const k = parts[3] ?? 0;
+  const r = Math.round(255 * (1 - c) * (1 - k));
+  const g = Math.round(255 * (1 - m) * (1 - k));
+  const b = Math.round(255 * (1 - y) * (1 - k));
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
 /** ViewBox rendering parameters for OCAD/OMAP maps. */
 export interface ViewBoxParams {
   viewBox: { x: number; y: number; width: number; height: number };
@@ -550,7 +563,33 @@ export function importPpen(
       }
       case 'text': {
         const text = getTextContent(soEl, 'text') || getAttr(soEl, 'text') || '';
-        specialItems.push({ ...baseProps, type: 'text', text, fontSize: 14, fontWeight: 'normal' });
+        // Derive font size from bounding box height (two locations).
+        // Store raw mm value — converted to pixels during re-projection or
+        // immediately if map is loaded. Use mmToPx with the current DPI.
+        let fontSize = 14; // fallback px
+        if (loc1) {
+          const boxHeightMm = Math.abs(getFloatAttr(loc1, 'y') - getFloatAttr(loc0, 'y'));
+          // In identity-mm mode (dpi=25.4), this stores mm directly.
+          // In real mode, converts to pixels immediately.
+          fontSize = Math.max(mmToPx(boxHeightMm, dpi), 4);
+        }
+        // Parse font properties
+        const fontEl = getChild(soEl, 'font');
+        const isBold = fontEl ? getAttr(fontEl, 'bold') === 'true' : false;
+        const isItalic = fontEl ? getAttr(fontEl, 'italic') === 'true' : false;
+        // Parse CMYK appearance colour
+        const appearEl = getChild(soEl, 'appearance');
+        const colorStr = appearEl ? getAttr(appearEl, 'color') : null;
+        const itemColor = colorStr ? cmykToHex(colorStr) : undefined;
+        specialItems.push({
+          ...baseProps,
+          type: 'text',
+          text,
+          fontSize,
+          fontWeight: isBold ? 'bold' : 'normal',
+          fontStyle: isItalic ? 'italic' : 'normal',
+          color: itemColor,
+        });
         break;
       }
       case 'line':

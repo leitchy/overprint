@@ -44,6 +44,7 @@ export const LegLine = memo(function LegLine({
   // Touch: pending bend position (tap leg → show "add bend" indicator, tap again to confirm)
   const [pendingBend, setPendingBend] = useState<{ pos: MapPoint; segIdx: number } | null>(null);
 
+  // All hooks MUST be above the early return to comply with Rules of Hooks
   const handleConfirmBend = useCallback(() => {
     if (pendingBend && onAddBendPoint) {
       onAddBendPoint(pendingBend.pos, pendingBend.segIdx);
