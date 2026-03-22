@@ -79,8 +79,20 @@ export function reprojectPpenCoordinates(
     },
   }));
 
+  // Scale factor for scalar values (fontSize) — in identity-mm mode values
+  // are stored as mm, so we need to convert to pixels using the real DPI.
+  const scalarScale = dpi / 25.4; // identity DPI was 25.4 (1mm=1px)
+
   // Re-project special items
   const specialItems = event.specialItems.map(item => {
+    // Scale fontSize on text items
+    if (item.type === 'text') {
+      return {
+        ...item,
+        position: rp(item.position),
+        fontSize: item.fontSize * scalarScale,
+      } as typeof item;
+    }
     const base = { ...item, position: rp(item.position) };
     if ('endPosition' in item && item.endPosition) {
       return { ...base, endPosition: rp(item.endPosition) } as typeof item;

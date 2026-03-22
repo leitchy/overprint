@@ -563,13 +563,15 @@ export function importPpen(
       }
       case 'text': {
         const text = getTextContent(soEl, 'text') || getAttr(soEl, 'text') || '';
-        // Derive font size from bounding box height (two locations define the text box).
-        // Use raw mm height and convert via DPI — the viewBox conversion on positions
-        // cancels out in the difference, so we use mmToPx directly.
-        let fontSize = 14; // fallback
+        // Derive font size from bounding box height (two locations).
+        // Store raw mm value — converted to pixels during re-projection or
+        // immediately if map is loaded. Use mmToPx with the current DPI.
+        let fontSize = 14; // fallback px
         if (loc1) {
           const boxHeightMm = Math.abs(getFloatAttr(loc1, 'y') - getFloatAttr(loc0, 'y'));
-          fontSize = Math.max(mmToPx(boxHeightMm, dpi), 4); // minimum 4px
+          // In identity-mm mode (dpi=25.4), this stores mm directly.
+          // In real mode, converts to pixels immediately.
+          fontSize = Math.max(mmToPx(boxHeightMm, dpi), 4);
         }
         // Parse font properties
         const fontEl = getChild(soEl, 'font');
