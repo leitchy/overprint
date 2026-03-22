@@ -191,6 +191,8 @@ export const ControlShape = memo(function ControlShape({
           y={numY + numberSize * 1.4}
           fontSize={numberSize}
           fill={color}
+          stroke="#FFFFFF"
+          strokeWidth={2}
           listening={false}
         />
       )}
@@ -204,8 +206,8 @@ export const ControlShape = memo(function ControlShape({
           fontSize={numberSize}
           fill={color}
           fontStyle="bold"
-          stroke={numberOutline ? '#FFFFFF' : undefined}
-          strokeWidth={numberOutline ? 2 : undefined}
+          stroke="#FFFFFF"
+          strokeWidth={numberOutline ? 3 : 2}
           draggable={!!onNumberDragEnd}
           listening={!!onNumberDragEnd}
           onDragStart={(e) => {
