@@ -24,6 +24,8 @@ export function CourseList() {
   const toggleCourseVisibility = useEventStore((s) => s.toggleCourseVisibility);
   const showAllCourses = useEventStore((s) => s.showAllCourses);
   const hideAllCourses = useEventStore((s) => s.hideAllCourses);
+  const showNonCurrentControls = useEventStore((s) => s.showNonCurrentControls);
+  const toggleNonCurrentControls = useEventStore((s) => s.toggleNonCurrentControls);
 
   const [renamingId, setRenamingId] = useState<CourseId | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -140,12 +142,21 @@ export function CourseList() {
 
       {/* Thin separator + visibility bulk controls */}
       {courses.length > 1 && (
-        <div className="mx-3 flex items-center justify-end gap-1 border-t border-gray-100 py-1 max-lg:py-1.5">
+        <div className="mx-3 flex flex-wrap items-center justify-end gap-x-1 border-t border-gray-100 py-1 max-lg:py-1.5">
+          <button
+            className={`rounded px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1 ${
+              showNonCurrentControls ? 'text-pink-500 font-medium' : 'text-gray-400 hover:text-gray-600'
+            }`}
+            onClick={() => toggleNonCurrentControls()}
+          >
+            {t('showAllControls')}
+          </button>
+          <span className="text-[10px] text-gray-300">&middot;</span>
           <button
             className="rounded px-1.5 py-0.5 text-[10px] text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2 max-lg:py-1"
             onClick={() => showAllCourses()}
           >
-            {t('showAll')}
+            {t('showAllCourses')}
           </button>
           <span className="text-[10px] text-gray-300">&middot;</span>
           <button

@@ -59,6 +59,8 @@ interface EventState {
   viewMode: ViewMode;
   /** Which background courses are visible on the canvas. Keyed by CourseId string. */
   visibleCourseIds: Record<string, boolean>;
+  /** Show non-current controls (pink, no legs) when a course is selected */
+  showNonCurrentControls: boolean;
 }
 
 interface EventActions {
@@ -81,6 +83,7 @@ interface EventActions {
   toggleCourseVisibility: (id: CourseId) => void;
   showAllCourses: () => void;
   hideAllCourses: () => void;
+  toggleNonCurrentControls: () => void;
 
   // Control-to-course operations (public API)
   addControlToCourse: (position: MapPoint) => void;
@@ -156,6 +159,7 @@ export const useEventStore = create<EventState & EventActions>()(
       selectedControlId: null,
       viewMode: 'course',
       visibleCourseIds: {},
+      showNonCurrentControls: false,
 
       newEvent: (name: string) => {
         set((state) => {
@@ -166,6 +170,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.selectedControlId = null;
           state.viewMode = 'course';
           state.visibleCourseIds = {};
+          state.showNonCurrentControls = false;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -288,6 +293,7 @@ export const useEventStore = create<EventState & EventActions>()(
       showAllControls: () => {
         set((state) => {
           state.viewMode = 'allControls';
+          state.activeCourseId = null;
           state.selectedControlId = null;
         });
       },
@@ -326,6 +332,13 @@ export const useEventStore = create<EventState & EventActions>()(
       hideAllCourses: () => {
         set((state) => {
           state.visibleCourseIds = {};
+          state.showNonCurrentControls = false;
+        });
+      },
+
+      toggleNonCurrentControls: () => {
+        set((state) => {
+          state.showNonCurrentControls = !state.showNonCurrentControls;
         });
       },
 
@@ -530,6 +543,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.selectedControlId = null;
           state.viewMode = event.courses.length > 0 ? 'course' : 'allControls';
           state.visibleCourseIds = {};
+          state.showNonCurrentControls = false;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
