@@ -186,24 +186,17 @@ export function CoursePanel({
               </div>
             )}
 
-            {/* Show finish checkboxes — one per non-final part */}
-            {isMultiPart && courseId && (
-              <div className="mt-1 flex flex-col gap-0.5">
-                {Array.from({ length: totalParts - 1 }, (_, i) => (
-                  <label key={i} className="flex items-center gap-1.5 text-[10px] text-gray-500 max-lg:text-xs max-lg:py-1">
-                    <input
-                      type="checkbox"
-                      className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
-                      checked={course?.partOptions?.[i]?.showFinish ?? false}
-                      onChange={(e) => setPartShowFinish(courseId, i, e.target.checked)}
-                    />
-                    {totalParts === 2
-                      ? t('showFinishOnPart')
-                      : `${t('showFinishOnPart')} (${t('partLabel')} ${i + 1})`
-                    }
-                  </label>
-                ))}
-              </div>
+            {/* Show finish toggle — only when viewing a non-final part */}
+            {isMultiPart && courseId && activePartIndex !== null && activePartIndex < totalParts - 1 && (
+              <label className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-500 max-lg:text-xs max-lg:py-1">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
+                  checked={course?.partOptions?.[activePartIndex]?.showFinish ?? false}
+                  onChange={(e) => setPartShowFinish(courseId, activePartIndex, e.target.checked)}
+                />
+                {t('showFinishOnPart')}
+              </label>
             )}
           </div>
 
