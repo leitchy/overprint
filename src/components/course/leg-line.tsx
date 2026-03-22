@@ -44,6 +44,18 @@ export const LegLine = memo(function LegLine({
   // Touch: pending bend position (tap leg → show "add bend" indicator, tap again to confirm)
   const [pendingBend, setPendingBend] = useState<{ pos: MapPoint; segIdx: number } | null>(null);
 
+  // All hooks MUST be above the early return to comply with Rules of Hooks
+  const handleConfirmBend = useCallback(() => {
+    if (pendingBend && onAddBendPoint) {
+      onAddBendPoint(pendingBend.pos, pendingBend.segIdx);
+      setPendingBend(null);
+    }
+  }, [pendingBend, onAddBendPoint]);
+
+  const handleCancelBend = useCallback(() => {
+    setPendingBend(null);
+  }, []);
+
   // Build the polyline path (or straight leg for no bends)
   let path: MapPoint[] | null;
   if (hasBends) {
@@ -85,17 +97,6 @@ export const LegLine = memo(function LegLine({
     // Desktop: add immediately. Touch uses handleLegTap → pending confirm.
     onAddBendPoint({ x: pos.x, y: pos.y }, segIdx);
   };
-
-  const handleConfirmBend = useCallback(() => {
-    if (pendingBend && onAddBendPoint) {
-      onAddBendPoint(pendingBend.pos, pendingBend.segIdx);
-      setPendingBend(null);
-    }
-  }, [pendingBend, onAddBendPoint]);
-
-  const handleCancelBend = useCallback(() => {
-    setPendingBend(null);
-  }, []);
 
   const handleInsertTap = () => {
     if (!onInsert) return;

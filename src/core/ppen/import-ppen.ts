@@ -563,11 +563,13 @@ export function importPpen(
       }
       case 'text': {
         const text = getTextContent(soEl, 'text') || getAttr(soEl, 'text') || '';
-        // Derive font size from bounding box height (two locations define the text box)
+        // Derive font size from bounding box height (two locations define the text box).
+        // Use raw mm height and convert via DPI — the viewBox conversion on positions
+        // cancels out in the difference, so we use mmToPx directly.
         let fontSize = 14; // fallback
         if (loc1) {
-          const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
-          fontSize = Math.abs(pos2.y - pos1.y);
+          const boxHeightMm = Math.abs(getFloatAttr(loc1, 'y') - getFloatAttr(loc0, 'y'));
+          fontSize = Math.max(mmToPx(boxHeightMm, dpi), 4); // minimum 4px
         }
         // Parse font properties
         const fontEl = getChild(soEl, 'font');
