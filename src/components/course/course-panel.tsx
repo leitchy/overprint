@@ -63,6 +63,7 @@ export function CoursePanel({
   const setControlScore = useEventStore((s) => s.setControlScore);
   const activePartIndex = useEventStore((s) => s.activePartIndex);
   const setActivePartIndex = useEventStore((s) => s.setActivePartIndex);
+  const setPartShowFinish = useEventStore((s) => s.setPartShowFinish);
 
   const [editingCodeId, setEditingCodeId] = useState<ControlId | null>(null);
   const [codeDraft, setCodeDraft] = useState(0);
@@ -183,6 +184,19 @@ export function CoursePanel({
                   </button>
                 ))}
               </div>
+            )}
+
+            {/* Show finish checkbox — only for non-final parts */}
+            {isMultiPart && activePartIndex !== null && activePartIndex < totalParts - 1 && courseId && (
+              <label className="mt-1 flex items-center gap-1.5 text-[10px] text-gray-500 max-lg:text-xs max-lg:py-1">
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
+                  checked={course?.partOptions?.[activePartIndex]?.showFinish ?? false}
+                  onChange={(e) => setPartShowFinish(courseId, activePartIndex, e.target.checked)}
+                />
+                {t('showFinishOnPart')}
+              </label>
             )}
           </div>
 

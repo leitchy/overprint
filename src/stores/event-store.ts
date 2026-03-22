@@ -83,6 +83,7 @@ interface EventActions {
 
   // Course parts
   setActivePartIndex: (index: number | null) => void;
+  setPartShowFinish: (courseId: CourseId, partIndex: number, showFinish: boolean) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -311,6 +312,17 @@ export const useEventStore = create<EventState & EventActions>()(
       setActivePartIndex: (index: number | null) => {
         set((state) => {
           state.activePartIndex = index;
+        });
+      },
+
+      setPartShowFinish: (courseId: CourseId, partIndex: number, showFinish: boolean) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          if (!course.partOptions) course.partOptions = [];
+          if (!course.partOptions[partIndex]) course.partOptions[partIndex] = {};
+          course.partOptions[partIndex]!.showFinish = showFinish;
         });
       },
 
