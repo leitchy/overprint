@@ -5,9 +5,11 @@
  * formatting; .xmap uses pretty-printed indentation.
  *
  * Approach: parse XML → extract colors, symbols, objects → build SVG string
- * → rasterize to HTMLImageElement. Rendering is simplified (solid fills/strokes
- * with correct colors) — not full ISOM symbol rendering. Good enough for
- * course setting.
+ * → rasterize to HTMLImageElement via Blob URL.
+ *
+ * Rendering supports: bezier curves (coordinate flags), area hatching/dot
+ * patterns (SVG <pattern>), point symbol glyphs (circles, lines, areas),
+ * text with font/alignment, and combined symbols.
  *
  * Coordinates are in 1/1000mm on paper with Y-down (Qt convention, origin top-left).
  * Both OMAP and SVG use Y-down, so no Y negation is needed.
@@ -24,6 +26,47 @@ interface OmapColor {
   b: number;
 }
 
+/** Point symbol glyph element (sub-shape within a point symbol) */
+interface OmapGlyphElement {
+  /** Sub-symbol type: 1=point, 2=line, 4=area */
+  symType: number;
+  color: number;
+  lineWidth: number;
+  /** Coords relative to the point's origin */
+  coords: OmapCoord[];
+  /** Object type: 0=point, 1=path */
+  objType: number;
+}
+
+/** Point symbol glyph definition */
+interface OmapPointGlyph {
+  innerRadius: number;
+  innerColor: number;
+  outerWidth: number;
+  outerColor: number;
+  elements: OmapGlyphElement[];
+}
+
+/** Area pattern definition (hatching or dot grid) */
+interface OmapPatternDef {
+  /** 1=hatching (parallel lines), 2=point pattern (repeating dot/glyph) */
+  type: 1 | 2;
+  /** Angle in radians */
+  angle: number;
+  /** Row spacing in 1/1000mm */
+  lineSpacing: number;
+  /** Row offset in 1/1000mm */
+  lineOffset: number;
+  /** Hatch line width in 1/1000mm (type 1 only) */
+  lineWidth: number;
+  /** Color index (type 1) or inner_color of nested point symbol (type 2) */
+  color: number;
+  /** Column spacing for point patterns (type 2 only) */
+  pointDistance?: number;
+  /** Nested point symbol inner_radius (type 2 only) */
+  dotRadius?: number;
+}
+
 interface OmapSymbol {
   id: number;
   /** 1=point, 2=line, 4=area, 8=text, 16=combined */
@@ -36,8 +79,8 @@ interface OmapSymbol {
   fontSize: number;
   /** Whether this symbol is hidden */
   hidden: boolean;
-  /** Area uses pattern fill (no solid inner_color) — render semi-transparent */
-  patternFill: boolean;
+  /** Area pattern definitions (hatching, dot patterns) */
+  patterns: OmapPatternDef[];
   /** Text symbol: font family name (e.g., "Arial", "Calibri") */
   fontFamily?: string;
   /** Text symbol: bold flag */
@@ -46,11 +89,20 @@ interface OmapSymbol {
   fontItalic?: boolean;
   /** Text symbol: line spacing multiplier (e.g., 1.0) */
   lineSpacing?: number;
+  /** Point symbol glyph definition */
+  pointGlyph?: OmapPointGlyph;
 }
+
+// OMAP coordinate flag bitmask constants (from OpenOrienteering Mapper format spec)
+const COORD_CURVE_START = 1 << 0;  // 1  — next two coords are bezier control points
+const COORD_CLOSE_POINT = 1 << 1;  // 2  — close the current sub-path
+const COORD_HOLE_POINT  = 1 << 4;  // 16 — last coord of sub-path; next starts a hole
 
 interface OmapCoord {
   x: number;
   y: number;
+  /** Coordinate flags bitmask (CurveStart=1, ClosePoint=2, HolePoint=16, etc.) */
+  flags: number;
 }
 
 interface OmapObject {
@@ -63,6 +115,8 @@ interface OmapObject {
   hAlign?: number;
   /** Text vertical alignment: 0=top, 1=middle, 2=baseline */
   vAlign?: number;
+  /** Object rotation in radians (for point symbols) */
+  rotation?: number;
 }
 
 import type { GeoReference } from '@/core/models/types';
@@ -216,7 +270,8 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let lineWidth = 150; // reasonable default
     let fillColorIndex = -1;
     let fontSize = 4000;
-    let patternFill = false;
+    const patterns: OmapPatternDef[] = [];
+    let pointGlyph: OmapPointGlyph | undefined;
     let textFontFamily: string | undefined;
     let textFontBold = false;
     let textFontItalic = false;
@@ -230,34 +285,136 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         lineWidth = numAttr(lineSym, 'line_width', 150);
       }
     } else if (type === 4) {
-      // Area symbol — uses inner_color for solid fill.
-      // Pattern-only symbols (inner_color=-1) use <pattern color="N"> for hatching;
-      // we use the pattern's line color as a semi-transparent fill approximation.
+      // Area symbol — solid fill from inner_color, patterns from <pattern> elements
       const areaSym = q(el, 'area_symbol');
       if (areaSym) {
         colorIndex = numAttr(areaSym, 'inner_color', -1);
-        if (colorIndex < 0) {
-          // Try pattern color as fallback — render semi-transparent
+
+        // Parse pattern definitions
+        for (const patEl of qAll(areaSym, 'pattern')) {
+          const patType = numAttr(patEl, 'type', 0);
+          if (patType === 1) {
+            // Hatching: parallel lines at angle
+            patterns.push({
+              type: 1,
+              angle: parseFloat(patEl.getAttribute('angle') ?? '0'),
+              lineSpacing: numAttr(patEl, 'line_spacing', 500),
+              lineOffset: numAttr(patEl, 'line_offset', 0),
+              lineWidth: numAttr(patEl, 'line_width', 100),
+              color: numAttr(patEl, 'color', -1),
+            });
+          } else if (patType === 2) {
+            // Point pattern: repeating dot/glyph in grid
+            // Extract the nested point symbol's inner_radius and inner_color
+            const nestedPointSym = q(patEl, 'point_symbol');
+            const dotColor = nestedPointSym ? numAttr(nestedPointSym, 'inner_color', -1) : -1;
+            const dotRadius = nestedPointSym ? numAttr(nestedPointSym, 'inner_radius', 90) : 90;
+            patterns.push({
+              type: 2,
+              angle: parseFloat(patEl.getAttribute('angle') ?? '0'),
+              lineSpacing: numAttr(patEl, 'line_spacing', 500),
+              lineOffset: numAttr(patEl, 'line_offset', 0),
+              lineWidth: 0,
+              color: dotColor,
+              pointDistance: numAttr(patEl, 'point_distance', 500),
+              dotRadius,
+            });
+          }
+        }
+
+        // If no solid fill and no patterns parsed, try pattern color as fallback
+        if (colorIndex < 0 && patterns.length === 0) {
           const patternEl = q(areaSym, 'pattern');
           if (patternEl) {
             colorIndex = numAttr(patternEl, 'color', -1);
-            patternFill = true;
           }
         }
-        if (colorIndex < 0) colorIndex = numAttr(areaSym, 'color', -1);
+        if (colorIndex < 0 && patterns.length === 0) {
+          colorIndex = numAttr(areaSym, 'color', -1);
+        }
       }
     } else if (type === 1) {
-      // Point symbol — inner_color may be -1, check element sub-symbols for color
+      // Point symbol — parse full glyph definition
       const pointSym = q(el, 'point_symbol');
       if (pointSym) {
-        colorIndex = numAttr(pointSym, 'inner_color', -1);
-        // If inner_color is -1, find color from first element's sub-symbol
-        if (colorIndex < 0) {
-          for (const elemSym of qAll(el, 'line_symbol')) {
-            const c = numAttr(elemSym, 'color', -1);
-            if (c >= 0) { colorIndex = c; break; }
+        const innerRadius = numAttr(pointSym, 'inner_radius', 0);
+        const innerColor = numAttr(pointSym, 'inner_color', -1);
+        const outerWidth = numAttr(pointSym, 'outer_width', 0);
+        const outerColor = numAttr(pointSym, 'outer_color', -1);
+        colorIndex = innerColor;
+
+        // Parse glyph elements
+        const glyphElements: OmapGlyphElement[] = [];
+        for (const elemEl of qAll(pointSym, 'element')) {
+          const subSymEl = q(elemEl, 'symbol');
+          if (!subSymEl) continue;
+          const subType = numAttr(subSymEl, 'type', 0);
+
+          // Extract color and lineWidth from sub-symbol
+          let elemColor = -1;
+          let elemLineWidth = 0;
+          if (subType === 2) {
+            const ls = q(subSymEl, 'line_symbol');
+            if (ls) {
+              elemColor = numAttr(ls, 'color', -1);
+              elemLineWidth = numAttr(ls, 'line_width', 150);
+            }
+          } else if (subType === 4) {
+            const as = q(subSymEl, 'area_symbol');
+            if (as) elemColor = numAttr(as, 'inner_color', -1);
+          } else if (subType === 1) {
+            // Nested point sub-symbol
+            const ps = q(subSymEl, 'point_symbol');
+            if (ps) {
+              elemColor = numAttr(ps, 'inner_color', -1);
+              if (elemColor < 0) elemColor = numAttr(ps, 'outer_color', -1);
+              elemLineWidth = numAttr(ps, 'outer_width', 0);
+            }
           }
+
+          // Extract element's object coords
+          const objEl = q(elemEl, 'object');
+          if (!objEl) continue;
+          const objType = numAttr(objEl, 'type', 0);
+          const coordsEl = q(objEl, 'coords');
+          const elemCoords: OmapCoord[] = [];
+          if (coordsEl) {
+            const coordText = coordsEl.textContent ?? '';
+            for (const seg of coordText.split(';')) {
+              const trimmed = seg.trim();
+              if (!trimmed) continue;
+              const p = trimmed.split(/\s+/);
+              if (p.length >= 2) {
+                const ex = Number(p[0]);
+                const ey = Number(p[1]);
+                const ef = p.length >= 3 ? (Number(p[2]) || 0) : 0;
+                if (Number.isFinite(ex) && Number.isFinite(ey)) {
+                  elemCoords.push({ x: ex, y: ey, flags: ef });
+                }
+              }
+            }
+          }
+
+          glyphElements.push({
+            symType: subType,
+            color: elemColor,
+            lineWidth: elemLineWidth,
+            coords: elemCoords,
+            objType,
+          });
+
+          // Use first element's color as fallback for the symbol's colorIndex
+          if (colorIndex < 0 && elemColor >= 0) colorIndex = elemColor;
         }
+
+        // Store the full glyph definition (even for simple dots — innerRadius > 0)
+        pointGlyph = {
+          innerRadius,
+          innerColor,
+          outerWidth,
+          outerColor,
+          elements: glyphElements,
+        };
       }
     } else if (type === 8) {
       // Text symbol
@@ -295,9 +452,9 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     }
 
     symbols.set(id, {
-      id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patternFill,
+      id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patterns,
       fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
-      lineSpacing: textLineSpacing,
+      lineSpacing: textLineSpacing, pointGlyph,
     });
   }
 
@@ -329,11 +486,12 @@ function extractObjects(doc: Document): OmapObject[] {
       const coords: OmapCoord[] = [];
       const coordEls = qAll(coordsEl, 'coord');
       if (coordEls.length > 0) {
-        // Element format: <coord x="..." y="..."/>
+        // Element format: <coord x="..." y="..." flags="..."/>
         for (const coordEl of coordEls) {
           coords.push({
             x: numAttr(coordEl, 'x', 0),
             y: numAttr(coordEl, 'y', 0), // OMAP and SVG both use Y-down
+            flags: numAttr(coordEl, 'flags', 0),
           });
         }
       } else {
@@ -348,8 +506,9 @@ function extractObjects(doc: Document): OmapObject[] {
             if (parts.length >= 2) {
               const x = Number(parts[0]);
               const y = Number(parts[1]);
+              const flags = parts.length >= 3 ? (Number(parts[2]) || 0) : 0;
               if (Number.isFinite(x) && Number.isFinite(y)) {
-                coords.push({ x, y }); // OMAP and SVG both use Y-down
+                coords.push({ x, y, flags });
               }
             }
           }
@@ -361,14 +520,20 @@ function extractObjects(doc: Document): OmapObject[] {
       let text: string | undefined;
       let hAlign: number | undefined;
       let vAlign: number | undefined;
+      let rotation: number | undefined;
       if (type === 4) {
         const textEl = q(objEl, 'text');
         if (textEl) text = textEl.textContent ?? undefined;
         hAlign = numAttr(objEl, 'h_align', 0);
         vAlign = numAttr(objEl, 'v_align', 0);
       }
+      if (type === 0) {
+        // Point objects may have rotation (in radians)
+        const rotAttr = objEl.getAttribute('rotation');
+        if (rotAttr) rotation = parseFloat(rotAttr);
+      }
 
-      objects.push({ type, symbolId, coords, text, hAlign, vAlign });
+      objects.push({ type, symbolId, coords, text, hAlign, vAlign, rotation });
     }
   }
 
@@ -440,6 +605,49 @@ function buildSvg(
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}">`);
 
+  // Generate <defs> with SVG pattern definitions for area hatching/dot fills
+  const defs: string[] = [];
+  for (const [symId, sym] of symbols) {
+    for (let pi = 0; pi < sym.patterns.length; pi++) {
+      const pat = sym.patterns[pi]!;
+      const patId = `pat-${symId}-${pi}`;
+      const angleDeg = (pat.angle * 180) / Math.PI;
+
+      if (pat.type === 1) {
+        // Hatching: parallel lines — tile is lineSpacing × lineSpacing, line centered
+        const spacing = pat.lineSpacing;
+        const lw = Math.max(pat.lineWidth, 50); // minimum visible width
+        const stroke = colorStr(colors, pat.color);
+        defs.push(
+          `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
+          + `width="${spacing}" height="${spacing}" `
+          + `patternTransform="rotate(${angleDeg}, 0, 0)">`
+          + `<line x1="0" y1="${spacing / 2}" x2="${spacing}" y2="${spacing / 2}" `
+          + `stroke="${stroke}" stroke-width="${lw}"/>`
+          + `</pattern>`,
+        );
+      } else if (pat.type === 2) {
+        // Point pattern: repeating dots in a grid
+        const colSpacing = pat.pointDistance ?? pat.lineSpacing;
+        const rowSpacing = pat.lineSpacing;
+        const r = pat.dotRadius ?? 90;
+        const fill = colorStr(colors, pat.color);
+        defs.push(
+          `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
+          + `width="${colSpacing}" height="${rowSpacing}" `
+          + `patternTransform="rotate(${angleDeg}, 0, 0)">`
+          + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
+          + `</pattern>`,
+        );
+      }
+    }
+  }
+  if (defs.length > 0) {
+    parts.push('<defs>');
+    parts.push(...defs);
+    parts.push('</defs>');
+  }
+
   // White background
   parts.push(`<rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="white"/>`);
 
@@ -465,11 +673,30 @@ function buildSvg(
   // Areas
   for (const obj of areas) {
     const sym = symbols.get(obj.symbolId)!;
-    const fill = colorStr(colors, sym.type === 4 ? sym.colorIndex : sym.fillColorIndex);
     const d = coordsToPath(obj.coords, true);
-    const opacity = sym.patternFill ? ' opacity="0.35"' : '';
-    const stroke = sym.type === 16 ? ` stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"` : '';
-    parts.push(`<path d="${d}" fill="${fill}"${opacity}${stroke}/>`);
+
+    // Solid fill (if inner_color is set)
+    const solidColor = sym.type === 4 ? sym.colorIndex : sym.fillColorIndex;
+    if (solidColor >= 0) {
+      parts.push(`<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"/>`);
+    }
+
+    // Pattern fill layers
+    for (let pi = 0; pi < sym.patterns.length; pi++) {
+      const patId = `pat-${sym.id}-${pi}`;
+      parts.push(`<path d="${d}" fill="url(#${patId})" fill-rule="evenodd"/>`);
+    }
+
+    // If no solid fill and no patterns, use colorIndex as fallback (pattern-only symbols
+    // that we couldn't parse fall through here)
+    if (solidColor < 0 && sym.patterns.length === 0 && sym.colorIndex >= 0) {
+      parts.push(`<path d="${d}" fill="${colorStr(colors, sym.colorIndex)}" fill-rule="evenodd" opacity="0.35"/>`);
+    }
+
+    // Combined symbols: render border as separate path on top
+    if (sym.type === 16 && sym.colorIndex >= 0 && sym.lineWidth > 0) {
+      parts.push(`<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}" stroke-linejoin="round"/>`);
+    }
   }
 
   // Lines
@@ -481,12 +708,67 @@ function buildSvg(
     parts.push(`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
   }
 
-  // Points
+  // Points — render using glyph definitions when available
   for (const obj of points) {
     const sym = symbols.get(obj.symbolId)!;
-    const fill = colorStr(colors, sym.colorIndex);
     const c = obj.coords[0]!;
-    parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
+    const glyph = sym.pointGlyph;
+
+    if (!glyph) {
+      // Fallback for symbols without glyph data
+      const fill = colorStr(colors, sym.colorIndex);
+      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
+      continue;
+    }
+
+    // Build rotation transform (OMAP stores rotation in radians)
+    const rotDeg = obj.rotation ? (obj.rotation * 180) / Math.PI : 0;
+    const transform = rotDeg !== 0
+      ? `translate(${c.x},${c.y}) rotate(${rotDeg})`
+      : `translate(${c.x},${c.y})`;
+
+    if (glyph.elements.length > 0) {
+      // Complex glyph: render sub-elements in a translated group
+      parts.push(`<g transform="${transform}">`);
+      for (const elem of glyph.elements) {
+        const elemFill = colorStr(colors, elem.color);
+        if (elem.symType === 1 && elem.objType === 0 && elem.coords.length > 0) {
+          // Nested point sub-symbol (e.g., ring) at relative position
+          const ep = elem.coords[0]!;
+          if (glyph.innerRadius > 0 && glyph.innerColor >= 0) {
+            parts.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+          }
+          if (elem.lineWidth > 0) {
+            parts.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius || 360}" fill="none" stroke="${elemFill}" stroke-width="${elem.lineWidth}"/>`);
+          }
+        } else if (elem.symType === 2 && elem.coords.length >= 2) {
+          // Line sub-symbol: render as path
+          const d = coordsToPath(elem.coords, false);
+          const sw = Math.max(elem.lineWidth, 50);
+          parts.push(`<path d="${d}" fill="none" stroke="${elemFill}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        } else if (elem.symType === 4 && elem.coords.length >= 3) {
+          // Area sub-symbol: render as filled path
+          const d = coordsToPath(elem.coords, true);
+          parts.push(`<path d="${d}" fill="${elemFill}" fill-rule="evenodd"/>`);
+        }
+      }
+      parts.push('</g>');
+    } else {
+      // Simple point: dot or ring based on inner/outer properties
+      if (glyph.innerColor >= 0 && glyph.innerRadius > 0) {
+        // Filled dot
+        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+      }
+      if (glyph.outerColor >= 0 && glyph.outerWidth > 0) {
+        // Ring (circle outline)
+        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="${glyph.innerRadius}" fill="none" stroke="${colorStr(colors, glyph.outerColor)}" stroke-width="${glyph.outerWidth}"/>`);
+      }
+      // If neither inner nor outer, fallback
+      if (glyph.innerColor < 0 && glyph.outerColor < 0) {
+        const fill = colorStr(colors, sym.colorIndex);
+        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
+      }
+    }
   }
 
   // Compute renderScale for text measurement (same formula as the caller)
@@ -550,13 +832,90 @@ function buildSvg(
   return parts.join('\n');
 }
 
+/** @internal Exported for testing */
+export { coordsToPath as _coordsToPath };
+
+/**
+ * Convert OMAP coordinates (with flags) to an SVG path string.
+ *
+ * Handles:
+ * - CurveStart flag: coord[i] is on-curve start, coord[i+1]/[i+2] are bezier
+ *   control points, coord[i+3] is on-curve endpoint → SVG cubic `C` command
+ * - HolePoint flag: marks the LAST coord of the current sub-path. For closed
+ *   paths (areas), emits `Z` to close, then `M` to start the hole sub-path.
+ *   For open paths (lines), just `M` to start a new disconnected segment.
+ * - ClosePoint flag: close the current sub-path with `Z`
+ * - No flags: straight line `L` command
+ */
 function coordsToPath(coords: OmapCoord[], close: boolean): string {
   if (coords.length === 0) return '';
+
   let d = `M${coords[0]!.x} ${coords[0]!.y}`;
-  for (let i = 1; i < coords.length; i++) {
-    d += ` L${coords[i]!.x} ${coords[i]!.y}`;
+  let i = 1;
+
+  while (i < coords.length) {
+    const prev = coords[i - 1]!;
+
+    // If the previous on-curve point has CurveStart, the next two coords are
+    // bezier control points and the one after is the on-curve endpoint.
+    if ((prev.flags & COORD_CURVE_START) && i + 2 <= coords.length) {
+      const cp1 = coords[i]!;
+      const cp2 = coords[i + 1]!;
+
+      if (i + 2 < coords.length) {
+        // Normal case: cp1, cp2, endpoint all available
+        const end = coords[i + 2]!;
+        d += ` C${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${end.x} ${end.y}`;
+        i += 3;
+
+        // Handle flags on the endpoint
+        if (end.flags & COORD_HOLE_POINT) {
+          // HolePoint: end of sub-path. For areas, close with Z; for lines, just move.
+          if (close) d += ' Z';
+          if (i < coords.length) {
+            d += ` M${coords[i]!.x} ${coords[i]!.y}`;
+            i++;
+          }
+        } else if (end.flags & COORD_CLOSE_POINT) {
+          d += ' Z';
+        }
+      } else {
+        // Degenerate: only cp1 and cp2 remain, no endpoint — use cp2 as endpoint
+        d += ` C${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${cp2.x} ${cp2.y}`;
+        i += 2;
+      }
+    } else {
+      // Straight line to current coord
+      const c = coords[i]!;
+
+      // HolePoint: this coord is the last of the current sub-path
+      if (c.flags & COORD_HOLE_POINT) {
+        d += ` L${c.x} ${c.y}`;
+        if (close) d += ' Z';
+        i++;
+        // Start new sub-path at next coord
+        if (i < coords.length) {
+          d += ` M${coords[i]!.x} ${coords[i]!.y}`;
+          i++;
+        }
+      } else if (c.flags & COORD_CLOSE_POINT) {
+        d += ` L${c.x} ${c.y} Z`;
+        i++;
+      } else {
+        d += ` L${c.x} ${c.y}`;
+        i++;
+      }
+    }
   }
-  if (close) d += ' Z';
+
+  // If caller wants closed path and last coord didn't already close
+  if (close) {
+    const last = coords[coords.length - 1]!;
+    if (!(last.flags & COORD_CLOSE_POINT) && !(last.flags & COORD_HOLE_POINT)) {
+      d += ' Z';
+    }
+  }
+
   return d;
 }
 
@@ -621,14 +980,14 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
     `<svg width="${pixelWidth}" height="${pixelHeight}" `,
   );
 
-  // Rasterize via data URL (same approach as OCAD loader)
-  const svgBase64 = btoa(unescape(encodeURIComponent(sizedSvg)));
-  const url = `data:image/svg+xml;base64,${svgBase64}`;
+  // Rasterize via Blob URL (avoids Safari's ~2MB data URL limit for <img>)
+  const blob = new Blob([sizedSvg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
 
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to render .omap SVG: ${file.name}`));
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Failed to render .omap SVG: ${file.name}`)); };
     img.src = url;
   });
 
