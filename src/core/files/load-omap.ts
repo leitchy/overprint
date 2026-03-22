@@ -38,6 +38,14 @@ interface OmapSymbol {
   hidden: boolean;
   /** Area uses pattern fill (no solid inner_color) — render semi-transparent */
   patternFill: boolean;
+  /** Text symbol: font family name (e.g., "Arial", "Calibri") */
+  fontFamily?: string;
+  /** Text symbol: bold flag */
+  fontBold?: boolean;
+  /** Text symbol: italic flag */
+  fontItalic?: boolean;
+  /** Text symbol: line spacing multiplier (e.g., 1.0) */
+  lineSpacing?: number;
 }
 
 interface OmapCoord {
@@ -51,6 +59,10 @@ interface OmapObject {
   symbolId: number;
   coords: OmapCoord[];
   text?: string;
+  /** Text horizontal alignment: 0=left, 1=center, 2=right */
+  hAlign?: number;
+  /** Text vertical alignment: 0=top, 1=middle, 2=baseline */
+  vAlign?: number;
 }
 
 import type { GeoReference } from '@/core/models/types';
@@ -205,6 +217,10 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let fillColorIndex = -1;
     let fontSize = 4000;
     let patternFill = false;
+    let textFontFamily: string | undefined;
+    let textFontBold = false;
+    let textFontItalic = false;
+    let textLineSpacing = 1;
 
     if (type === 2) {
       // Line symbol
@@ -248,9 +264,17 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       const textSym = q(el, 'text_symbol');
       if (textSym) {
         const textEl = q(textSym, 'text');
-        if (textEl) colorIndex = numAttr(textEl, 'color', -1);
+        if (textEl) {
+          colorIndex = numAttr(textEl, 'color', -1);
+          textLineSpacing = numAttr(textEl, 'line_spacing', 1);
+        }
         const fontEl = q(textSym, 'font');
-        if (fontEl) fontSize = numAttr(fontEl, 'size', 4000);
+        if (fontEl) {
+          fontSize = numAttr(fontEl, 'size', 4000);
+          textFontFamily = fontEl.getAttribute('family') ?? undefined;
+          textFontBold = fontEl.getAttribute('bold') === 'true';
+          textFontItalic = fontEl.getAttribute('italic') === 'true';
+        }
       }
     } else if (type === 16) {
       // Combined symbol — extract first line and first area sub-symbol
@@ -270,7 +294,11 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       }
     }
 
-    symbols.set(id, { id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patternFill });
+    symbols.set(id, {
+      id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patternFill,
+      fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
+      lineSpacing: textLineSpacing,
+    });
   }
 
   return symbols;
@@ -331,12 +359,16 @@ function extractObjects(doc: Document): OmapObject[] {
       if (coords.length === 0) continue;
 
       let text: string | undefined;
+      let hAlign: number | undefined;
+      let vAlign: number | undefined;
       if (type === 4) {
         const textEl = q(objEl, 'text');
         if (textEl) text = textEl.textContent ?? undefined;
+        hAlign = numAttr(objEl, 'h_align', 0);
+        vAlign = numAttr(objEl, 'v_align', 0);
       }
 
-      objects.push({ type, symbolId, coords, text });
+      objects.push({ type, symbolId, coords, text, hAlign, vAlign });
     }
   }
 
@@ -443,7 +475,30 @@ function buildSvg(
     const fill = colorStr(colors, sym.colorIndex);
     const c = obj.coords[0]!;
     const escaped = obj.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    parts.push(`<text x="${c.x}" y="${c.y}" fill="${fill}" font-family="sans-serif" font-size="${sym.fontSize}">${escaped}</text>`);
+
+    // Font properties from symbol
+    const fontFamily = sym.fontFamily ? `"${sym.fontFamily}", sans-serif` : 'sans-serif';
+    const fontWeight = sym.fontBold ? 'bold' : 'normal';
+    const fontStyle = sym.fontItalic ? 'italic' : 'normal';
+
+    // Alignment from object
+    const anchor = obj.hAlign === 1 ? 'middle' : obj.hAlign === 2 ? 'end' : 'start';
+    const baseline = obj.vAlign === 2 ? 'auto' : obj.vAlign === 1 ? 'central' : 'hanging';
+
+    const lines = escaped.split('\n').filter(l => l.trim() !== '');
+    const lineHeight = sym.lineSpacing ?? 1;
+    const attrs = `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"`;
+
+    if (lines.length <= 1) {
+      parts.push(`<text x="${c.x}" y="${c.y}" ${attrs}>${lines[0] ?? ''}</text>`);
+    } else {
+      parts.push(`<text x="${c.x}" y="${c.y}" ${attrs}>`);
+      for (let i = 0; i < lines.length; i++) {
+        const dy = i === 0 ? '0' : `${lineHeight}em`;
+        parts.push(`<tspan x="${c.x}" dy="${dy}">${lines[i]}</tspan>`);
+      }
+      parts.push('</text>');
+    }
   }
 
   parts.push('</svg>');
