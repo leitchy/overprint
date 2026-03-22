@@ -50,7 +50,10 @@ Last updated: 2026-03-22
 |---|---|---|---|---|---|
 | 8 | Overprint blending (PDF/CMYK) | XL | 4 | not started | CMYK overprint in exported PDFs — requires pdf-lib colour space work |
 | 24 | CMYK colour space in PDF | L | 2 | not started | Professional print shop support. Depends on #8 |
-| 41 | OMAP text rendering quality | M | 3 | not started | Font matching, CMYK colour accuracy, multi-line text wrapping, text positioning. Currently title/scale/credit text from OMAP maps renders with wrong size, colour, and line breaks |
+| 41 | OMAP text rendering quality | M | 3 | done (v0.16.0) | Font family, bold/italic, multi-line, alignment, pre-measured centering |
+| 49 | OMAP bezier curve rendering | M | 4 | not started | Contours and other shapes render as straight segments, not cubic beziers. Need to parse OMAP curve flags and emit SVG cubic bezier paths |
+| 50 | OMAP point symbol rendering | L | 3 | not started | Many point symbols missing (distinct tree #118, termite mound, etc.). Need to parse point symbol definitions and render as SVG |
+| 51 | OMAP area symbol rendering fixes | M | 3 | not started | Buildings/paving/canopy rendering incorrectly. Area fill patterns, hatching, and combined symbols need work |
 
 ---
 
@@ -137,6 +140,7 @@ Last updated: 2026-03-22
 | 29 | Additional UI languages | S per lang | 3 | not started | Polish, Hungarian, Bulgarian, Romanian, Estonian |
 | 30 | PWA / offline mode | M | 3 | not started | Service worker for offline use in the field |
 | 39 | User documentation | M | 3 | not started | Getting started guide, feature walkthroughs |
+| 52 | Right panel scroll overflow | S | 3 | not started | Course panel doesn't scroll when content exceeds viewport height. Reported by tester |
 
 ---
 
