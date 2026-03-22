@@ -26,6 +26,7 @@ export function computeShapeOffset(
   switch (type) {
     case 'start':
     case 'mapExchange':
+    case 'mapFlip':
       // Triangle circumradius = side / sqrt(3)
       return startTriangleSide / Math.sqrt(3) + circleGap + lineWidth / 2;
     case 'finish':

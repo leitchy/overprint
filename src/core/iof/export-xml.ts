@@ -71,6 +71,7 @@ function controlTypeString(type: ControlType): string {
     case 'crossingPoint':
       return 'CrossingPoint';
     case 'mapExchange':
+    case 'mapFlip':
       return 'MapExchange';
     default:
       return 'Control';

@@ -59,6 +59,10 @@ interface PpenCourseControlNode {
   controlRef: string;    // references <control id="...">
   nextId: string | null;
   points?: number;       // score course points
+  /** map-exchange attribute on <course-control> (overrides control kind) */
+  isExchange?: boolean;
+  /** map-flip attribute on <course-control> (exchange variant) */
+  isFlip?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,8 +369,10 @@ export function importPpen(
     const nextId = nextEl ? (getAttr(nextEl, 'course-control') ?? null) : null;
     const pointsStr = getAttr(el, 'points');
     const points = pointsStr ? (parseInt(pointsStr, 10) || undefined) : undefined;
+    const isExchange = getAttr(el, 'map-exchange') === 'true' || undefined;
+    const isFlip = getAttr(el, 'map-flip') === 'true' || undefined;
 
-    ccNodeMap.set(id, { id, controlRef, nextId, points });
+    ccNodeMap.set(id, { id, controlRef, nextId, points, isExchange, isFlip });
   }
 
   // -----------------------------------------------------------------------
@@ -420,6 +426,12 @@ export function importPpen(
         type = 'mapExchange';
       } else {
         type = 'control';
+      }
+
+      // course-control level map-exchange/map-flip overrides control kind
+      // (a normal control can be marked as an exchange at the course level)
+      if (node.isExchange) {
+        type = node.isFlip ? 'mapFlip' : 'mapExchange';
       }
 
       const cc: CourseControl = {

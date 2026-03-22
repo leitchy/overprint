@@ -11,6 +11,7 @@ import { useToolStore } from '@/stores/tool-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, NON_CURRENT_COLOR, SCREEN_LINE_MULTIPLIER, COURSE_COLORS } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
+import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
 import { CourseRenderer } from '@/components/course/course-renderer';
@@ -70,6 +71,7 @@ export function MapCanvas() {
   const viewMode = useEventStore((s) => s.viewMode);
   const visibleCourseIds = useEventStore((s) => s.visibleCourseIds);
   const showNonCurrentControls = useEventStore((s) => s.showNonCurrentControls);
+  const activePartIndex = useEventStore((s) => s.activePartIndex);
 
   const {
     handleWheel,
@@ -273,13 +275,34 @@ export function MapCanvas() {
     () => courses?.find((c) => c.id === activeCourseId) ?? null,
     [courses, activeCourseId],
   );
+  // Part-filtered active course — when viewing a specific part, slice the controls
+  const displayCourse = useMemo((): Course | null => {
+    if (!activeCourse || activePartIndex === null) return activeCourse;
+    return {
+      ...activeCourse,
+      controls: getPartControls(activeCourse, activePartIndex),
+    };
+  }, [activeCourse, activePartIndex]);
+
+  // Sequence offset for part numbering — controls keep their full-course index on the map
+  const sequenceOffset = useMemo(() => {
+    if (!activeCourse || activePartIndex === null) return 0;
+    return getPartBounds(activeCourse.controls, activePartIndex).start;
+  }, [activeCourse, activePartIndex]);
+
+  // Part count for canvas chip
+  const totalParts = useMemo(
+    () => activeCourse ? countCourseParts(activeCourse.controls) : 1,
+    [activeCourse],
+  );
+
   const backgroundCourses = useMemo(
     () => courses?.filter((c) => c.id !== activeCourseId && visibleCourseIds[c.id]) ?? [],
     [courses, activeCourseId, visibleCourseIds],
   );
   const activeControlIds = useMemo(
-    () => new Set(activeCourse?.controls.map((cc) => cc.controlId) ?? []),
-    [activeCourse],
+    () => new Set((displayCourse ?? activeCourse)?.controls.map((cc) => cc.controlId) ?? []),
+    [displayCourse, activeCourse],
   );
 
   // Controls visible via background courses — used to exclude from non-current overlay
@@ -428,9 +451,10 @@ export function MapCanvas() {
                  Background controls render AFTER active course so they get hit
                  priority for shared control reuse in addControl mode. */
               <>
-                {activeCourse && dimensions && controls && activeCourseId && (
+                {displayCourse && dimensions && controls && activeCourseId && (
                   <CourseRenderer
-                    course={activeCourse}
+                    course={displayCourse}
+                    sequenceOffset={sequenceOffset}
                     controls={controls}
                     dimensions={dimensions}
                     selectedControlId={selectedControlId}
@@ -609,6 +633,12 @@ export function MapCanvas() {
             containerHeight={size.height}
           />
         </>
+      )}
+      {/* Part indicator chip — read-only, shows when viewing a specific course part */}
+      {activePartIndex !== null && totalParts > 1 && (
+        <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-violet-700 shadow pointer-events-none">
+          Part {activePartIndex + 1} of {totalParts}
+        </div>
       )}
       {/* Course panel — desktop: floating panel, tablet: slide drawer, phone: bottom sheet */}
       {hasEvent && controls && (() => {

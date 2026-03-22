@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Course, Control, CourseControlType } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { countCourseParts, getPartControls } from '@/core/models/course-parts';
 import { CourseList } from './course-tabs';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
 import { SCALE_PRESETS } from '@/core/models/constants';
@@ -18,7 +19,7 @@ interface CoursePanelProps {
 }
 
 /** Middle-control types that can be cycled through. */
-const MIDDLE_CONTROL_TYPES: CourseControlType[] = ['control', 'crossingPoint', 'mapExchange'];
+const MIDDLE_CONTROL_TYPES: CourseControlType[] = ['control', 'crossingPoint', 'mapExchange', 'mapFlip'];
 
 /** Display label for each control type in the panel. */
 function typeLabel(type: CourseControlType, index: number): string {
@@ -27,6 +28,7 @@ function typeLabel(type: CourseControlType, index: number): string {
     case 'finish': return 'F';
     case 'crossingPoint': return 'X';
     case 'mapExchange': return 'ME';
+    case 'mapFlip': return 'MF';
     default: return String(index + 1);
   }
 }
@@ -59,6 +61,8 @@ export function CoursePanel({
   const setCourseControlType = useEventStore((s) => s.setCourseControlType);
   const setCourseType = useEventStore((s) => s.setCourseType);
   const setControlScore = useEventStore((s) => s.setControlScore);
+  const activePartIndex = useEventStore((s) => s.activePartIndex);
+  const setActivePartIndex = useEventStore((s) => s.setActivePartIndex);
 
   const [editingCodeId, setEditingCodeId] = useState<ControlId | null>(null);
   const [codeDraft, setCodeDraft] = useState(0);
@@ -66,13 +70,26 @@ export function CoursePanel({
   const [scoreDraft, setScoreDraft] = useState(0);
   const [courseSettingsOpen, setCourseSettingsOpen] = useState(false);
 
+  const isScoreCourse = course?.courseType === 'score';
+
+  // Multi-part course support
+  const totalParts = useMemo(
+    () => course ? countCourseParts(course.controls) : 1,
+    [course],
+  );
+  const isMultiPart = totalParts > 1;
+
+  // Filter controls to active part for stats display
+  const displayControls = useMemo(
+    () => course && activePartIndex !== null ? getPartControls(course, activePartIndex) : course?.controls ?? [],
+    [course, activePartIndex],
+  );
+
   const lengthMetres =
     course && mapFile
-      ? calculateCourseLength(course.controls, controls, mapFile.scale, mapFile.dpi)
+      ? calculateCourseLength(displayControls, controls, mapFile.scale, mapFile.dpi)
       : 0;
   const lengthKm = (lengthMetres / 1000).toFixed(1);
-
-  const isScoreCourse = course?.courseType === 'score';
 
   // All-controls view: collapsed panel showing only course list + language selector
   if (viewMode === 'allControls') {
@@ -112,8 +129,8 @@ export function CoursePanel({
           <div className="border-b border-gray-200 px-3 py-1.5">
             <div className="flex items-center justify-between">
               <div className="text-xs text-gray-400">
-                {course.controls.length} {course.controls.length !== 1 ? t('controls') : t('control')}
-                {!isScoreCourse && course.controls.length >= 2 && ` \u00B7 ${lengthKm} ${t('km')}`}
+                {displayControls.length} {displayControls.length !== 1 ? t('controls') : t('control')}
+                {!isScoreCourse && displayControls.length >= 2 && ` \u00B7 ${lengthKm} ${t('km')}`}
               </div>
               <button
                 className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
@@ -127,6 +144,46 @@ export function CoursePanel({
                 {isScoreCourse ? t('scoreCourse') : t('normalCourse')}
               </button>
             </div>
+
+            {/* Part selector — multi-part courses only */}
+            {isMultiPart && (
+              <div
+                role="group"
+                aria-label={t('allParts')}
+                className="mt-1 flex overflow-x-auto gap-1 pb-0.5"
+                style={{ scrollbarWidth: 'none' }}
+              >
+                <button
+                  aria-pressed={activePartIndex === null}
+                  className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors
+                    focus:outline-none focus:ring-1 focus:ring-violet-300
+                    max-lg:px-3 max-lg:py-1.5 max-lg:text-xs max-lg:min-h-11 max-lg:flex max-lg:items-center ${
+                    activePartIndex === null
+                      ? 'bg-violet-100 text-violet-700'
+                      : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+                  }`}
+                  onClick={() => setActivePartIndex(null)}
+                >
+                  {t('allParts')}
+                </button>
+                {Array.from({ length: totalParts }, (_, i) => (
+                  <button
+                    key={i}
+                    aria-pressed={activePartIndex === i}
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors
+                      focus:outline-none focus:ring-1 focus:ring-violet-300
+                      max-lg:px-3 max-lg:py-1.5 max-lg:text-xs max-lg:min-h-11 max-lg:flex max-lg:items-center ${
+                      activePartIndex === i
+                        ? 'bg-violet-100 text-violet-700'
+                        : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+                    }`}
+                    onClick={() => setActivePartIndex(i)}
+                  >
+                    {totalParts > 3 ? String(i + 1) : `${t('partLabel')} ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Control list */}

@@ -19,7 +19,7 @@ interface ControlContextMenuProps {
   onClose: () => void;
 }
 
-const MIDDLE_TYPES: CourseControlType[] = ['control', 'crossingPoint', 'mapExchange'];
+const MIDDLE_TYPES: CourseControlType[] = ['control', 'crossingPoint', 'mapExchange', 'mapFlip'];
 
 function nextType(current: CourseControlType): CourseControlType {
   const idx = MIDDLE_TYPES.indexOf(current);

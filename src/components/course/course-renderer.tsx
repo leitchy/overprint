@@ -28,6 +28,8 @@ interface CourseRendererProps {
   onInsertOnLeg?: (position: MapPoint, afterIndex: number) => void;
   onNumberDragEnd?: (controlIndex: number, offset: MapPoint) => void;
   onLongPressControl?: (controlId: ControlId, screenX: number, screenY: number) => void;
+  /** Offset added to sequence numbers when rendering a course part (e.g., part 2 starts at control 6). */
+  sequenceOffset?: number;
   /** Enable bend point editing on legs (active course in pan mode). */
   editLegs?: boolean;
   onAddBendPoint?: (controlIndex: number, position: MapPoint, insertAt: number) => void;
@@ -75,6 +77,7 @@ export const CourseRenderer = memo(function CourseRenderer({
   onInsertOnLeg,
   onNumberDragEnd,
   onLongPressControl,
+  sequenceOffset = 0,
   editLegs = false,
   onAddBendPoint,
   onBendPointDragEnd,
@@ -174,13 +177,14 @@ export const CourseRenderer = memo(function CourseRenderer({
 
         // Compute label text from course labelMode setting
         const labelMode = course.settings.labelMode ?? 'sequence';
+        const seqNum = index + sequenceOffset + 1;
         let labelText: string;
         if (labelMode === 'sequence') {
-          labelText = String(index + 1);
+          labelText = String(seqNum);
         } else if (labelMode === 'code') {
           labelText = String(control.code);
         } else if (labelMode === 'both') {
-          labelText = `${index + 1} (${control.code})`;
+          labelText = `${seqNum} (${control.code})`;
         } else {
           labelText = '';
         }
@@ -194,7 +198,7 @@ export const CourseRenderer = memo(function CourseRenderer({
           dimensions={dimensions}
           isSelected={control.id === selectedControlId}
           draggable={draggable}
-          startTarget={(type === 'start' || type === 'mapExchange') ? startTarget : undefined}
+          startTarget={(type === 'start' || type === 'mapExchange' || type === 'mapFlip') ? startTarget : undefined}
           color={color}
           showNumber={showNumbers}
           numberOutline={numberOutline}
