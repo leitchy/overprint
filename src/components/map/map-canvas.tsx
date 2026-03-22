@@ -282,6 +282,15 @@ export function MapCanvas() {
     [activeCourse],
   );
 
+  // Controls visible via background courses — used to exclude from non-current overlay
+  const visibleBackgroundControlIds = useMemo(() => {
+    const ids = new Set<ControlId>();
+    for (const bg of backgroundCourses) {
+      for (const cc of bg.controls) ids.add(cc.controlId);
+    }
+    return ids;
+  }, [backgroundCourses]);
+
   // All Controls view: synthetic score course with ALL controls (no legs)
   const allControlsCourse = useMemo((): Course | null => {
     if (viewMode !== 'allControls' || !controls) return null;
@@ -299,11 +308,12 @@ export function MapCanvas() {
     };
   }, [viewMode, controls]);
 
-  // Non-current controls overlay: controls not in the active course (pink, no legs)
+  // Non-current controls overlay: controls not in the active course or any
+  // visible background course — shows only "orphan" controls in pink (no legs)
   const nonCurrentControlsCourse = useMemo((): Course | null => {
     if (viewMode !== 'course' || !showNonCurrentControls || !controls) return null;
     const nonCurrentIds = Object.values(controls).filter(
-      (c) => !activeControlIds.has(c.id),
+      (c) => !activeControlIds.has(c.id) && !visibleBackgroundControlIds.has(c.id),
     );
     if (nonCurrentIds.length === 0) return null;
     return {
@@ -316,7 +326,7 @@ export function MapCanvas() {
       })),
       settings: {},
     };
-  }, [viewMode, showNonCurrentControls, controls, activeControlIds]);
+  }, [viewMode, showNonCurrentControls, controls, activeControlIds, visibleBackgroundControlIds]);
 
   // Stable callbacks for CourseRenderer — prevents memo'd children from re-rendering
   const handleSelectControl = useCallback((id: ControlId) => {

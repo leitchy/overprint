@@ -77,7 +77,7 @@ export function CoursePanel({
   // All-controls view: collapsed panel showing only course list + language selector
   if (viewMode === 'allControls') {
     return (
-      <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-56 rounded bg-white/90 shadow'}>
+      <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-white/90 shadow'}>
         <CourseList />
         <div className="border-t border-gray-200 px-3 py-2">
           <p className="mb-2 text-[10px] italic text-gray-400">{t('viewingAllControls')}</p>
@@ -101,7 +101,7 @@ export function CoursePanel({
   }
 
   return (
-    <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-56 rounded bg-white/90 shadow'}>
+    <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-white/90 shadow'}>
       {/* Course list — always visible */}
       <CourseList />
 
