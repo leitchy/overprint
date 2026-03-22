@@ -186,12 +186,21 @@ export function CoursePanel({
               </div>
             )}
 
-            {/* Finish circle radio — which part shows the finish? Default = last part.
-                Hidden on "All Parts". Checked+disabled on the owning part. Clickable on others. */}
-            {isMultiPart && courseId && activePartIndex !== null && (() => {
-              // Which part currently owns the finish? Default = last part.
+            {/* Finish circle — shows which part owns the finish.
+                "All Parts": read-only text. Specific part: radio checkbox. */}
+            {isMultiPart && courseId && (() => {
               const finishPart = course?.partOptions?.findIndex((po) => po?.showFinish) ?? -1;
               const ownerPart = finishPart >= 0 ? finishPart : totalParts - 1;
+
+              if (activePartIndex === null) {
+                // All Parts — static text showing which part has the finish
+                return (
+                  <div className="mt-1 text-[10px] text-gray-400 max-lg:text-xs max-lg:py-1">
+                    {t('finishOnPart')} {ownerPart + 1}
+                  </div>
+                );
+              }
+
               const isOwner = activePartIndex === ownerPart;
               return (
                 <label className={`mt-1 flex items-center gap-1.5 text-[10px] max-lg:text-xs max-lg:py-1 ${
@@ -203,7 +212,6 @@ export function CoursePanel({
                     checked={isOwner}
                     disabled={isOwner}
                     onChange={() => {
-                      // Move finish to this part — clear all others
                       for (let i = 0; i < totalParts; i++) {
                         setPartShowFinish(courseId, i, i === activePartIndex);
                       }
