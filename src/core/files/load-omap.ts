@@ -386,6 +386,27 @@ function colorStr(colors: Map<number, OmapColor>, index: number): string {
   return `rgb(${c.r},${c.g},${c.b})`;
 }
 
+/** Measure text width in pixels using an offscreen canvas context.
+ *  Uses the same fallback font that the SVG data URL will use,
+ *  so the measured width matches the rendered width exactly. */
+let _measureCtx: CanvasRenderingContext2D | null = null;
+function measureTextWidth(
+  text: string,
+  fontFamily: string,
+  fontSize: number,       // in OMAP units (1/1000mm)
+  fontWeight: string,
+  fontStyle: string,
+  renderScale: number,    // pixels per OMAP unit
+): number {
+  const pixelSize = fontSize * renderScale;
+  if (!_measureCtx) {
+    _measureCtx = document.createElement('canvas').getContext('2d');
+  }
+  if (!_measureCtx) return 0;
+  _measureCtx.font = `${fontStyle} ${fontWeight} ${pixelSize}px ${fontFamily}`;
+  return _measureCtx.measureText(text).width;
+}
+
 function buildSvg(
   objects: OmapObject[],
   symbols: Map<number, OmapSymbol>,
@@ -468,6 +489,10 @@ function buildSvg(
     parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
   }
 
+  // Compute renderScale for text measurement (same formula as the caller)
+  const longestSide = Math.max(vbW, vbH);
+  const svgRenderScale = longestSide > 0 ? 4000 / longestSide : 1;
+
   // Text
   for (const obj of texts) {
     if (!obj.text) continue;
@@ -481,21 +506,41 @@ function buildSvg(
     const fontWeight = sym.fontBold ? 'bold' : 'normal';
     const fontStyle = sym.fontItalic ? 'italic' : 'normal';
 
-    // Alignment from object
-    const anchor = obj.hAlign === 1 ? 'middle' : obj.hAlign === 2 ? 'end' : 'start';
+    // Vertical alignment
     const baseline = obj.vAlign === 2 ? 'auto' : obj.vAlign === 1 ? 'central' : 'hanging';
 
     const lines = escaped.split('\n').filter(l => l.trim() !== '');
     const lineHeight = sym.lineSpacing ?? 1;
-    const attrs = `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"`;
+
+    // For center/right alignment, pre-measure text and adjust X coordinate.
+    // SVG text-anchor depends on the rendered font width, but data URL SVGs
+    // can't access system fonts. By measuring with canvas (same fallback font)
+    // and using text-anchor="start" with adjusted X, centering is exact.
+    const needsAdjust = obj.hAlign === 1 || obj.hAlign === 2;
+
+    const emitLine = (lineText: string, baseX: number): { x: number; anchor: string } => {
+      if (!needsAdjust) return { x: baseX, anchor: 'start' };
+      const measuredPx = measureTextWidth(lineText, fontFamily, sym.fontSize, fontWeight, fontStyle, svgRenderScale);
+      const measuredUnits = measuredPx / svgRenderScale;
+      if (obj.hAlign === 1) return { x: baseX - measuredUnits / 2, anchor: 'start' };
+      return { x: baseX - measuredUnits, anchor: 'start' }; // right
+    };
+
+    const attrs = (anchor: string) =>
+      `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"`;
 
     if (lines.length <= 1) {
-      parts.push(`<text x="${c.x}" y="${c.y}" ${attrs}>${lines[0] ?? ''}</text>`);
+      const lineText = lines[0] ?? '';
+      const adj = emitLine(lineText, c.x);
+      parts.push(`<text x="${adj.x}" y="${c.y}" ${attrs(adj.anchor)}>${lineText}</text>`);
     } else {
-      parts.push(`<text x="${c.x}" y="${c.y}" ${attrs}>`);
+      // For multi-line, adjust each line independently
+      const firstAdj = emitLine(lines[0]!, c.x);
+      parts.push(`<text x="${firstAdj.x}" y="${c.y}" ${attrs(firstAdj.anchor)}>`);
       for (let i = 0; i < lines.length; i++) {
+        const adj = emitLine(lines[i]!, c.x);
         const dy = i === 0 ? '0' : `${lineHeight}em`;
-        parts.push(`<tspan x="${c.x}" dy="${dy}">${lines[i]}</tspan>`);
+        parts.push(`<tspan x="${adj.x}" dy="${dy}">${lines[i]}</tspan>`);
       }
       parts.push('</text>');
     }
