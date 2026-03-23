@@ -84,7 +84,9 @@ export async function generateCoursePdf(
 
   // For multi-course export, compute a union bounding box so all courses
   // share a consistent map position (prevents the map from shifting between pages).
+  // Prefer union of print areas (if set), otherwise union of control bounds.
   let unionBounds: import('@/core/models/types').CourseBounds | null = null;
+  let unionPrintArea: import('@/core/models/types').CourseBounds | null = null;
   if (isMultiCourse) {
     for (const ci of indices) {
       const course = event.courses[ci];
@@ -98,6 +100,18 @@ export async function generateCoursePdf(
         unionBounds.minY = Math.min(unionBounds.minY, b.minY);
         unionBounds.maxX = Math.max(unionBounds.maxX, b.maxX);
         unionBounds.maxY = Math.max(unionBounds.maxY, b.maxY);
+      }
+      // Union of per-course print areas
+      const pa = course.settings.printArea;
+      if (pa) {
+        if (!unionPrintArea) {
+          unionPrintArea = { ...pa };
+        } else {
+          unionPrintArea.minX = Math.min(unionPrintArea.minX, pa.minX);
+          unionPrintArea.minY = Math.min(unionPrintArea.minY, pa.minY);
+          unionPrintArea.maxX = Math.max(unionPrintArea.maxX, pa.maxX);
+          unionPrintArea.maxY = Math.max(unionPrintArea.maxY, pa.maxY);
+        }
       }
     }
   }
@@ -120,12 +134,13 @@ export async function generateCoursePdf(
     const pageSetup = mergePageSetup(event.settings.pageSetup, course.settings.pageSetup);
     const layout = computePageLayout(pageSetup);
 
-    // Compute viewport — use union bounds for multi-course to keep map position consistent
-    const printAreaOverride = course.settings.printArea;
-    const viewportBounds = printAreaOverride ? bounds : (unionBounds ?? bounds);
+    // Compute viewport — for multi-course, use union bounds/print area
+    // so every page shares the same map position.
+    const printAreaOverride = isMultiCourse ? unionPrintArea : course.settings.printArea;
+    const effectiveBounds = unionBounds ?? bounds;
     const multiPage = computeMultiPageViewports(
-      layout, mapScale, printScale, dpi, imgWidth, imgHeight, viewportBounds,
-      30, 15, printAreaOverride,
+      layout, mapScale, printScale, dpi, imgWidth, imgHeight, effectiveBounds,
+      30, 15, printAreaOverride ?? undefined,
     );
     const coursePageCount = multiPage.viewports.length;
 
@@ -543,11 +558,12 @@ async function renderDescriptionBoxToPdf(
   const gridWidth = cellSize * numCols;
   const gridHeight = cellSize * totalRows;
 
-  // Position: anchor at the bounds origin (top-left of the description box).
-  // bounds.x is the left edge; bounds.y is the bottom edge in PDF coords.
+  // Position: bounds.x/y come from toPdf(position) where position is
+  // the first .ppen location (top-left of the box in map coords).
+  // In PDF coords, Y increases upward — so bounds.y is the TOP of the box.
+  // The grid grows downward from there.
   const gridX = bounds.x;
-  // The grid grows downward from the top of the bounds position
-  const gridTopY = bounds.y + gridHeight;
+  const gridTopY = bounds.y;
 
   // Draw white background
   page.drawRectangle({
