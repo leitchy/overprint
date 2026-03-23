@@ -531,4 +531,33 @@ describe('importPpen — complex event', () => {
     const item4 = event.specialItems[3]!;
     expect(item4.courseIds).toHaveLength(2);
   });
+
+  it('parses allControls and columns on description boxes', () => {
+    const xml = `<course-scribe-event>
+      <event id="1"><title>Test</title><map kind="OCAD" scale="10000">Test.ocd</map>
+        <standards map="2017" description="2018" />
+        <all-controls print-scale="10000" description-kind="symbols" />
+        <print-area automatic="true" left="0" top="200" right="300" bottom="0" page-width="827" page-height="1169" page-margins="0" page-landscape="false" />
+        <numbering start="31" disallow-invertible="false" />
+      </event>
+      <control id="1" kind="start"><location x="50" y="50" /></control>
+      <control id="2" kind="normal"><code>31</code><location x="100" y="100" /></control>
+      <course-control id="1" control="1"><next course-control="2" /></course-control>
+      <course-control id="2" control="2" />
+      <course id="1" kind="normal"><name>Course 1</name><first course-control="1" /></course>
+      <special-object id="10" kind="descriptions">
+        <appearance columns="3" />
+        <location x="67" y="95" /><location x="71" y="95" />
+        <courses><course course="0" /></courses>
+      </special-object>
+    </course-scribe-event>`;
+    const { event } = importPpen(xml, DPI, MAP_HEIGHT_PX);
+    const descBox = event.specialItems.find((si) => si.type === 'descriptionBox');
+    expect(descBox).toBeDefined();
+    expect(descBox!.type).toBe('descriptionBox');
+    if (descBox!.type === 'descriptionBox') {
+      expect(descBox!.allControls).toBe(true);
+      expect(descBox!.columns).toBe(3);
+    }
+  });
 });

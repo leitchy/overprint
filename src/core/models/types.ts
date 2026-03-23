@@ -226,6 +226,10 @@ export interface RectangleItem extends SpecialItemBase {
 export interface DescriptionBoxItem extends SpecialItemBase {
   type: 'descriptionBox';
   endPosition: MapPoint;
+  /** Number of description columns (from PurplePen appearance). */
+  columns?: number;
+  /** True if this is the "All Controls" description box. */
+  allControls?: boolean;
 }
 
 export interface ImageItem extends SpecialItemBase {

@@ -24,6 +24,8 @@ interface PdfOverprintContext {
   toPdf: (point: MapPoint) => MapPoint;
   /** Scale factor: map pixels → PDF points. Used to convert relative offsets. */
   effectivePPP: number;
+  /** Offset added to sequence numbers when rendering a course part (default 0). */
+  sequenceOffset?: number;
 }
 
 /**
@@ -166,13 +168,14 @@ export function renderOverprint(
 
     // Compute label text from course labelMode setting
     const labelMode = course.settings.labelMode ?? 'sequence';
+    const seqNum = index + (ctx.sequenceOffset ?? 0) + 1;
     let labelText: string;
     if (labelMode === 'sequence') {
-      labelText = String(index + 1);
+      labelText = String(seqNum);
     } else if (labelMode === 'code') {
       labelText = String(control.code);
     } else if (labelMode === 'both') {
-      labelText = `${index + 1} (${control.code})`;
+      labelText = `${seqNum} (${control.code})`;
     } else {
       labelText = '';
     }

@@ -582,7 +582,21 @@ export function importPpen(
       case 'descriptions': {
         if (loc1) {
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
-          specialItems.push({ ...baseProps, type: 'descriptionBox', endPosition: pos2 });
+          // Parse columns from <appearance columns="N" />
+          const appearanceEl = getChild(soEl, 'appearance');
+          const columnsAttr = appearanceEl ? getAttr(appearanceEl, 'columns') : null;
+          const columns = columnsAttr ? parseInt(columnsAttr, 10) || undefined : undefined;
+          // Detect "All Controls" description (course="0" is the PP pseudo-course)
+          const isAllControls = coursesEl ? Array.from(getChildren(coursesEl, 'course')).some(
+            (cEl) => getAttr(cEl, 'course') === '0',
+          ) : false;
+          specialItems.push({
+            ...baseProps,
+            type: 'descriptionBox',
+            endPosition: pos2,
+            columns,
+            allControls: isAllControls || undefined,
+          });
         }
         break;
       }
