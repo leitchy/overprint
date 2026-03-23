@@ -762,7 +762,7 @@ async function renderAutoDescriptionBox(
     );
     const startDist = (startIdx >= 0 && firstCtrlIdx > startIdx)
       ? distBetween(startIdx, firstCtrlIdx) : 0;
-    headerRowList.push({ kind: 'directive', leftSymbol: '\u25B7', distanceText: startDist > 0 ? `${startDist} m` : '' });
+    headerRowList.push({ kind: 'directive', leftSymbol: 'start', distanceText: startDist > 0 ? `${startDist} m` : '' });
   }
 
   // Build body rows (controls + exchange directives + finish)
@@ -782,7 +782,7 @@ async function renderAutoDescriptionBox(
     bodyRowList.push({ kind: 'control', cc, seqNumber: seq });
 
     if (isExchange) {
-      bodyRowList.push({ kind: 'directive', leftSymbol: '\u21D2', distanceText: '' });
+      bodyRowList.push({ kind: 'directive', leftSymbol: 'exchange', distanceText: '' });
     }
   }
 
@@ -796,7 +796,7 @@ async function renderAutoDescriptionBox(
       );
     const finishDist = (lastCtrlIdx >= 0 && finishIdx > lastCtrlIdx)
       ? distBetween(lastCtrlIdx, finishIdx) : 0;
-    bodyRowList.push({ kind: 'directive', leftSymbol: '\u25CB', distanceText: finishDist > 0 ? `${finishDist} m` : '' });
+    bodyRowList.push({ kind: 'directive', leftSymbol: 'finish', distanceText: finishDist > 0 ? `${finishDist} m` : '' });
   }
 
   // --- Step 2: Sizing (uses row counts, not control counts) ---
@@ -829,7 +829,7 @@ async function renderAutoDescriptionBox(
   const cellFromHeight = maxBlockHeight / tallestColRows;
   const totalGridsWidth = maxBlockWidth - gapPt * (numDescCols - 1);
   const cellFromWidth = totalGridsWidth / (colWidthInCells * numDescCols);
-  let cellPt = Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM));
+  let cellPt = Math.max(mmToPdfPoints(2), Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM)));
   if (overrideCellPt) cellPt = overrideCellPt;
 
   const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
@@ -992,7 +992,7 @@ async function renderAutoDescriptionBox(
 
   // Helper: draw a directive row (start/finish/exchange)
   // Left section shows a symbol label, right section shows distance text
-  function drawDirectiveRow(gridX: number, rowY: number, leftText: string, rightText: string): void {
+  function drawDirectiveRow(gridX: number, rowY: number, symbolType: string, rightText: string): void {
     // Left section (3 cells wide)
     const leftW = cellPt * 3;
     const rightW = gridWidth - leftW;
@@ -1005,13 +1005,27 @@ async function renderAutoDescriptionBox(
       borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
     });
 
-    // Left text (centered)
-    const lFontSize = DESC_HEADER_FONT_SIZE;
-    const lw = font.widthOfTextAtSize(leftText, lFontSize);
-    page.drawText(leftText, {
-      x: gridX + (leftW - lw) / 2, y: rowY + (cellPt - lFontSize) / 2,
-      size: lFontSize, font, color: DESC_TEXT_COLOR,
-    });
+    // Draw symbol in left section
+    const cx = gridX + leftW / 2;
+    const cy = rowY + cellPt / 2;
+    const s = cellPt * 0.3; // symbol size
+
+    if (symbolType === 'start') {
+      // Start triangle (pointing right)
+      const triH = s * 0.866; // equilateral triangle half-height
+      page.drawLine({ start: { x: cx - triH, y: cy - s }, end: { x: cx + triH, y: cy }, thickness: 1, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + triH, y: cy }, end: { x: cx - triH, y: cy + s }, thickness: 1, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx - triH, y: cy + s }, end: { x: cx - triH, y: cy - s }, thickness: 1, color: DESC_TEXT_COLOR });
+    } else if (symbolType === 'finish') {
+      // Finish double circle
+      page.drawCircle({ x: cx, y: cy, size: s, borderColor: DESC_TEXT_COLOR, borderWidth: 1 });
+      page.drawCircle({ x: cx, y: cy, size: s * 0.7, borderColor: DESC_TEXT_COLOR, borderWidth: 1 });
+    } else if (symbolType === 'exchange') {
+      // Map exchange arrow (right-pointing arrow)
+      page.drawLine({ start: { x: cx - s, y: cy }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy + s * 0.5 }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy - s * 0.5 }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+    }
 
     // Right: dashed line with distance text centered
     if (rightText) {
