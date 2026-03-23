@@ -151,7 +151,7 @@ export function renderOverprint(
       drawFinishCircles(page, pt, finishOuterRadius, finishInnerRadius, lineWidth);
     } else if (type === 'crossingPoint') {
       drawCrossingPoint(page, pt, crossingPointArm, lineWidth);
-    } else if (type === 'mapExchange') {
+    } else if (type === 'mapExchange' || type === 'mapFlip') {
       // Inverted triangle — rotated π from start direction
       drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
     } else {

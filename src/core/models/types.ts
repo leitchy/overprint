@@ -81,7 +81,8 @@ export type CourseControlType =
   | 'control'
   | 'finish'
   | 'crossingPoint'
-  | 'mapExchange';
+  | 'mapExchange'
+  | 'mapFlip';
 
 export interface CourseControl {
   controlId: ControlId;
@@ -123,6 +124,12 @@ export interface CourseSettings {
   pageSetup?: Partial<PageSetup>; // Per-course override (e.g. orientation, paper size)
 }
 
+/** Per-part options for multi-part courses (map exchange / map flip). */
+export interface PartOptions {
+  /** Show finish circle on non-final parts (default false). */
+  showFinish?: boolean;
+}
+
 export interface Course {
   id: CourseId;
   name: string;
@@ -130,6 +137,8 @@ export interface Course {
   controls: CourseControl[];
   climb?: number; // Optional climb in metres
   settings: CourseSettings;
+  /** Per-part options, indexed by 0-based part number. Only for multi-part courses. */
+  partOptions?: PartOptions[];
 }
 
 export type PaperSize = 'A4' | 'A3' | 'Letter' | 'custom';

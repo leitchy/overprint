@@ -82,6 +82,40 @@ export async function generateCoursePdf(
 
   let lastCourseName = '';
 
+  // For multi-course export, compute a union bounding box so all courses
+  // share a consistent map position (prevents the map from shifting between pages).
+  // Prefer union of print areas (if set), otherwise union of control bounds.
+  let unionBounds: import('@/core/models/types').CourseBounds | null = null;
+  let unionPrintArea: import('@/core/models/types').CourseBounds | null = null;
+  if (isMultiCourse) {
+    for (const ci of indices) {
+      const course = event.courses[ci];
+      if (!course) continue;
+      const b = computeCourseBounds(course, event.controls);
+      if (!b) continue;
+      if (!unionBounds) {
+        unionBounds = { ...b };
+      } else {
+        unionBounds.minX = Math.min(unionBounds.minX, b.minX);
+        unionBounds.minY = Math.min(unionBounds.minY, b.minY);
+        unionBounds.maxX = Math.max(unionBounds.maxX, b.maxX);
+        unionBounds.maxY = Math.max(unionBounds.maxY, b.maxY);
+      }
+      // Union of per-course print areas
+      const pa = course.settings.printArea;
+      if (pa) {
+        if (!unionPrintArea) {
+          unionPrintArea = { ...pa };
+        } else {
+          unionPrintArea.minX = Math.min(unionPrintArea.minX, pa.minX);
+          unionPrintArea.minY = Math.min(unionPrintArea.minY, pa.minY);
+          unionPrintArea.maxX = Math.max(unionPrintArea.maxX, pa.maxX);
+          unionPrintArea.maxY = Math.max(unionPrintArea.maxY, pa.maxY);
+        }
+      }
+    }
+  }
+
   for (const ci of indices) {
     const course: Course | undefined = event.courses[ci];
     if (!course) continue;
@@ -100,11 +134,13 @@ export async function generateCoursePdf(
     const pageSetup = mergePageSetup(event.settings.pageSetup, course.settings.pageSetup);
     const layout = computePageLayout(pageSetup);
 
-    // Compute viewport grid for this course
-    const printAreaOverride = course.settings.printArea;
+    // Compute viewport — for multi-course, use union bounds/print area
+    // so every page shares the same map position.
+    const printAreaOverride = isMultiCourse ? unionPrintArea : course.settings.printArea;
+    const effectiveBounds = unionBounds ?? bounds;
     const multiPage = computeMultiPageViewports(
-      layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds,
-      30, 15, printAreaOverride,
+      layout, mapScale, printScale, dpi, imgWidth, imgHeight, effectiveBounds,
+      30, 15, printAreaOverride ?? undefined,
     );
     const coursePageCount = multiPage.viewports.length;
 
@@ -515,21 +551,19 @@ async function renderDescriptionBoxToPdf(
   const controlRows = course.controls.length;
   const totalRows = 2 + controlRows; // header + info + controls
 
-  // Calculate cell size to fit within bounds
-  const cellW = bounds.width / numCols;
-  const cellH = bounds.height / totalRows;
-  // Use uniform cell size (square cells preferred, but fit to bounds)
-  const cellSize = Math.min(cellW, cellH);
-
-  // Actual grid dimensions
+  // PurplePen description boxes store one CELL width between the two locations,
+  // not the full grid width. The full width = one cell × numCols.
+  // Height is implicit (number of rows × cell size).
+  const cellSize = bounds.width; // one cell width from the .ppen locations
   const gridWidth = cellSize * numCols;
   const gridHeight = cellSize * totalRows;
 
-  // Center the grid within the bounds
-  const gridX = bounds.x + (bounds.width - gridWidth) / 2;
-  // PDF Y=0 at bottom; bounds.y is the bottom of the box
-  // Grid starts at the top of the bounds
-  const gridTopY = bounds.y + bounds.height;
+  // Position: bounds.x/y come from toPdf(position) where position is
+  // the first .ppen location (top-left of the box in map coords).
+  // In PDF coords, Y increases upward — so bounds.y is the TOP of the box.
+  // The grid grows downward from there.
+  const gridX = bounds.x;
+  const gridTopY = bounds.y;
 
   // Draw white background
   page.drawRectangle({

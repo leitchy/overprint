@@ -59,6 +59,10 @@ interface PpenCourseControlNode {
   controlRef: string;    // references <control id="...">
   nextId: string | null;
   points?: number;       // score course points
+  /** map-exchange attribute on <course-control> (overrides control kind) */
+  isExchange?: boolean;
+  /** map-flip attribute on <course-control> (exchange variant) */
+  isFlip?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -365,8 +369,10 @@ export function importPpen(
     const nextId = nextEl ? (getAttr(nextEl, 'course-control') ?? null) : null;
     const pointsStr = getAttr(el, 'points');
     const points = pointsStr ? (parseInt(pointsStr, 10) || undefined) : undefined;
+    const isExchange = getAttr(el, 'map-exchange') === 'true' || undefined;
+    const isFlip = getAttr(el, 'map-flip') === 'true' || undefined;
 
-    ccNodeMap.set(id, { id, controlRef, nextId, points });
+    ccNodeMap.set(id, { id, controlRef, nextId, points, isExchange, isFlip });
   }
 
   // -----------------------------------------------------------------------
@@ -422,6 +428,12 @@ export function importPpen(
         type = 'control';
       }
 
+      // course-control level map-exchange/map-flip overrides control kind
+      // (a normal control can be marked as an exchange at the course level)
+      if (node.isExchange) {
+        type = node.isFlip ? 'mapFlip' : 'mapExchange';
+      }
+
       const cc: CourseControl = {
         controlId: entry.control.id,
         type,
@@ -462,6 +474,19 @@ export function importPpen(
         maxX: Math.max(topLeft.x, bottomRight.x),
         maxY: Math.max(topLeft.y, bottomRight.y),
       };
+
+      // Parse page orientation and margins from print-area
+      const isLandscape = getAttr(printAreaEl, 'page-landscape') === 'true';
+      const pageMarginsAttr = getAttr(printAreaEl, 'page-margins');
+      if (isLandscape || pageMarginsAttr !== null) {
+        // page-margins is in 1/100 inch (same unit as page-width/page-height)
+        const marginMm = pageMarginsAttr !== null ? (parseFloat(pageMarginsAttr) / 100) * 25.4 : undefined;
+        settings.pageSetup = {
+          ...settings.pageSetup,
+          ...(isLandscape ? { orientation: 'landscape' as const } : {}),
+          ...(marginMm !== undefined ? { margins: { top: marginMm, right: marginMm, bottom: marginMm, left: marginMm } } : {}),
+        };
+      }
     }
 
     const courseId = generateCourseId();
@@ -662,6 +687,21 @@ export function importPpen(
   event.settings.printScale = eventPrintScale;
   event.settings.descriptionStandard = descriptionStandard;
   event.settings.mapStandard = mapStandard;
+
+  // Promote common per-course page setup to event level
+  if (courses.length > 0) {
+    const first = courses[0]!.settings.pageSetup;
+    if (first?.orientation && courses.every((c) => c.settings.pageSetup?.orientation === first.orientation)) {
+      event.settings.pageSetup = { ...event.settings.pageSetup, orientation: first.orientation };
+    }
+    if (first?.margins && courses.every((c) => {
+      const m = c.settings.pageSetup?.margins;
+      return m && m.top === first.margins!.top && m.right === first.margins!.right
+        && m.bottom === first.margins!.bottom && m.left === first.margins!.left;
+    })) {
+      event.settings.pageSetup = { ...event.settings.pageSetup, margins: first.margins };
+    }
+  }
 
   // Build controls record
   const controls: Record<string, Control> = {};

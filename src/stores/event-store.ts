@@ -36,7 +36,7 @@ function deriveCourseControlTypes(controls: CourseControl[]): void {
       // Reset start/finish types that are no longer at endpoints
       cc.type = 'control';
     }
-    // Preserve 'crossingPoint' and 'mapExchange' for middle controls
+    // Preserve 'crossingPoint', 'mapExchange', and 'mapFlip' for middle controls
   }
 }
 
@@ -61,6 +61,8 @@ interface EventState {
   visibleCourseIds: Record<string, boolean>;
   /** Show non-current controls (pink, no legs) when a course is selected */
   showNonCurrentControls: boolean;
+  /** Which part of the active multi-part course is selected. null = all parts. */
+  activePartIndex: number | null;
 }
 
 interface EventActions {
@@ -78,6 +80,10 @@ interface EventActions {
   setActiveCourse: (id: CourseId | null) => void;
   showAllControls: () => void;
   setSelectedControl: (id: ControlId | null) => void;
+
+  // Course parts
+  setActivePartIndex: (index: number | null) => void;
+  setPartShowFinish: (courseId: CourseId, partIndex: number, showFinish: boolean) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -160,6 +166,7 @@ export const useEventStore = create<EventState & EventActions>()(
       viewMode: 'course',
       visibleCourseIds: {},
       showNonCurrentControls: false,
+      activePartIndex: null,
 
       newEvent: (name: string) => {
         set((state) => {
@@ -171,6 +178,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.viewMode = 'course';
           state.visibleCourseIds = {};
           state.showNonCurrentControls = false;
+          state.activePartIndex = null;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -237,6 +245,7 @@ export const useEventStore = create<EventState & EventActions>()(
             controls: source.controls.map((cc) => ({ ...cc })),
             climb: source.climb,
             settings: JSON.parse(JSON.stringify(source.settings)),
+            partOptions: source.partOptions ? JSON.parse(JSON.stringify(source.partOptions)) : undefined,
           };
           // Insert after the source course
           const index = state.event.courses.findIndex((c) => c.id === id);
@@ -274,6 +283,7 @@ export const useEventStore = create<EventState & EventActions>()(
             const next = remaining[index] ?? remaining[index - 1] ?? null;
             state.activeCourseId = next?.id ?? null;
             state.selectedControlId = null;
+            state.activePartIndex = null;
             // If no courses remain, switch to all-controls view
             if (!state.activeCourseId) {
               state.viewMode = 'allControls';
@@ -287,6 +297,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.activeCourseId = id;
           state.selectedControlId = null;
           state.viewMode = 'course';
+          state.activePartIndex = null;
         });
       },
 
@@ -295,6 +306,23 @@ export const useEventStore = create<EventState & EventActions>()(
           state.viewMode = 'allControls';
           state.activeCourseId = null;
           state.selectedControlId = null;
+        });
+      },
+
+      setActivePartIndex: (index: number | null) => {
+        set((state) => {
+          state.activePartIndex = index;
+        });
+      },
+
+      setPartShowFinish: (courseId: CourseId, partIndex: number, showFinish: boolean) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          if (!course.partOptions) course.partOptions = [];
+          if (!course.partOptions[partIndex]) course.partOptions[partIndex] = {};
+          course.partOptions[partIndex]!.showFinish = showFinish;
         });
       },
 
@@ -544,6 +572,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.viewMode = event.courses.length > 0 ? 'course' : 'allControls';
           state.visibleCourseIds = {};
           state.showNonCurrentControls = false;
+          state.activePartIndex = null;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());

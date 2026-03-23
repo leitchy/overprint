@@ -63,7 +63,7 @@ export const ControlShape = memo(function ControlShape({
 
   // Selection ring radius varies by shape type
   const selectionRadius =
-    type === 'start' || type === 'mapExchange'
+    type === 'start' || type === 'mapExchange' || type === 'mapFlip'
       ? dimensions.startTriangleSide / Math.sqrt(3) + screenLineWidth * 2
       : type === 'finish'
         ? dimensions.finishOuterRadius + screenLineWidth * 2
@@ -123,7 +123,7 @@ export const ControlShape = memo(function ControlShape({
           listening={false}, so the Group needs a hittable child for
           click, drag, and hover to work. Rendered when draggable
           (active course) or clickable (background reuse). */}
-      {(type === 'start' || type === 'finish' || type === 'mapExchange' || type === 'crossingPoint') && (draggable || clickable) && (
+      {(type === 'start' || type === 'finish' || type === 'mapExchange' || type === 'mapFlip' || type === 'crossingPoint') && (draggable || clickable) && (
         <Rect
           x={-selectionRadius}
           y={-selectionRadius}
@@ -166,7 +166,7 @@ export const ControlShape = memo(function ControlShape({
           lineWidth={screenLineWidth}
           color={color}
         />
-      ) : type === 'mapExchange' ? (
+      ) : type === 'mapExchange' || type === 'mapFlip' ? (
         <StartTriangle
           sideLength={dimensions.startTriangleSide}
           lineWidth={screenLineWidth}
@@ -191,6 +191,8 @@ export const ControlShape = memo(function ControlShape({
           y={numY + numberSize * 1.4}
           fontSize={numberSize}
           fill={color}
+          stroke="#FFFFFF"
+          strokeWidth={2}
           listening={false}
         />
       )}
@@ -204,8 +206,8 @@ export const ControlShape = memo(function ControlShape({
           fontSize={numberSize}
           fill={color}
           fontStyle="bold"
-          stroke={numberOutline ? '#FFFFFF' : undefined}
-          strokeWidth={numberOutline ? 2 : undefined}
+          stroke="#FFFFFF"
+          strokeWidth={numberOutline ? 3 : 2}
           draggable={!!onNumberDragEnd}
           listening={!!onNumberDragEnd}
           onDragStart={(e) => {
