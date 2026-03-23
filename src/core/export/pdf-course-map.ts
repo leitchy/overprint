@@ -689,31 +689,27 @@ async function renderAutoDescriptionBox(
   const headerRows = 2; // course name + length/climb
   const controlCount = course.controls.length;
 
-  // How many rows fit in the available page height (with top offset)?
+  // Compute column count — aim for description box to use at most half the page height,
+  // capped by the available height. This produces a more compact, balanced layout.
   const availableHeight = layout.printableHeight - topOffsetPt;
-  const maxRowsFirstCol = Math.floor(availableHeight / cellPt) - headerRows;
-  const maxRowsSubseqCol = Math.floor(availableHeight / cellPt);
+  const targetHeight = Math.min(availableHeight, layout.printableHeight * 0.5);
+  const maxRowsTarget = Math.max(4, Math.floor(targetHeight / cellPt) - headerRows);
+  // Determine number of description columns needed
+  const numDescCols = Math.max(1, Math.ceil(controlCount / maxRowsTarget));
 
-  // Split controls across columns
+  // Split controls across columns evenly
   const columnSlices: { startIdx: number; endIdx: number; showHeader: boolean }[] = [];
   let remaining = controlCount;
   let offset = 0;
 
-  // First column: has header rows, fewer control rows
-  const firstColCount = Math.min(remaining, maxRowsFirstCol);
-  columnSlices.push({ startIdx: 0, endIdx: firstColCount, showHeader: true });
-  remaining -= firstColCount;
-  offset = firstColCount;
-
-  // Subsequent columns: no header, full height
-  while (remaining > 0) {
-    const colCount = Math.min(remaining, maxRowsSubseqCol);
-    columnSlices.push({ startIdx: offset, endIdx: offset + colCount, showHeader: false });
+  for (let c = 0; c < numDescCols; c++) {
+    // Distribute evenly: ceil division for remaining controls across remaining columns
+    const colCount = Math.min(remaining, Math.ceil(remaining / (numDescCols - c)));
+    columnSlices.push({ startIdx: offset, endIdx: offset + colCount, showHeader: c === 0 });
     remaining -= colCount;
     offset += colCount;
   }
 
-  const numDescCols = columnSlices.length;
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
   // Position: top-right corner of printable area
