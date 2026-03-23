@@ -610,7 +610,8 @@ async function svgToPngBlob(svgString: string, sizePx: number): Promise<Blob> {
 // ---------------------------------------------------------------------------
 
 /** Standard IOF cell size in mm */
-const DESC_CELL_SIZE_MM = 7;
+/** PurplePen uses 6mm cells for printed descriptions (not 7mm IOF spec) */
+const DESC_CELL_SIZE_MM = 6;
 
 const DESC_BORDER_WIDTH = 0.5;
 const DESC_TEXT_FONT_SIZE = 8;
