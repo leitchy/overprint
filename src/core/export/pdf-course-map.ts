@@ -677,25 +677,49 @@ async function renderAutoDescriptionBox(
   const hasTextCol = appearance === 'symbolsAndText';
   const numCols = hasTextCol ? 9 : 8;
 
-  const cellPt = mmToPdfPoints(DESC_CELL_SIZE_MM);
   const gapPt = mmToPdfPoints(DESC_COL_GAP_MM);
   const bleedPt = mmToPdfPoints(DESC_BLEED_MM);
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
   const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
-  // Text column (9th) is wider than symbol columns
-  const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
-  const gridWidth = cellPt * 8 + textColWidthPt;
   const headerRows = 2; // course name + length/climb
   const controlCount = course.controls.length;
 
-  // Compute column count — aim for description box to use at most half the page height,
-  // capped by the available height. This produces a more compact, balanced layout.
-  const availableHeight = layout.printableHeight - topOffsetPt;
-  const targetHeight = Math.min(availableHeight, layout.printableHeight * 0.5);
-  const maxRowsTarget = Math.max(4, Math.floor(targetHeight / cellPt) - headerRows);
-  // Determine number of description columns needed
-  const numDescCols = Math.max(1, Math.ceil(controlCount / maxRowsTarget));
+  // Effective column width multiplier (8 symbol cols + optional text col)
+  const colWidthInCells = hasTextCol ? 8 + DESC_TEXT_COL_MULTIPLIER : 8;
+
+  // Target: description block should use at most 50% of the page width
+  // and at most 55% of the page height. Dynamically size cells to fit.
+  const maxBlockWidth = layout.printableWidth * 0.5;
+  const maxBlockHeight = (layout.printableHeight - topOffsetPt) * 0.55;
+
+  // Find the number of columns that gives the largest cell size while fitting.
+  // More columns = fewer rows = larger cells (up to the max of 6mm).
+  let numDescCols = 1;
+  let bestCellPt = 0;
+  for (let n = 1; n <= 6; n++) {
+    const ctrlPerCol = Math.ceil(controlCount / n);
+    const tallest = headerRows + ctrlPerCol;
+    const cellH = maxBlockHeight / tallest;
+    const cellW = (maxBlockWidth - gapPt * (n - 1)) / (colWidthInCells * n);
+    const cell = Math.min(cellH, cellW, mmToPdfPoints(DESC_CELL_SIZE_MM));
+    if (cell >= mmToPdfPoints(3.5) && cell > bestCellPt) {
+      bestCellPt = cell;
+      numDescCols = n;
+    }
+  }
+
+  // Compute cell size to fit the block within max dimensions.
+  // The tallest column has header rows + its share of controls.
+  const controlsPerCol = Math.ceil(controlCount / numDescCols);
+  const tallestColRows = headerRows + controlsPerCol; // first column is tallest (has header)
+  const cellFromHeight = maxBlockHeight / tallestColRows;
+  const totalGridsWidth = maxBlockWidth - gapPt * (numDescCols - 1);
+  const cellFromWidth = totalGridsWidth / (colWidthInCells * numDescCols);
+  const cellPt = Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM));
+
+  const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
+  const gridWidth = cellPt * 8 + textColWidthPt;
 
   // Split controls across columns evenly
   const columnSlices: { startIdx: number; endIdx: number; showHeader: boolean }[] = [];
