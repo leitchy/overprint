@@ -5,11 +5,12 @@ import type { OverprintEvent, Course, Control, EventSettings, PageSetup, Special
 import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
 import type { PageLayout, MapViewport } from './pdf-page-layout';
-import { computePageLayout, computeCourseBounds, computeMultiPageViewports } from './pdf-page-layout';
+import { computePageLayout, computeCourseBounds, computeMultiPageViewports, mmToPdfPoints } from './pdf-page-layout';
 import { renderOverprint } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -142,45 +143,85 @@ export async function generateCoursePdf(
       layout, mapScale, printScale, dpi, imgWidth, imgHeight, effectiveBounds,
       30, 15, printAreaOverride ?? undefined,
     );
-    const coursePageCount = multiPage.viewports.length;
 
-    for (let pageIndex = 0; pageIndex < coursePageCount; pageIndex++) {
-      const viewport = multiPage.viewports[pageIndex]!;
-      const toPdf = viewportToPdf(layout, viewport);
+    // Check for user-placed description box
+    const hasUserDescBox = event.specialItems.some(
+      (si) => si.type === 'descriptionBox' && si.courseIds?.includes(course.id),
+    );
 
-      // Each page gets its own dimensions (supports mixed portrait/landscape)
-      const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+    // Multi-part courses: one page per part. Single-part: one page for the whole course.
+    const totalParts = countCourseParts(course.controls);
+    const partIterations = totalParts > 1
+      ? Array.from({ length: totalParts }, (_, i) => i)
+      : [null]; // null = single-part (no filtering)
 
-      // Draw base map — vector PDF page or rasterised PNG
-      if (embeddedPdfPage) {
-        drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
-      } else if (embeddedMap) {
-        drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
+    for (const partIdx of partIterations) {
+      // Build the course to render (full course or filtered to this part)
+      let renderCourse: Course;
+      let sequenceOffset = 0;
+      let partLabel: string | undefined;
+
+      if (partIdx !== null) {
+        const partControls = getPartControls(course, partIdx);
+        renderCourse = { ...course, controls: partControls };
+        sequenceOffset = getPartBounds(course.controls, partIdx).start;
+        partLabel = `(P${partIdx + 1}/${totalParts})`;
+      } else {
+        renderCourse = course;
       }
 
-      // Draw vector overprint
-      renderOverprint(
-        { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
-        course,
-        event.controls,
-        font,
-      );
+      // For each viewport page (usually 1 unless course is too large for the page)
+      const coursePageCount = multiPage.viewports.length;
+      for (let pageIndex = 0; pageIndex < coursePageCount; pageIndex++) {
+        const viewport = multiPage.viewports[pageIndex]!;
+        const toPdf = viewportToPdf(layout, viewport);
 
-      // Draw special items (filtered by course)
-      await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, course, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
+        const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
 
-      // Page label — show course name for multi-course, page number for multi-page courses
-      if (isMultiCourse || coursePageCount > 1) {
-        const pageLabel = coursePageCount > 1
-          ? `${course.name} (${pageIndex + 1}/${coursePageCount})`
-          : course.name;
-        page.drawText(pageLabel, {
-          x: layout.marginLeft + 4,
-          y: layout.pageHeight - layout.marginTop - 12,
-          size: 8,
+        // Draw base map
+        if (embeddedPdfPage) {
+          drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
+        } else if (embeddedMap) {
+          drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
+        }
+
+        // Draw vector overprint (filtered to part if multi-part)
+        renderOverprint(
+          { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP, sequenceOffset },
+          renderCourse,
+          event.controls,
           font,
-          color: rgb(0.4, 0.4, 0.4),
-        });
+        );
+
+        // Draw special items (unassigned desc boxes filtered out in renderSpecialItems)
+        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
+
+        // Auto-generate description box if no user-placed one exists
+        if (!hasUserDescBox) {
+          await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
+        }
+
+        // Page label
+        const totalPages = coursePageCount * partIterations.length;
+        if (isMultiCourse || totalPages > 1) {
+          let pageLabel: string;
+          if (partIdx !== null) {
+            pageLabel = coursePageCount > 1
+              ? `${course.name}-${partIdx + 1} (${pageIndex + 1}/${coursePageCount})`
+              : `${course.name}-${partIdx + 1}`;
+          } else {
+            pageLabel = coursePageCount > 1
+              ? `${course.name} (${pageIndex + 1}/${coursePageCount})`
+              : course.name;
+          }
+          page.drawText(pageLabel, {
+            x: layout.marginLeft + 4,
+            y: layout.pageHeight - layout.marginTop - 12,
+            size: 8,
+            font,
+            color: rgb(0.4, 0.4, 0.4),
+          });
+        }
       }
     }
   }
@@ -328,6 +369,13 @@ async function renderSpecialItems(
   for (const item of specialItems) {
     // Filter by course
     if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) {
+      continue;
+    }
+
+    // Skip unassigned description boxes on individual course pages —
+    // these are "All Controls" boxes from .ppen that shouldn't render per-course.
+    // Auto-generated description boxes replace them.
+    if (item.type === 'descriptionBox' && (!item.courseIds || item.courseIds.length === 0)) {
       continue;
     }
 
@@ -759,5 +807,241 @@ async function renderDescriptionBoxToPdf(
     }
 
     rowIndex++;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-generated description box (rendered when no user-placed box exists)
+// ---------------------------------------------------------------------------
+
+const DESC_COL_GAP_MM = 2.5;
+const DESC_BLEED_MM = 1.5;
+const DESC_OUTER_BORDER_WIDTH = 1.0;
+
+/**
+ * Auto-generate and render a description box in the top-right corner of the page.
+ * Splits into multiple columns if the description is taller than the page.
+ * Header shows course name with optional part indicator.
+ */
+async function renderAutoDescriptionBox(
+  page: PDFPage,
+  pdfDoc: PDFDocument,
+  course: Course,
+  controls: Record<ControlId, Control>,
+  eventSettings: EventSettings,
+  layout: PageLayout,
+  font: PDFFont,
+  partLabel?: string, // e.g., "(P1/2)"
+): Promise<void> {
+  const lang = eventSettings.language ?? 'en';
+  const appearance = course.settings.descriptionAppearance ?? 'symbols';
+  const numCols = appearance === 'symbolsAndText' ? 9 : 8;
+
+  const cellPt = mmToPdfPoints(DESC_CELL_SIZE_MM);
+  const gapPt = mmToPdfPoints(DESC_COL_GAP_MM);
+  const bleedPt = mmToPdfPoints(DESC_BLEED_MM);
+
+  const gridWidth = cellPt * numCols;
+  const headerRows = 2; // course name + length/climb
+  const controlCount = course.controls.length;
+
+  // How many rows fit in the available page height?
+  const availableHeight = layout.printableHeight;
+  const maxRowsFirstCol = Math.floor(availableHeight / cellPt) - headerRows;
+  const maxRowsSubseqCol = Math.floor(availableHeight / cellPt);
+
+  // Split controls across columns
+  const columnSlices: { startIdx: number; endIdx: number; showHeader: boolean }[] = [];
+  let remaining = controlCount;
+  let offset = 0;
+
+  // First column: has header rows, fewer control rows
+  const firstColCount = Math.min(remaining, maxRowsFirstCol);
+  columnSlices.push({ startIdx: 0, endIdx: firstColCount, showHeader: true });
+  remaining -= firstColCount;
+  offset = firstColCount;
+
+  // Subsequent columns: no header, full height
+  while (remaining > 0) {
+    const colCount = Math.min(remaining, maxRowsSubseqCol);
+    columnSlices.push({ startIdx: offset, endIdx: offset + colCount, showHeader: false });
+    remaining -= colCount;
+    offset += colCount;
+  }
+
+  const numDescCols = columnSlices.length;
+  const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
+
+  // Position: top-right corner of printable area
+  const blockRight = layout.pageWidth - layout.marginRight;
+  const blockLeft = blockRight - totalBlockWidth;
+  const blockTopY = layout.pageHeight - layout.marginTop;
+
+  // Embed symbols cache (shared across all columns)
+  const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
+
+  async function embedSymbol(symbolId: string): Promise<Awaited<ReturnType<typeof pdfDoc.embedPng>> | null> {
+    const cached = embeddedSymbols.get(symbolId);
+    if (cached) return cached;
+    const svgString = getSymbolSvg(symbolId);
+    if (!svgString) return null;
+    const sizePx = Math.ceil((DESC_CELL_SIZE_MM / 25.4) * 300);
+    const blob = await svgToPngBlob(svgString, sizePx);
+    const arrayBuffer = await blob.arrayBuffer();
+    const pngBytes = new Uint8Array(arrayBuffer);
+    const image = await pdfDoc.embedPng(pngBytes);
+    embeddedSymbols.set(symbolId, image);
+    return image;
+  }
+
+  // Helper: draw a single row of cells at the given position
+  async function drawControlRow(
+    gridX: number,
+    rowY: number,
+    cc: import('@/core/models/types').CourseControl,
+    seqNumber: number | null,
+  ): Promise<void> {
+    const ctrl: Control | undefined = controls[cc.controlId as ControlId];
+    if (!ctrl) return;
+
+    const isStart = cc.type === 'start';
+    const isFinish = cc.type === 'finish';
+
+    const colA: string | null = (isStart || isFinish || seqNumber === null) ? null : String(seqNumber);
+    const colB: string | null = (isStart || isFinish) ? null : String(ctrl.code);
+
+    const desc = ctrl.description;
+    const symOrText = (v: string | undefined): string | null => {
+      if (!v) return null;
+      if (appearance === 'text') return getSymbolName(v, lang);
+      return getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
+    };
+
+    const cells: Array<string | null> = [
+      colA, colB,
+      symOrText(desc.columnC), symOrText(desc.columnD),
+      symOrText(desc.columnE), symOrText(desc.columnF),
+      symOrText(desc.columnG), symOrText(desc.columnH),
+    ];
+    if (appearance === 'symbolsAndText') {
+      cells.push(generateTextDescription(desc, lang));
+    }
+
+    for (let col = 0; col < numCols; col++) {
+      const cellX = gridX + col * cellPt;
+      page.drawRectangle({
+        x: cellX, y: rowY, width: cellPt, height: cellPt,
+        borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+      });
+
+      const cell = cells[col];
+      if (!cell) continue;
+
+      if (cell.startsWith('sym:')) {
+        const pdfImage = await embedSymbol(cell.slice(4));
+        if (pdfImage) {
+          const padding = cellPt * 0.08;
+          page.drawImage(pdfImage, {
+            x: cellX + padding, y: rowY + padding,
+            width: cellPt - padding * 2, height: cellPt - padding * 2,
+          });
+        }
+      } else {
+        const isTextCol = appearance === 'symbolsAndText' && col === 8;
+        const fontSize = isTextCol ? DESC_TEXT_FONT_SIZE * 0.75 : DESC_TEXT_FONT_SIZE;
+        let displayText = cell;
+        const maxTextWidth = cellPt - cellPt * 0.16;
+        while (font.widthOfTextAtSize(displayText, fontSize) > maxTextWidth && displayText.length > 1) {
+          displayText = displayText.slice(0, -1);
+        }
+        if (isTextCol) {
+          page.drawText(displayText, {
+            x: cellX + cellPt * 0.08, y: rowY + (cellPt - fontSize) / 2,
+            size: fontSize, font, color: DESC_TEXT_COLOR,
+          });
+        } else {
+          const textWidth = font.widthOfTextAtSize(displayText, fontSize);
+          page.drawText(displayText, {
+            x: cellX + (cellPt - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
+            size: fontSize, font, color: DESC_TEXT_COLOR,
+          });
+        }
+      }
+    }
+  }
+
+  // Helper: draw a header row spanning all columns
+  function drawHeader(gridX: number, rowY: number, text: string, fontSize: number): void {
+    page.drawRectangle({
+      x: gridX, y: rowY, width: gridWidth, height: cellPt,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+    });
+    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    page.drawText(text, {
+      x: gridX + (gridWidth - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
+      size: fontSize, font, color: DESC_TEXT_COLOR,
+    });
+  }
+
+  // Compute info text
+  const dpi = 96;
+  const scale = eventSettings.printScale;
+  const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
+  const climbValue = course.climb ?? course.settings.climb;
+  const climbText = climbValue !== undefined ? `  ${climbValue} m` : '';
+  const infoText = `${Math.round(lengthM)} m${climbText}`;
+
+  const headerText = partLabel ? `${course.name} ${partLabel}` : course.name;
+
+  // Track sequence numbering across columns
+  let seqNumber = 0;
+
+  for (let colIdx = 0; colIdx < numDescCols; colIdx++) {
+    const slice = columnSlices[colIdx]!;
+    const colX = blockLeft + colIdx * (gridWidth + gapPt);
+    const colRows = slice.showHeader
+      ? headerRows + (slice.endIdx - slice.startIdx)
+      : (slice.endIdx - slice.startIdx);
+    const colHeight = colRows * cellPt;
+
+    // White background with bleed
+    page.drawRectangle({
+      x: colX - bleedPt, y: blockTopY - colHeight - bleedPt,
+      width: gridWidth + bleedPt * 2, height: colHeight + bleedPt * 2,
+      color: rgb(1, 1, 1),
+    });
+
+    // Outer border
+    page.drawRectangle({
+      x: colX, y: blockTopY - colHeight,
+      width: gridWidth, height: colHeight,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_OUTER_BORDER_WIDTH,
+    });
+
+    let rowY = blockTopY; // start from top, grow downward
+
+    // Header rows (first column only)
+    if (slice.showHeader) {
+      rowY -= cellPt;
+      drawHeader(colX, rowY, headerText, DESC_HEADER_FONT_SIZE);
+      rowY -= cellPt;
+      drawHeader(colX, rowY, infoText, DESC_HEADER_FONT_SIZE);
+    }
+
+    // Control rows
+    for (let i = slice.startIdx; i < slice.endIdx; i++) {
+      const cc = course.controls[i]!;
+      const isStart = cc.type === 'start';
+      const isFinish = cc.type === 'finish';
+
+      let seq: number | null = null;
+      if (!isStart && !isFinish) {
+        seqNumber++;
+        seq = seqNumber;
+      }
+
+      rowY -= cellPt;
+      await drawControlRow(colX, rowY, cc, seq);
+    }
   }
 }
