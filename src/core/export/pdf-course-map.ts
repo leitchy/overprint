@@ -144,11 +144,6 @@ export async function generateCoursePdf(
       30, 15, printAreaOverride ?? undefined,
     );
 
-    // Check for user-placed description box
-    const hasUserDescBox = event.specialItems.some(
-      (si) => si.type === 'descriptionBox' && si.courseIds?.includes(course.id),
-    );
-
     // Multi-part courses: one page per part. Single-part: one page for the whole course.
     const totalParts = countCourseParts(course.controls);
     const partIterations = totalParts > 1
@@ -196,10 +191,8 @@ export async function generateCoursePdf(
         // Draw special items (unassigned desc boxes filtered out in renderSpecialItems)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
 
-        // Auto-generate description box if no user-placed one exists
-        if (!hasUserDescBox) {
-          await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
-        }
+        // Auto-generate description box in the top-right corner
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
 
         // Page label
         const totalPages = coursePageCount * partIterations.length;
@@ -354,12 +347,12 @@ function drawEmbeddedPdfPage(
  */
 async function renderSpecialItems(
   page: PDFPage,
-  pdfDoc: PDFDocument,
+  _pdfDoc: PDFDocument,
   specialItems: SpecialItem[],
   courseId: CourseId,
-  course: Course,
-  controls: Record<ControlId, Control>,
-  eventSettings: EventSettings,
+  _course: Course,
+  _controls: Record<ControlId, Control>,
+  _eventSettings: EventSettings,
   toPdf: (point: MapPoint) => MapPoint,
   font: PDFFont,
   effectivePPP: number,
@@ -372,10 +365,10 @@ async function renderSpecialItems(
       continue;
     }
 
-    // Skip unassigned description boxes on individual course pages —
-    // these are "All Controls" boxes from .ppen that shouldn't render per-course.
-    // Auto-generated description boxes replace them.
-    if (item.type === 'descriptionBox' && (!item.courseIds || item.courseIds.length === 0)) {
+    // Skip ALL description boxes in special items — auto-generation handles them.
+    // Imported .ppen description boxes lack part-awareness and would duplicate
+    // the auto-generated ones.
+    if (item.type === 'descriptionBox') {
       continue;
     }
 
@@ -479,21 +472,7 @@ async function renderSpecialItems(
         break;
       }
 
-      case 'descriptionBox': {
-        const endPos = toPdf(item.endPosition);
-        const rectX = Math.min(pos.x, endPos.x);
-        const rectY = Math.min(pos.y, endPos.y);
-        const rectW = Math.abs(endPos.x - pos.x);
-        const rectH = Math.abs(endPos.y - pos.y);
-
-        await renderDescriptionBoxToPdf(
-          page, pdfDoc, course, controls,
-          { x: rectX, y: rectY, width: rectW, height: rectH },
-          eventSettings,
-          font,
-        );
-        break;
-      }
+      // descriptionBox items are filtered out above — auto-generation handles them
     }
   }
 }
@@ -566,251 +545,9 @@ const DESC_HEADER_FONT_SIZE = 9;
 const DESC_BORDER_COLOR = rgb(0, 0, 0);
 const DESC_TEXT_COLOR = rgb(0, 0, 0);
 
-interface DescBoxBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+// Old renderDescriptionBoxToPdf + DescBoxBounds deleted — see git history.
+// Replaced by renderAutoDescriptionBox below.
 
-/**
- * Render an IOF control description grid within a bounded rectangle on a PDF page.
- * The grid is scaled to fit the given bounds while maintaining the IOF cell aspect ratio.
- *
- * Layout (top to bottom in visual order, but Y increases upward in PDF coords):
- *   1. Header row: course name (spans all columns)
- *   2. Info row: course length (spans all columns)
- *   3. Control rows: one per CourseControl
- */
-async function renderDescriptionBoxToPdf(
-  page: PDFPage,
-  pdfDoc: PDFDocument,
-  course: Course,
-  controls: Record<ControlId, Control>,
-  bounds: DescBoxBounds,
-  eventSettings: EventSettings,
-  font: PDFFont,
-): Promise<void> {
-  const lang = eventSettings.language ?? 'en';
-  const appearance = course.settings.descriptionAppearance ?? 'symbols';
-  const numCols = appearance === 'symbolsAndText' ? 9 : 8;
-
-  // Count rows: header + info + control rows
-  const controlRows = course.controls.length;
-  const totalRows = 2 + controlRows; // header + info + controls
-
-  // PurplePen description boxes store one CELL width between the two locations,
-  // not the full grid width. The full width = one cell × numCols.
-  // Height is implicit (number of rows × cell size).
-  const cellSize = bounds.width; // one cell width from the .ppen locations
-  const gridWidth = cellSize * numCols;
-  const gridHeight = cellSize * totalRows;
-
-  // Position: bounds.x/y come from toPdf(position) where position is
-  // the first .ppen location (top-left of the box in map coords).
-  // In PDF coords, Y increases upward — so bounds.y is the TOP of the box.
-  // The grid grows downward from there.
-  const gridX = bounds.x;
-  const gridTopY = bounds.y;
-
-  // Draw white background
-  page.drawRectangle({
-    x: gridX,
-    y: gridTopY - gridHeight,
-    width: gridWidth,
-    height: gridHeight,
-    color: rgb(1, 1, 1),
-  });
-
-  // Embed symbols cache
-  const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
-
-  async function embedSymbol(symbolId: string): Promise<Awaited<ReturnType<typeof pdfDoc.embedPng>> | null> {
-    const cached = embeddedSymbols.get(symbolId);
-    if (cached) return cached;
-
-    const svgString = getSymbolSvg(symbolId);
-    if (!svgString) return null;
-
-    const sizePx = Math.ceil((DESC_CELL_SIZE_MM / 25.4) * 300);
-    const blob = await svgToPngBlob(svgString, sizePx);
-    const arrayBuffer = await blob.arrayBuffer();
-    const pngBytes = new Uint8Array(arrayBuffer);
-    const image = await pdfDoc.embedPng(pngBytes);
-    embeddedSymbols.set(symbolId, image);
-    return image;
-  }
-
-  // Track current row (0 = topmost row)
-  let rowIndex = 0;
-
-  /**
-   * Draw a row at the given rowIndex.
-   * rowY is the bottom-left Y of the row in PDF coordinates.
-   */
-  function getRowY(idx: number): number {
-    return gridTopY - (idx + 1) * cellSize;
-  }
-
-  function drawHeaderRow(text: string, _bold: boolean, fontSize: number): void {
-    const rowY = getRowY(rowIndex);
-
-    // Spanning rectangle
-    page.drawRectangle({
-      x: gridX,
-      y: rowY,
-      width: gridWidth,
-      height: cellSize,
-      borderColor: DESC_BORDER_COLOR,
-      borderWidth: DESC_BORDER_WIDTH,
-    });
-
-    // Centered text
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
-    const textX = gridX + (gridWidth - textWidth) / 2;
-    const textY = rowY + (cellSize - fontSize) / 2;
-    page.drawText(text, {
-      x: textX,
-      y: textY,
-      size: fontSize,
-      font,
-      color: DESC_TEXT_COLOR,
-    });
-
-    rowIndex++;
-  }
-
-  // --- Header row: course name ---
-  drawHeaderRow(course.name, true, DESC_HEADER_FONT_SIZE);
-
-  // --- Info row: length + climb ---
-  const dpi = 96; // fallback; description box doesn't need exact DPI
-  const scale = eventSettings.printScale;
-  const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
-  const climbValue = course.climb ?? course.settings.climb;
-  const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
-  const infoText = `${Math.round(lengthM)} m${climbText}`;
-  drawHeaderRow(infoText, false, DESC_HEADER_FONT_SIZE);
-
-  // --- Control rows ---
-  let seqNumber = 0;
-
-  for (const cc of course.controls) {
-    const ctrl: Control | undefined = controls[cc.controlId as ControlId];
-    if (!ctrl) continue;
-
-    const rowY = getRowY(rowIndex);
-    const isStart = cc.type === 'start';
-    const isFinish = cc.type === 'finish';
-
-    // Column A: sequence number
-    let colA: string | null = null;
-    if (!isStart && !isFinish) {
-      seqNumber += 1;
-      colA = String(seqNumber);
-    }
-
-    // Column B: control code
-    const colB: string | null = isStart || isFinish ? null : String(ctrl.code);
-
-    // Columns C-H: description symbols or text
-    const desc = ctrl.description;
-    const symOrText = (v: string | undefined): string | null => {
-      if (!v) return null;
-      if (appearance === 'text') {
-        return getSymbolName(v, lang);
-      }
-      return getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
-    };
-
-    const cells: Array<string | null> = [
-      colA,
-      colB,
-      symOrText(desc.columnC),
-      symOrText(desc.columnD),
-      symOrText(desc.columnE),
-      symOrText(desc.columnF),
-      symOrText(desc.columnG),
-      symOrText(desc.columnH),
-    ];
-
-    // Column I (9th): text description for symbolsAndText mode
-    if (appearance === 'symbolsAndText') {
-      cells.push(generateTextDescription(desc, lang));
-    }
-
-    // Draw each cell
-    for (let col = 0; col < numCols; col++) {
-      const cellX = gridX + col * cellSize;
-
-      page.drawRectangle({
-        x: cellX,
-        y: rowY,
-        width: cellSize,
-        height: cellSize,
-        borderColor: DESC_BORDER_COLOR,
-        borderWidth: DESC_BORDER_WIDTH,
-      });
-
-      const cell = cells[col];
-      if (!cell) continue;
-
-      if (typeof cell === 'string' && cell.startsWith('sym:')) {
-        const symbolId = cell.slice(4);
-        const pdfImage = await embedSymbol(symbolId);
-        if (pdfImage) {
-          const padding = cellSize * 0.08;
-          page.drawImage(pdfImage, {
-            x: cellX + padding,
-            y: rowY + padding,
-            width: cellSize - padding * 2,
-            height: cellSize - padding * 2,
-          });
-        }
-      } else if (typeof cell === 'string') {
-        // Text cell — for the 9th column (text description), use smaller font and left-align
-        const isTextCol = appearance === 'symbolsAndText' && col === 8;
-        const fontSize = isTextCol ? DESC_TEXT_FONT_SIZE * 0.75 : DESC_TEXT_FONT_SIZE;
-
-        // Truncate text to fit cell width
-        let displayText = cell;
-        const maxTextWidth = cellSize - cellSize * 0.16;
-        while (font.widthOfTextAtSize(displayText, fontSize) > maxTextWidth && displayText.length > 1) {
-          displayText = displayText.slice(0, -1);
-        }
-
-        if (isTextCol) {
-          // Left-aligned with small padding
-          const textX = cellX + cellSize * 0.08;
-          const textY = rowY + (cellSize - fontSize) / 2;
-          page.drawText(displayText, {
-            x: textX,
-            y: textY,
-            size: fontSize,
-            font,
-            color: DESC_TEXT_COLOR,
-          });
-        } else {
-          // Center-aligned
-          const textWidth = font.widthOfTextAtSize(displayText, fontSize);
-          const textX = cellX + (cellSize - textWidth) / 2;
-          const textY = rowY + (cellSize - fontSize) / 2;
-          page.drawText(displayText, {
-            x: textX,
-            y: textY,
-            size: fontSize,
-            font,
-            color: DESC_TEXT_COLOR,
-          });
-        }
-      }
-    }
-
-    rowIndex++;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Auto-generated description box (rendered when no user-placed box exists)
 // ---------------------------------------------------------------------------
 
