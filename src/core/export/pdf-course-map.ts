@@ -260,11 +260,12 @@ export async function generateCoursePdf(
           font,
         );
 
-        // Draw special items (unassigned desc boxes filtered out in renderSpecialItems)
-        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
-
-        // Auto-generate description box in the top-right corner
+        // Auto-generate description box (rendered before special items so
+        // images/logos from .ppen draw on top of the white background)
         await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
+
+        // Draw special items (description boxes filtered out — auto-gen handles them)
+        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
 
         // Page label
         const totalPages = coursePageCount * partIterations.length;
@@ -627,6 +628,7 @@ const DESC_COL_GAP_MM = 2.5;
 const DESC_BLEED_MM = 1.5;
 const DESC_OUTER_BORDER_WIDTH = 1.0;
 const DESC_TOP_OFFSET_MM = 15; // offset from top margin to avoid logos/titles
+const DESC_RIGHT_OFFSET_MM = 5; // offset from right margin
 const DESC_TEXT_COL_MULTIPLIER = 4.5; // text column is 4.5× wider than symbol columns
 
 /**
@@ -653,6 +655,7 @@ async function renderAutoDescriptionBox(
   const gapPt = mmToPdfPoints(DESC_COL_GAP_MM);
   const bleedPt = mmToPdfPoints(DESC_BLEED_MM);
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
+  const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
   // Text column (9th) is wider than symbol columns
   const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
@@ -688,7 +691,7 @@ async function renderAutoDescriptionBox(
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
   // Position: top-right corner of printable area
-  const blockRight = layout.pageWidth - layout.marginRight;
+  const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
   const blockLeft = blockRight - totalBlockWidth;
   const blockTopY = layout.pageHeight - layout.marginTop - topOffsetPt;
 
