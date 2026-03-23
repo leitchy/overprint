@@ -5,7 +5,7 @@
  * Sits above the course overprint layer and below the print boundary layer.
  * Handles selection, dragging, and placement of new items in addSpecialItem mode.
  */
-import { memo, useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Layer, Line, Rect, Text, Group, Circle, Image as KonvaImage } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
@@ -13,6 +13,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
 import type {
   SpecialItem,
+  Course,
   TextItem,
   LineItem,
   RectangleItem,
@@ -375,6 +376,39 @@ const RectangleItemShape = memo(function RectangleItemShape({
   );
 });
 
+/** Sub-component to render a single description column using its own useDescriptionCanvas hook. */
+const DescriptionColumnImage = memo(function DescriptionColumnImage({
+  course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang, x, y, canvasScale,
+}: {
+  course: Course | undefined;
+  controls: Record<import('@/utils/id').ControlId, import('@/core/models/types').Control>;
+  mapScale: number;
+  mapDpi: number;
+  gridWidthPx: number;
+  appearance: import('@/core/descriptions/canvas-description-renderer').DescriptionAppearance;
+  lang: string;
+  x: number;
+  y: number;
+  canvasScale: number;
+}) {
+  const canvas = useDescriptionCanvas(course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang);
+  if (!canvas) return null;
+  const h = canvas.height * canvasScale;
+  return (
+    <>
+      <Rect x={x} y={y} width={gridWidthPx} height={h} fill="white" listening={false} />
+      <KonvaImage
+        x={x}
+        y={y}
+        width={gridWidthPx}
+        height={h}
+        image={canvas}
+        listening={false}
+      />
+    </>
+  );
+});
+
 const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
   item,
   isSelected,
@@ -393,38 +427,81 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
   const guideLineRef = useRef<Konva.Line>(null);
   const endHandleRef = useRef<Konva.Circle>(null);
 
-  // Find the course this description box belongs to
+  // Find the course this description box belongs to.
+  // For allControls desc boxes with no active course, build a synthetic course.
   const courseId = item.courseIds?.[0] ?? activeCourseId;
-  const course = event?.courses.find((c) => c.id === courseId);
   const controls = event?.controls ?? {};
   const mapScale = event?.mapFile?.scale ?? event?.settings.printScale ?? 10000;
   const mapDpi = event?.mapFile?.dpi ?? 96;
+
+  const matchedCourse = event?.courses.find((c) => c.id === courseId);
+  const course = matchedCourse ?? (item.allControls && event ? {
+    id: 'all-controls' as import('@/utils/id').CourseId,
+    name: event.name,
+    courseType: 'score' as const,
+    controls: Object.keys(controls).map((id) => ({
+      controlId: id as import('@/utils/id').ControlId,
+      type: 'control' as const,
+    })).sort((a, b) => (controls[a.controlId]?.code ?? 0) - (controls[b.controlId]?.code ?? 0)),
+    settings: { labelMode: 'code' as const, descriptionAppearance: 'symbols' as const },
+  } : undefined);
+
   const appearance = course?.settings.descriptionAppearance ?? 'symbols';
   const lang = event?.settings.language ?? 'en';
 
-  // Store dimensions
+  // Store dimensions — .ppen description boxes have identical Y values (height=0).
+  // Width between locations = one cell size in map pixels.
   const storeW = item.endPosition.x - item.position.x;
   const storeH = item.endPosition.y - item.position.y;
-  const absW = Math.abs(storeW);
-  const absH = Math.abs(storeH);
-  const rectX = Math.min(0, storeW);
-  const rectY = Math.min(0, storeH);
+  const cellSizePx = Math.abs(storeW);
+  const numIOFCols = appearance === 'symbolsAndText' ? 9 : 8;
+  const numDescCols = item.columns ?? 1;
+  const rectX = 0;
+  const rectY = 0;
 
-  const descriptionCanvas = useDescriptionCanvas(
-    course,
+  // Single-column grid width
+  const gridWidthPx = cellSizePx * numIOFCols;
+  const gapPx = cellSizePx * 0.6; // PP uses 0.6 × cellSize for column gap
+
+  // Split controls into column slices
+  const controlCount = course?.controls.length ?? 0;
+  const controlsPerCol = Math.ceil(controlCount / numDescCols);
+
+  // Build sub-courses for each column (first column has header, others don't)
+  const columnCourses = useMemo(() => {
+    if (!course || numDescCols <= 1) return [course];
+    const cols: (Course | undefined)[] = [];
+    for (let c = 0; c < numDescCols; c++) {
+      const start = c * controlsPerCol;
+      const end = Math.min(start + controlsPerCol, controlCount);
+      if (start >= controlCount) break;
+      cols.push({
+        ...course,
+        // First column keeps the course name (header); subsequent get blank name
+        name: c === 0 ? course.name : '',
+        controls: course.controls.slice(start, end),
+      });
+    }
+    return cols;
+  }, [course, numDescCols, controlsPerCol, controlCount]);
+
+  // Use the first column canvas for sizing calculations
+  const firstColCanvas = useDescriptionCanvas(
+    columnCourses[0],
     controls,
     mapScale,
     mapDpi,
-    absW,
+    gridWidthPx,
     appearance,
     lang,
   );
 
-  // Scale canvas image to fit box (maintain aspect ratio, fill width)
-  const canvasScale = descriptionCanvas ? absW / descriptionCanvas.width : 1;
-  const canvasDisplayH = descriptionCanvas
-    ? Math.min(descriptionCanvas.height * canvasScale, absH)
-    : absH;
+  // Total block dimensions
+  const totalBlockW = gridWidthPx * numDescCols + gapPx * (numDescCols - 1);
+  const canvasScale = firstColCanvas ? gridWidthPx / firstColCanvas.width : 1;
+  const tallestColH = firstColCanvas ? firstColCanvas.height * canvasScale : cellSizePx * (2 + controlsPerCol);
+  const displayW = totalBlockW;
+  const canvasDisplayH = tallestColH;
 
   // Imperative update of visual elements during handle drag — no React state, no flicker
   const updateDragVisuals = useCallback((tlX: number, tlY: number, brX: number, brY: number) => {
@@ -435,11 +512,11 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
 
     bgRectRef.current?.setAttrs({ x: rx, y: ry, width: w, height: h });
 
-    if (imgNodeRef.current && descriptionCanvas) {
-      const scale = w / descriptionCanvas.width;
+    if (imgNodeRef.current && firstColCanvas) {
+      const scale = w / firstColCanvas.width;
       imgNodeRef.current.position({ x: rx, y: ry });
       imgNodeRef.current.width(w);
-      imgNodeRef.current.height(Math.min(descriptionCanvas.height * scale, h));
+      imgNodeRef.current.height(Math.min(firstColCanvas.height * scale, h));
     }
 
     selRectRef.current?.setAttrs({
@@ -464,7 +541,7 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
     }
 
     bgRectRef.current?.getLayer()?.batchDraw();
-  }, [descriptionCanvas, course, appearance]);
+  }, [firstColCanvas, course, appearance]);
 
   return (
     <Group
@@ -477,30 +554,35 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
         onDragEnd({ x: e.target.x(), y: e.target.y() });
       }}
     >
-      {/* White background */}
+      {/* White background covering all columns */}
       <Rect
         ref={bgRectRef}
         x={rectX}
         y={rectY}
-        width={absW}
-        height={absH}
-        fill="#FFFFFF"
-        stroke="#000000"
+        width={displayW || 100}
+        height={canvasDisplayH || 100}
+        fill="white"
+        stroke="black"
         strokeWidth={1}
         listening={true}
+        perfectDrawEnabled={false}
       />
-      {/* Rendered description grid */}
-      {descriptionCanvas && (
-        <KonvaImage
-          ref={imgNodeRef}
-          x={rectX}
+      {/* Rendered description grid — one canvas per column */}
+      {columnCourses.map((colCourse, colIdx) => (
+        <DescriptionColumnImage
+          key={colIdx}
+          course={colCourse}
+          controls={controls}
+          mapScale={mapScale}
+          mapDpi={mapDpi}
+          gridWidthPx={gridWidthPx}
+          appearance={appearance}
+          lang={lang}
+          x={rectX + colIdx * (gridWidthPx + gapPx)}
           y={rectY}
-          width={absW}
-          height={canvasDisplayH}
-          image={descriptionCanvas}
-          listening={false}
+          canvasScale={canvasScale}
         />
-      )}
+      ))}
       {/* Natural height guide — toggled visible imperatively during drag */}
       {isSelected && (
         <Line
@@ -521,8 +603,8 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
             ref={selRectRef}
             x={rectX - 2}
             y={rectY - 2}
-            width={absW + 4}
-            height={absH + 4}
+            width={displayW + 4}
+            height={canvasDisplayH + 4}
             stroke={SELECTION_COLOR}
             strokeWidth={1.5}
             dash={SELECTION_DASH}
@@ -814,8 +896,20 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
   const isAddSpecialItem = activeTool.type === 'addSpecialItem';
   const addItemType = isAddSpecialItem ? activeTool.itemType : null;
 
-  // Filter items to show: items with no courseIds restriction OR the active course is in the list
+  // Filter items to show:
+  // - Description boxes: only show allControls boxes (on the All Controls view) or user-created ones.
+  //   Imported per-course .ppen desc boxes (with courseIds) are hidden — PP auto-generates those at print.
+  // - Other items: show if no courseIds restriction OR active course is in the list.
+  const viewMode = useEventStore((s) => s.viewMode);
   const visibleItems = event.specialItems.filter((item) => {
+    if (item.type === 'descriptionBox') {
+      // allControls desc boxes show only on the All Controls view
+      if (item.allControls) return viewMode === 'allControls';
+      // User-created desc boxes (no courseIds) show always
+      if (!item.courseIds || item.courseIds.length === 0) return true;
+      // Imported per-course desc boxes from .ppen — hide on canvas (auto-generated in PDF)
+      return false;
+    }
     if (!item.courseIds || item.courseIds.length === 0) return true;
     return activeCourseId !== null && item.courseIds.includes(activeCourseId);
   });
@@ -906,16 +1000,18 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     }
   }
 
-  // Set multiply blend mode so dark map features show through special items
-  const specialLayerRef = useRef<Konva.Layer>(null);
-  useEffect(() => {
-    const canvas = (specialLayerRef.current?.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
-    if (canvas) canvas.style.mixBlendMode = 'multiply';
-  }, []);
-
   return (
     <Layer
-      ref={specialLayerRef}
+      ref={(node) => {
+        // Ensure this layer uses normal compositing — the course layer below uses
+        // multiply blend which can affect sibling canvases in the CSS stacking context.
+        if (node) {
+          const canvas = (node.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+          if (canvas && canvas.style.mixBlendMode !== 'normal') {
+            canvas.style.mixBlendMode = 'normal';
+          }
+        }
+      }}
       onMouseDown={handleStageMouseDown}
       onMouseMove={handleStageMouseMove}
       onMouseUp={handleStageMouseUp}

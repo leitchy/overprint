@@ -117,6 +117,9 @@ export async function generateCoursePdf(
     }
   }
 
+  // Compute desc box Y from imported All Controls desc box (used for all pages)
+  let descBoxTopY: number | undefined;
+
   // --- All Controls page (multi-course export only) ---
   if (isMultiCourse) {
     // Build a synthetic "All Controls" score course (no legs) with every control
@@ -174,15 +177,18 @@ export async function generateCoursePdf(
         );
 
         // Auto-generate All Controls description box.
-        // Use imported column count if available (position is auto-computed since
-        // imported map coordinates may not be correctly transformed).
+        // Use imported column count and position if available.
         const allControlsDescBox = event.specialItems.find(
           (si) => si.type === 'descriptionBox' && si.allControls,
         );
         const importedCols = (allControlsDescBox?.type === 'descriptionBox' && allControlsDescBox.columns) || undefined;
+        // Use only the Y from imported position (for vertical alignment below logo).
+        // X is auto-computed (right-aligned). Pass as overrideTopY.
+        const importedTopY = allControlsDescBox ? toPdf(allControlsDescBox.position).y : undefined;
+        descBoxTopY = importedTopY; // share with course pages
         await renderAutoDescriptionBox(
           page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
-          undefined, undefined, importedCols,
+          undefined, undefined, importedCols, undefined, descBoxTopY,
         );
 
         // Render other special items (text, images, etc.) — desc boxes are filtered out
@@ -274,7 +280,7 @@ export async function generateCoursePdf(
 
         // Auto-generate description box (rendered before special items so
         // images/logos from .ppen draw on top of the white background)
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel, undefined, undefined, undefined, descBoxTopY);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
@@ -663,7 +669,7 @@ const DESC_TEXT_COLOR = rgb(0, 0, 0);
 // ---------------------------------------------------------------------------
 
 const DESC_COL_GAP_MM = 2.5;
-const DESC_BLEED_MM = 1.5;
+const DESC_BLEED_MM = 0; // no white margin beyond the grid border
 const DESC_OUTER_BORDER_WIDTH = 1.0;
 const DESC_TOP_OFFSET_MM = 15; // offset from top margin to avoid logos/titles
 const DESC_RIGHT_OFFSET_MM = 5; // offset from right margin
@@ -685,7 +691,8 @@ async function renderAutoDescriptionBox(
   partLabel?: string, // e.g., "(P1/2)"
   overrideCellPt?: number, // imported cell size in PDF points
   overrideColumns?: number, // imported column count
-  overridePosition?: MapPoint, // imported top-left position in PDF coords
+  _overridePosition?: MapPoint, // deprecated — use overrideTopY
+  overrideTopY?: number, // imported Y position in PDF coords (top of box)
 ): Promise<void> {
   const lang = eventSettings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
@@ -755,18 +762,10 @@ async function renderAutoDescriptionBox(
 
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
-  // Position: top-right corner of printable area
-  // Position: use imported position if available, otherwise top-right corner
-  let blockLeft: number;
-  let blockTopY: number;
-  if (overridePosition) {
-    blockLeft = overridePosition.x;
-    blockTopY = overridePosition.y;
-  } else {
-    const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
-    blockLeft = blockRight - totalBlockWidth;
-    blockTopY = layout.pageHeight - layout.marginTop - topOffsetPt;
-  }
+  // Position: right-aligned, with optional Y override from imported desc box
+  const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
+  const blockLeft = blockRight - totalBlockWidth;
+  const blockTopY = overrideTopY ?? (layout.pageHeight - layout.marginTop - topOffsetPt);
 
   // Embed symbols cache (shared across all columns)
   const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
