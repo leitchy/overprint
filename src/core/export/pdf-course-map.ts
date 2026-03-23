@@ -420,7 +420,7 @@ function drawEmbeddedPdfPage(
  */
 async function renderSpecialItems(
   page: PDFPage,
-  _pdfDoc: PDFDocument,
+  pdfDoc: PDFDocument,
   specialItems: SpecialItem[],
   courseId: CourseId,
   _course: Course,
@@ -546,6 +546,31 @@ async function renderSpecialItems(
       }
 
       // descriptionBox items are filtered out above — auto-generation handles them
+
+      case 'image': {
+        const endPos = toPdf(item.endPosition);
+        const imgX = Math.min(pos.x, endPos.x);
+        const imgY = Math.min(pos.y, endPos.y);
+        const imgW = Math.abs(endPos.x - pos.x);
+        const imgH = Math.abs(endPos.y - pos.y);
+
+        try {
+          // Extract base64 data from data URL
+          const match = /^data:image\/(png|jpeg|jpg);base64,(.+)$/i.exec(item.imageDataUrl);
+          if (match) {
+            const format = match[1]!.toLowerCase();
+            const base64 = match[2]!;
+            const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+            const embedded = format === 'png'
+              ? await pdfDoc.embedPng(bytes)
+              : await pdfDoc.embedJpg(bytes);
+            page.drawImage(embedded, { x: imgX, y: imgY, width: imgW, height: imgH });
+          }
+        } catch (e) {
+          console.warn('Failed to embed image special item:', e);
+        }
+        break;
+      }
     }
   }
 }
