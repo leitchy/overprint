@@ -554,6 +554,8 @@ const DESC_TEXT_COLOR = rgb(0, 0, 0);
 const DESC_COL_GAP_MM = 2.5;
 const DESC_BLEED_MM = 1.5;
 const DESC_OUTER_BORDER_WIDTH = 1.0;
+const DESC_TOP_OFFSET_MM = 15; // offset from top margin to avoid logos/titles
+const DESC_TEXT_COL_MULTIPLIER = 4.5; // text column is 4.5× wider than symbol columns
 
 /**
  * Auto-generate and render a description box in the top-right corner of the page.
@@ -572,18 +574,22 @@ async function renderAutoDescriptionBox(
 ): Promise<void> {
   const lang = eventSettings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
-  const numCols = appearance === 'symbolsAndText' ? 9 : 8;
+  const hasTextCol = appearance === 'symbolsAndText';
+  const numCols = hasTextCol ? 9 : 8;
 
   const cellPt = mmToPdfPoints(DESC_CELL_SIZE_MM);
   const gapPt = mmToPdfPoints(DESC_COL_GAP_MM);
   const bleedPt = mmToPdfPoints(DESC_BLEED_MM);
+  const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
 
-  const gridWidth = cellPt * numCols;
+  // Text column (9th) is wider than symbol columns
+  const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
+  const gridWidth = cellPt * 8 + textColWidthPt;
   const headerRows = 2; // course name + length/climb
   const controlCount = course.controls.length;
 
-  // How many rows fit in the available page height?
-  const availableHeight = layout.printableHeight;
+  // How many rows fit in the available page height (with top offset)?
+  const availableHeight = layout.printableHeight - topOffsetPt;
   const maxRowsFirstCol = Math.floor(availableHeight / cellPt) - headerRows;
   const maxRowsSubseqCol = Math.floor(availableHeight / cellPt);
 
@@ -612,7 +618,7 @@ async function renderAutoDescriptionBox(
   // Position: top-right corner of printable area
   const blockRight = layout.pageWidth - layout.marginRight;
   const blockLeft = blockRight - totalBlockWidth;
-  const blockTopY = layout.pageHeight - layout.marginTop;
+  const blockTopY = layout.pageHeight - layout.marginTop - topOffsetPt;
 
   // Embed symbols cache (shared across all columns)
   const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
@@ -665,9 +671,12 @@ async function renderAutoDescriptionBox(
     }
 
     for (let col = 0; col < numCols; col++) {
-      const cellX = gridX + col * cellPt;
+      const isTextCol = hasTextCol && col === 8;
+      const colWidth = isTextCol ? textColWidthPt : cellPt;
+      // First 8 cols at cellPt each, 9th (text) starts after them
+      const correctCellX = col < 8 ? gridX + col * cellPt : gridX + 8 * cellPt;
       page.drawRectangle({
-        x: cellX, y: rowY, width: cellPt, height: cellPt,
+        x: correctCellX, y: rowY, width: colWidth, height: cellPt,
         borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
       });
 
@@ -679,27 +688,26 @@ async function renderAutoDescriptionBox(
         if (pdfImage) {
           const padding = cellPt * 0.08;
           page.drawImage(pdfImage, {
-            x: cellX + padding, y: rowY + padding,
+            x: correctCellX + padding, y: rowY + padding,
             width: cellPt - padding * 2, height: cellPt - padding * 2,
           });
         }
       } else {
-        const isTextCol = appearance === 'symbolsAndText' && col === 8;
         const fontSize = isTextCol ? DESC_TEXT_FONT_SIZE * 0.75 : DESC_TEXT_FONT_SIZE;
         let displayText = cell;
-        const maxTextWidth = cellPt - cellPt * 0.16;
+        const maxTextWidth = colWidth - colWidth * 0.1;
         while (font.widthOfTextAtSize(displayText, fontSize) > maxTextWidth && displayText.length > 1) {
           displayText = displayText.slice(0, -1);
         }
         if (isTextCol) {
           page.drawText(displayText, {
-            x: cellX + cellPt * 0.08, y: rowY + (cellPt - fontSize) / 2,
+            x: correctCellX + cellPt * 0.08, y: rowY + (cellPt - fontSize) / 2,
             size: fontSize, font, color: DESC_TEXT_COLOR,
           });
         } else {
           const textWidth = font.widthOfTextAtSize(displayText, fontSize);
           page.drawText(displayText, {
-            x: cellX + (cellPt - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
+            x: correctCellX + (colWidth - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
             size: fontSize, font, color: DESC_TEXT_COLOR,
           });
         }
