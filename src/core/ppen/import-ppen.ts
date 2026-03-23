@@ -474,6 +474,12 @@ export function importPpen(
         maxX: Math.max(topLeft.x, bottomRight.x),
         maxY: Math.max(topLeft.y, bottomRight.y),
       };
+
+      // Parse page orientation from print-area
+      const isLandscape = getAttr(printAreaEl, 'page-landscape') === 'true';
+      if (isLandscape) {
+        settings.pageSetup = { ...settings.pageSetup, orientation: 'landscape' };
+      }
     }
 
     const courseId = generateCourseId();
@@ -674,6 +680,11 @@ export function importPpen(
   event.settings.printScale = eventPrintScale;
   event.settings.descriptionStandard = descriptionStandard;
   event.settings.mapStandard = mapStandard;
+
+  // If all courses specify landscape, set it at the event level
+  if (courses.length > 0 && courses.every((c) => c.settings.pageSetup?.orientation === 'landscape')) {
+    event.settings.pageSetup = { ...event.settings.pageSetup, orientation: 'landscape' };
+  }
 
   // Build controls record
   const controls: Record<string, Control> = {};

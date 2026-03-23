@@ -536,24 +536,18 @@ async function renderDescriptionBoxToPdf(
   const controlRows = course.controls.length;
   const totalRows = 2 + controlRows; // header + info + controls
 
-  // PurplePen description boxes store two locations with the same Y — the
-  // height is implicit (derived from the number of rows × cell width).
-  // When bounds.height is zero or very small, compute height from the width.
-  const cellW = bounds.width / numCols;
-  const effectiveHeight = bounds.height > cellW ? bounds.height : cellW * totalRows;
-  const cellH = effectiveHeight / totalRows;
-  // Use uniform cell size (square cells preferred, but fit to bounds)
-  const cellSize = Math.min(cellW, cellH);
-
-  // Actual grid dimensions
+  // PurplePen description boxes store one CELL width between the two locations,
+  // not the full grid width. The full width = one cell × numCols.
+  // Height is implicit (number of rows × cell size).
+  const cellSize = bounds.width; // one cell width from the .ppen locations
   const gridWidth = cellSize * numCols;
   const gridHeight = cellSize * totalRows;
 
-  // Center the grid within the bounds
-  const gridX = bounds.x + (bounds.width - gridWidth) / 2;
-  // PDF Y=0 at bottom; bounds.y is the bottom of the box
-  // Grid starts at the top of the bounds
-  const gridTopY = bounds.y + bounds.height;
+  // Position: anchor at the bounds origin (top-left of the description box).
+  // bounds.x is the left edge; bounds.y is the bottom edge in PDF coords.
+  const gridX = bounds.x;
+  // The grid grows downward from the top of the bounds position
+  const gridTopY = bounds.y + gridHeight;
 
   // Draw white background
   page.drawRectangle({
