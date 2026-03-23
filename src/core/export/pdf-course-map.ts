@@ -173,8 +173,23 @@ export async function generateCoursePdf(
           font,
         );
 
-        // Auto description box for All Controls
-        await renderAutoDescriptionBox(page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font);
+        // Description box for All Controls — use imported box position/size if available
+        const allControlsDescBox = event.specialItems.find(
+          (si) => si.type === 'descriptionBox' && si.allControls,
+        );
+        if (allControlsDescBox && allControlsDescBox.type === 'descriptionBox') {
+          // Use imported position and cell size from .ppen
+          const descPos = toPdf(allControlsDescBox.position);
+          const descEnd = toPdf(allControlsDescBox.endPosition);
+          const importedCellPt = Math.abs(descEnd.x - descPos.x);
+          const importedCols = allControlsDescBox.columns ?? 1;
+          await renderAutoDescriptionBox(
+            page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
+            undefined, importedCellPt, importedCols, descPos,
+          );
+        } else {
+          await renderAutoDescriptionBox(page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font);
+        }
 
         // Page label
         const label = multiPage.viewports.length > 1
@@ -671,6 +686,9 @@ async function renderAutoDescriptionBox(
   layout: PageLayout,
   font: PDFFont,
   partLabel?: string, // e.g., "(P1/2)"
+  overrideCellPt?: number, // imported cell size in PDF points
+  overrideColumns?: number, // imported column count
+  overridePosition?: MapPoint, // imported top-left position in PDF coords
 ): Promise<void> {
   const lang = eventSettings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
@@ -709,6 +727,9 @@ async function renderAutoDescriptionBox(
     }
   }
 
+  // Apply overrides from imported .ppen description box
+  if (overrideColumns) numDescCols = overrideColumns;
+
   // Compute cell size to fit the block within max dimensions.
   // The tallest column has header rows + its share of controls.
   const controlsPerCol = Math.ceil(controlCount / numDescCols);
@@ -716,7 +737,8 @@ async function renderAutoDescriptionBox(
   const cellFromHeight = maxBlockHeight / tallestColRows;
   const totalGridsWidth = maxBlockWidth - gapPt * (numDescCols - 1);
   const cellFromWidth = totalGridsWidth / (colWidthInCells * numDescCols);
-  const cellPt = Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM));
+  let cellPt = Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM));
+  if (overrideCellPt) cellPt = overrideCellPt;
 
   const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
   const gridWidth = cellPt * 8 + textColWidthPt;
@@ -737,9 +759,17 @@ async function renderAutoDescriptionBox(
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
   // Position: top-right corner of printable area
-  const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
-  const blockLeft = blockRight - totalBlockWidth;
-  const blockTopY = layout.pageHeight - layout.marginTop - topOffsetPt;
+  // Position: use imported position if available, otherwise top-right corner
+  let blockLeft: number;
+  let blockTopY: number;
+  if (overridePosition) {
+    blockLeft = overridePosition.x;
+    blockTopY = overridePosition.y;
+  } else {
+    const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
+    blockLeft = blockRight - totalBlockWidth;
+    blockTopY = layout.pageHeight - layout.marginTop - topOffsetPt;
+  }
 
   // Embed symbols cache (shared across all columns)
   const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
