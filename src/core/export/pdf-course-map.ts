@@ -173,17 +173,20 @@ export async function generateCoursePdf(
           font,
         );
 
-        // Render special items — allControls desc boxes will render here.
-        // Use a synthetic "all-controls" courseId that won't match any course-specific items.
-        await renderSpecialItems(page, pdfDoc, event.specialItems, 'all-controls' as CourseId, allControlsCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
-
-        // Auto-generate description box only if no imported allControls box exists
-        const hasImportedDescBox = event.specialItems.some(
+        // Auto-generate All Controls description box.
+        // Use imported column count if available (position is auto-computed since
+        // imported map coordinates may not be correctly transformed).
+        const allControlsDescBox = event.specialItems.find(
           (si) => si.type === 'descriptionBox' && si.allControls,
         );
-        if (!hasImportedDescBox) {
-          await renderAutoDescriptionBox(page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font);
-        }
+        const importedCols = (allControlsDescBox?.type === 'descriptionBox' && allControlsDescBox.columns) || undefined;
+        await renderAutoDescriptionBox(
+          page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
+          undefined, undefined, importedCols,
+        );
+
+        // Render other special items (text, images, etc.) — desc boxes are filtered out
+        await renderSpecialItems(page, pdfDoc, event.specialItems, 'all-controls' as CourseId, allControlsCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
 
         // Page label
         const label = multiPage.viewports.length > 1
@@ -432,10 +435,10 @@ async function renderSpecialItems(
   pdfDoc: PDFDocument,
   specialItems: SpecialItem[],
   courseId: CourseId,
-  course: Course,
-  controls: Record<ControlId, Control>,
-  eventSettings: EventSettings,
-  layout: PageLayout,
+  _course: Course,
+  _controls: Record<ControlId, Control>,
+  _eventSettings: EventSettings,
+  _layout: PageLayout,
   toPdf: (point: MapPoint) => MapPoint,
   font: PDFFont,
   effectivePPP: number,
@@ -451,8 +454,7 @@ async function renderSpecialItems(
     // Skip description boxes on individual course pages — auto-generation handles them.
     // Allow allControls description boxes through only on the All Controls page.
     if (item.type === 'descriptionBox') {
-      const isAllControlsPage = courseId === ('all-controls' as CourseId);
-      if (!item.allControls || !isAllControlsPage) continue;
+      continue; // All desc boxes skipped — auto-generation handles them
     }
 
     const colorHex = item.color ?? '#C850A0';
@@ -555,18 +557,7 @@ async function renderSpecialItems(
         break;
       }
 
-      case 'descriptionBox': {
-        // Only allControls desc boxes reach here (others filtered above).
-        // Render using imported position, cell size, and column count.
-        const endPos = toPdf(item.endPosition);
-        const importedCellPt = Math.abs(endPos.x - pos.x);
-        const importedCols = item.columns ?? 1;
-        await renderAutoDescriptionBox(
-          page, pdfDoc, course, controls, eventSettings, layout, font,
-          undefined, importedCellPt, importedCols, pos,
-        );
-        break;
-      }
+      // descriptionBox: all filtered out above — auto-generation handles them
 
       case 'image': {
         const endPos = toPdf(item.endPosition);
