@@ -188,7 +188,7 @@ export async function generateCoursePdf(
         descBoxTopY = importedTopY; // share with course pages
         await renderAutoDescriptionBox(
           page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
-          undefined, undefined, importedCols, undefined, descBoxTopY,
+          event.name, undefined, undefined, importedCols, undefined, descBoxTopY,
         );
 
         // Render other special items (text, images, etc.) — desc boxes are filtered out
@@ -280,7 +280,7 @@ export async function generateCoursePdf(
 
         // Auto-generate description box (rendered before special items so
         // images/logos from .ppen draw on top of the white background)
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel, undefined, undefined, undefined, descBoxTopY);
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, event.name, partLabel, undefined, undefined, undefined, descBoxTopY);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
@@ -688,6 +688,7 @@ async function renderAutoDescriptionBox(
   eventSettings: EventSettings,
   layout: PageLayout,
   font: PDFFont,
+  eventName: string,
   partLabel?: string, // e.g., "(P1/2)"
   overrideCellPt?: number, // imported cell size in PDF points
   overrideColumns?: number, // imported column count
@@ -704,8 +705,21 @@ async function renderAutoDescriptionBox(
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
   const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
-  const headerRows = 2; // course name + length/climb
-  const controlCount = course.controls.length;
+  // Compute dynamic header/footer row counts
+  const secondaryTitle = course.settings.secondaryTitle;
+  const isAllControls = course.courseType === 'score' && course.name === eventName;
+  const hasStart = course.controls.some((cc) => cc.type === 'start');
+  const hasFinish = course.controls.some((cc) => cc.type === 'finish');
+  const exchangeCount = course.controls.filter((cc) => cc.type === 'mapExchange' || cc.type === 'mapFlip').length;
+
+  const titleRows = 1; // event title
+  const secondaryRows = secondaryTitle ? 1 : 0;
+  const infoRows = 1; // 3-section or 2-section info
+  const startDirectiveRows = hasStart ? 1 : 0;
+  const finishDirectiveRows = hasFinish ? 1 : 0;
+  const headerRows = titleRows + secondaryRows + infoRows + startDirectiveRows;
+  const footerRows = finishDirectiveRows;
+  const controlCount = course.controls.length + exchangeCount + footerRows;
 
   // Effective column width multiplier (8 symbol cols + optional text col)
   const colWidthInCells = hasTextCol ? 8 + DESC_TEXT_COL_MULTIPLIER : 8;
@@ -875,15 +889,113 @@ async function renderAutoDescriptionBox(
     });
   }
 
-  // Compute info text
+  // Compute info values
   const dpi = 96;
   const scale = eventSettings.printScale;
   const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
+  const lengthKm = (lengthM / 1000).toFixed(1) + ' km';
   const climbValue = course.climb ?? course.settings.climb;
-  const climbText = climbValue !== undefined ? `  ${climbValue} m` : '';
-  const infoText = `${Math.round(lengthM)} m${climbText}`;
+  const climbText = climbValue !== undefined ? `${climbValue} m` : '';
 
-  const headerText = partLabel ? `${course.name} ${partLabel}` : course.name;
+  const courseLabel = partLabel ? `${course.name} ${partLabel}` : course.name;
+
+  // Helper: draw a 2-section or 3-section info row
+  function drawSplitInfoRow(gridX: number, rowY: number, sections: string[]): void {
+    const numSections = sections.length;
+    // Split grid width proportionally: for 3 sections → 3:3:2, for 2 sections → 4:4
+    const widths = numSections === 3
+      ? [gridWidth * 3 / 8, gridWidth * 3 / 8, gridWidth * 2 / 8]
+      : [gridWidth / 2, gridWidth / 2];
+
+    let x = gridX;
+    for (let i = 0; i < numSections; i++) {
+      const w = widths[i]!;
+      page.drawRectangle({
+        x, y: rowY, width: w, height: cellPt,
+        borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+      });
+      const fontSize = DESC_HEADER_FONT_SIZE;
+      let text = sections[i]!;
+      const maxW = w - cellPt * 0.16;
+      while (font.widthOfTextAtSize(text, fontSize) > maxW && text.length > 1) text = text.slice(0, -1);
+      const tw = font.widthOfTextAtSize(text, fontSize);
+      page.drawText(text, {
+        x: x + (w - tw) / 2, y: rowY + (cellPt - fontSize) / 2,
+        size: fontSize, font, color: DESC_TEXT_COLOR,
+      });
+      x += w;
+    }
+  }
+
+  // Helper: draw a directive row (start/finish/exchange)
+  // Left section shows a symbol label, right section shows distance text
+  function drawDirectiveRow(gridX: number, rowY: number, leftText: string, rightText: string): void {
+    // Left section (3 cells wide)
+    const leftW = cellPt * 3;
+    const rightW = gridWidth - leftW;
+    page.drawRectangle({
+      x: gridX, y: rowY, width: leftW, height: cellPt,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+    });
+    page.drawRectangle({
+      x: gridX + leftW, y: rowY, width: rightW, height: cellPt,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+    });
+
+    // Left text (centered)
+    const lFontSize = DESC_HEADER_FONT_SIZE;
+    const lw = font.widthOfTextAtSize(leftText, lFontSize);
+    page.drawText(leftText, {
+      x: gridX + (leftW - lw) / 2, y: rowY + (cellPt - lFontSize) / 2,
+      size: lFontSize, font, color: DESC_TEXT_COLOR,
+    });
+
+    // Right: dashed line with distance text centered
+    if (rightText) {
+      // Draw dashed line
+      const lineY = rowY + cellPt / 2;
+      const lineStartX = gridX + leftW + cellPt * 0.3;
+      const lineEndX = gridX + gridWidth - cellPt * 0.3;
+      const dashLen = cellPt * 0.3;
+      const gapLen = cellPt * 0.15;
+      let dx = lineStartX;
+      while (dx < lineEndX) {
+        const endX = Math.min(dx + dashLen, lineEndX);
+        page.drawLine({
+          start: { x: dx, y: lineY }, end: { x: endX, y: lineY },
+          thickness: 0.5, color: DESC_TEXT_COLOR,
+        });
+        dx += dashLen + gapLen;
+      }
+
+      // Distance text centered over the dashed line
+      const rFontSize = DESC_TEXT_FONT_SIZE;
+      const rw = font.widthOfTextAtSize(rightText, rFontSize);
+      const textX = gridX + leftW + (rightW - rw) / 2;
+      // White background behind text to clear the dashes
+      page.drawRectangle({
+        x: textX - 2, y: lineY - rFontSize / 2 - 1,
+        width: rw + 4, height: rFontSize + 2,
+        color: rgb(1, 1, 1),
+      });
+      page.drawText(rightText, {
+        x: textX, y: rowY + (cellPt - rFontSize) / 2,
+        size: rFontSize, font, color: DESC_TEXT_COLOR,
+      });
+    }
+  }
+
+  // Compute distances for directives
+  function distanceBetweenControls(idx1: number, idx2: number): number {
+    const c1 = controls[course.controls[idx1]?.controlId as ControlId];
+    const c2 = controls[course.controls[idx2]?.controlId as ControlId];
+    if (!c1 || !c2) return 0;
+    const dx = c2.position.x - c1.position.x;
+    const dy = c2.position.y - c1.position.y;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    // Convert pixels to metres: px / dpi * 25.4mm/inch / 1000mm/m * scale
+    return (distPx / dpi) * 25.4 * (scale / 1000);
+  }
 
   // Track sequence numbering across columns
   let seqNumber = 0;
@@ -891,9 +1003,14 @@ async function renderAutoDescriptionBox(
   for (let colIdx = 0; colIdx < numDescCols; colIdx++) {
     const slice = columnSlices[colIdx]!;
     const colX = blockLeft + colIdx * (gridWidth + gapPt);
-    const colRows = slice.showHeader
-      ? headerRows + (slice.endIdx - slice.startIdx)
-      : (slice.endIdx - slice.startIdx);
+    // Count exchange directives within this slice
+    const sliceExchanges = course.controls.slice(slice.startIdx, slice.endIdx)
+      .filter((cc) => cc.type === 'mapExchange' || cc.type === 'mapFlip').length;
+    // Footer row (finish directive) only in last column
+    const isLastCol = colIdx === numDescCols - 1;
+    const sliceFooter = (isLastCol && hasFinish) ? 1 : 0;
+    const controlRows = (slice.endIdx - slice.startIdx) + sliceExchanges + sliceFooter;
+    const colRows = slice.showHeader ? headerRows + controlRows : controlRows;
     const colHeight = colRows * cellPt;
 
     // White background with bleed
@@ -914,10 +1031,44 @@ async function renderAutoDescriptionBox(
 
     // Header rows (first column only)
     if (slice.showHeader) {
+      // Row 1: Event title
       rowY -= cellPt;
-      drawHeader(colX, rowY, headerText, DESC_HEADER_FONT_SIZE);
+      drawHeader(colX, rowY, eventName, DESC_HEADER_FONT_SIZE);
+
+      // Row 2: Secondary title (conditional)
+      if (secondaryTitle) {
+        rowY -= cellPt;
+        drawHeader(colX, rowY, secondaryTitle, DESC_HEADER_FONT_SIZE - 1);
+      }
+
+      // Row 3: Info row (3-section for courses, 2-section for All Controls)
       rowY -= cellPt;
-      drawHeader(colX, rowY, infoText, DESC_HEADER_FONT_SIZE);
+      if (isAllControls) {
+        const numControls = course.controls.filter((cc) =>
+          cc.type !== 'start' && cc.type !== 'finish',
+        ).length;
+        drawSplitInfoRow(colX, rowY, ['All controls', `${numControls} controls`]);
+      } else {
+        const sections = climbText
+          ? [courseLabel, lengthKm, climbText]
+          : [courseLabel, lengthKm];
+        drawSplitInfoRow(colX, rowY, sections);
+      }
+
+      // Row 4: Start directive (if course has a start control)
+      if (hasStart) {
+        rowY -= cellPt;
+        // Find distance from start to first numbered control
+        const startIdx = course.controls.findIndex((cc) => cc.type === 'start');
+        const firstCtrlIdx = course.controls.findIndex((cc) =>
+          cc.type !== 'start' && cc.type !== 'crossingPoint',
+        );
+        const startDist = (startIdx >= 0 && firstCtrlIdx > startIdx)
+          ? Math.round(distanceBetweenControls(startIdx, firstCtrlIdx))
+          : 0;
+        const distText = startDist > 0 ? `${startDist} m` : '';
+        drawDirectiveRow(colX, rowY, '\u25B7', distText); // ▷ start triangle
+      }
     }
 
     // Control rows
@@ -925,6 +1076,7 @@ async function renderAutoDescriptionBox(
       const cc = course.controls[i]!;
       const isStart = cc.type === 'start';
       const isFinish = cc.type === 'finish';
+      const isExchange = cc.type === 'mapExchange' || cc.type === 'mapFlip';
 
       let seq: number | null = null;
       if (!isStart && !isFinish) {
@@ -934,6 +1086,28 @@ async function renderAutoDescriptionBox(
 
       rowY -= cellPt;
       await drawControlRow(colX, rowY, cc, seq);
+
+      // Map exchange directive after the exchange control
+      if (isExchange) {
+        rowY -= cellPt;
+        drawDirectiveRow(colX, rowY, '\u21D2', ''); // ⇒ exchange arrow
+      }
+    }
+
+    // Finish directive (last column only — after last control)
+    if (colIdx === numDescCols - 1 && hasFinish) {
+      rowY -= cellPt;
+      // Find distance from last numbered control to finish
+      const finishIdx = course.controls.length - 1;
+      const lastCtrlIdx = [...course.controls].reverse().findIndex((cc) =>
+        cc.type !== 'finish' && cc.type !== 'crossingPoint',
+      );
+      const lastIdx = lastCtrlIdx >= 0 ? course.controls.length - 1 - lastCtrlIdx : -1;
+      const finishDist = (lastIdx >= 0 && finishIdx > lastIdx)
+        ? Math.round(distanceBetweenControls(lastIdx, finishIdx))
+        : 0;
+      const finishDistText = finishDist > 0 ? `${finishDist} m` : '';
+      drawDirectiveRow(colX, rowY, '\u25CB', finishDistText); // ○ finish circle
     }
   }
 }
