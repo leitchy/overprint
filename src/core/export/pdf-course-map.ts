@@ -173,21 +173,15 @@ export async function generateCoursePdf(
           font,
         );
 
-        // Description box for All Controls — use imported box position/size if available
-        const allControlsDescBox = event.specialItems.find(
+        // Render special items — allControls desc boxes will render here.
+        // Use a synthetic "all-controls" courseId that won't match any course-specific items.
+        await renderSpecialItems(page, pdfDoc, event.specialItems, 'all-controls' as CourseId, allControlsCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
+
+        // Auto-generate description box only if no imported allControls box exists
+        const hasImportedDescBox = event.specialItems.some(
           (si) => si.type === 'descriptionBox' && si.allControls,
         );
-        if (allControlsDescBox && allControlsDescBox.type === 'descriptionBox') {
-          // Use imported position and cell size from .ppen
-          const descPos = toPdf(allControlsDescBox.position);
-          const descEnd = toPdf(allControlsDescBox.endPosition);
-          const importedCellPt = Math.abs(descEnd.x - descPos.x);
-          const importedCols = allControlsDescBox.columns ?? 1;
-          await renderAutoDescriptionBox(
-            page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
-            undefined, importedCellPt, importedCols, descPos,
-          );
-        } else {
+        if (!hasImportedDescBox) {
           await renderAutoDescriptionBox(page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font);
         }
 
@@ -280,7 +274,7 @@ export async function generateCoursePdf(
         await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
-        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, toPdf, font, viewport.effectivePPP);
+        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
 
         // Page label
         const totalPages = coursePageCount * partIterations.length;
@@ -438,9 +432,10 @@ async function renderSpecialItems(
   pdfDoc: PDFDocument,
   specialItems: SpecialItem[],
   courseId: CourseId,
-  _course: Course,
-  _controls: Record<ControlId, Control>,
-  _eventSettings: EventSettings,
+  course: Course,
+  controls: Record<ControlId, Control>,
+  eventSettings: EventSettings,
+  layout: PageLayout,
   toPdf: (point: MapPoint) => MapPoint,
   font: PDFFont,
   effectivePPP: number,
@@ -453,11 +448,11 @@ async function renderSpecialItems(
       continue;
     }
 
-    // Skip ALL description boxes in special items — auto-generation handles them.
-    // Imported .ppen description boxes lack part-awareness and would duplicate
-    // the auto-generated ones.
+    // Skip description boxes on individual course pages — auto-generation handles them.
+    // Allow allControls description boxes through only on the All Controls page.
     if (item.type === 'descriptionBox') {
-      continue;
+      const isAllControlsPage = courseId === ('all-controls' as CourseId);
+      if (!item.allControls || !isAllControlsPage) continue;
     }
 
     const colorHex = item.color ?? '#C850A0';
@@ -560,7 +555,18 @@ async function renderSpecialItems(
         break;
       }
 
-      // descriptionBox items are filtered out above — auto-generation handles them
+      case 'descriptionBox': {
+        // Only allControls desc boxes reach here (others filtered above).
+        // Render using imported position, cell size, and column count.
+        const endPos = toPdf(item.endPosition);
+        const importedCellPt = Math.abs(endPos.x - pos.x);
+        const importedCols = item.columns ?? 1;
+        await renderAutoDescriptionBox(
+          page, pdfDoc, course, controls, eventSettings, layout, font,
+          undefined, importedCellPt, importedCols, pos,
+        );
+        break;
+      }
 
       case 'image': {
         const endPos = toPdf(item.endPosition);
