@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, endPath } from 'pdf-lib';
 import { rectangle as rectOp } from 'pdf-lib';
 import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
-import type { OverprintEvent, Course, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
+import type { OverprintEvent, Course, CourseControl, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
 import type { PageLayout, MapViewport } from './pdf-page-layout';
@@ -113,6 +113,78 @@ export async function generateCoursePdf(
           unionPrintArea.maxX = Math.max(unionPrintArea.maxX, pa.maxX);
           unionPrintArea.maxY = Math.max(unionPrintArea.maxY, pa.maxY);
         }
+      }
+    }
+  }
+
+  // --- All Controls page (multi-course export only) ---
+  if (isMultiCourse) {
+    // Build a synthetic "All Controls" score course (no legs) with every control
+    const allControlIds = Object.keys(event.controls) as ControlId[];
+    const allControlsCCs: CourseControl[] = allControlIds.map((id) => ({
+      controlId: id,
+      type: 'control' as const,
+    }));
+    // Sort by control code for consistent ordering
+    allControlsCCs.sort((a, b) => {
+      const ca = event.controls[a.controlId];
+      const cb = event.controls[b.controlId];
+      return (ca?.code ?? 0) - (cb?.code ?? 0);
+    });
+
+    const allControlsCourse: Course = {
+      id: 'all-controls' as CourseId,
+      name: event.name,
+      courseType: 'score',
+      controls: allControlsCCs,
+      settings: {
+        labelMode: 'code',
+        descriptionAppearance: event.courses[0]?.settings.descriptionAppearance,
+      },
+    };
+
+    const allBounds = unionBounds ?? computeCourseBounds(allControlsCourse, event.controls);
+    if (allBounds) {
+      const printScale = event.settings.printScale;
+      const pageSetup = mergePageSetup(event.settings.pageSetup, event.courses[0]?.settings.pageSetup);
+      const layout = computePageLayout(pageSetup);
+      const printAreaOverride = unionPrintArea;
+      const multiPage = computeMultiPageViewports(
+        layout, mapScale, printScale, dpi, imgWidth, imgHeight, allBounds,
+        30, 15, printAreaOverride ?? undefined,
+      );
+
+      for (let pageIndex = 0; pageIndex < multiPage.viewports.length; pageIndex++) {
+        const viewport = multiPage.viewports[pageIndex]!;
+        const toPdf = viewportToPdf(layout, viewport);
+        const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+
+        if (embeddedPdfPage) {
+          drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
+        } else if (embeddedMap) {
+          drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
+        }
+
+        // Render all controls as circles with codes (score course = no legs)
+        renderOverprint(
+          { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
+          allControlsCourse,
+          event.controls,
+          font,
+        );
+
+        // Auto description box for All Controls
+        await renderAutoDescriptionBox(page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font);
+
+        // Page label
+        const label = multiPage.viewports.length > 1
+          ? `All controls (${pageIndex + 1}/${multiPage.viewports.length})`
+          : 'All controls';
+        page.drawText(label, {
+          x: layout.marginLeft + 4,
+          y: layout.pageHeight - layout.marginTop - 12,
+          size: 8, font, color: rgb(0.4, 0.4, 0.4),
+        });
       }
     }
   }
