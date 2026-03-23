@@ -5,8 +5,10 @@ import basicSsl from '@vitejs/plugin-basic-ssl';
 import path from 'path';
 import { version } from './package.json';
 
+import { cloudflare } from "@cloudflare/vite-plugin";
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), basicSsl()],
+  plugins: [react(), tailwindcss(), basicSsl(), cloudflare()],
   server: {
     host: true, // expose on LAN for phone testing
   },
