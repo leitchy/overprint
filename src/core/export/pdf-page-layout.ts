@@ -162,14 +162,15 @@ export function computeMapViewport(
   const viewportWidthPx = layout.printableWidth / effectivePPP;
   const viewportHeightPx = layout.printableHeight / effectivePPP;
 
-  // Use printAreaOverride when set, otherwise fall back to course control bounds
+  // Use printAreaOverride when set, otherwise fall back to course control bounds.
+  // Print area overrides are already sized to fit the page — no padding needed.
   const effectiveBounds = printAreaOverride ?? bounds;
+  const pad = printAreaOverride ? 0 : paddingPx;
 
-  // Course center in map pixels (including padding in the bounds)
-  const paddedMinX = effectiveBounds.minX - paddingPx;
-  const paddedMinY = effectiveBounds.minY - paddingPx;
-  const paddedMaxX = effectiveBounds.maxX + paddingPx;
-  const paddedMaxY = effectiveBounds.maxY + paddingPx;
+  const paddedMinX = effectiveBounds.minX - pad;
+  const paddedMinY = effectiveBounds.minY - pad;
+  const paddedMaxX = effectiveBounds.maxX + pad;
+  const paddedMaxY = effectiveBounds.maxY + pad;
   const courseCenterX = (paddedMinX + paddedMaxX) / 2;
   const courseCenterY = (paddedMinY + paddedMaxY) / 2;
 
@@ -232,14 +233,15 @@ export function computeMultiPageViewports(
   const pageWidthPx = layout.printableWidth / effectivePPP;
   const pageHeightPx = layout.printableHeight / effectivePPP;
 
-  // Use printAreaOverride when set, otherwise fall back to course control bounds
+  // Use printAreaOverride when set, otherwise fall back to course control bounds.
+  // Print area overrides are already sized to fit the page — no padding needed.
   const effectiveBounds = printAreaOverride ?? bounds;
+  const pad = printAreaOverride ? 0 : paddingPx;
 
-  // Padded course extent
-  const extentLeft = effectiveBounds.minX - paddingPx;
-  const extentTop = effectiveBounds.minY - paddingPx;
-  const extentWidth = (effectiveBounds.maxX - effectiveBounds.minX) + paddingPx * 2;
-  const extentHeight = (effectiveBounds.maxY - effectiveBounds.minY) + paddingPx * 2;
+  const extentLeft = effectiveBounds.minX - pad;
+  const extentTop = effectiveBounds.minY - pad;
+  const extentWidth = (effectiveBounds.maxX - effectiveBounds.minX) + pad * 2;
+  const extentHeight = (effectiveBounds.maxY - effectiveBounds.minY) + pad * 2;
 
   // If the extent fits in a single page, fall back to single viewport
   if (extentWidth <= pageWidthPx && extentHeight <= pageHeightPx) {
