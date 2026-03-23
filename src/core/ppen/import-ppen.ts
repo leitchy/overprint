@@ -475,10 +475,17 @@ export function importPpen(
         maxY: Math.max(topLeft.y, bottomRight.y),
       };
 
-      // Parse page orientation from print-area
+      // Parse page orientation and margins from print-area
       const isLandscape = getAttr(printAreaEl, 'page-landscape') === 'true';
-      if (isLandscape) {
-        settings.pageSetup = { ...settings.pageSetup, orientation: 'landscape' };
+      const pageMarginsAttr = getAttr(printAreaEl, 'page-margins');
+      if (isLandscape || pageMarginsAttr !== null) {
+        // page-margins is in 1/100 inch (same unit as page-width/page-height)
+        const marginMm = pageMarginsAttr !== null ? (parseFloat(pageMarginsAttr) / 100) * 25.4 : undefined;
+        settings.pageSetup = {
+          ...settings.pageSetup,
+          ...(isLandscape ? { orientation: 'landscape' as const } : {}),
+          ...(marginMm !== undefined ? { margins: { top: marginMm, right: marginMm, bottom: marginMm, left: marginMm } } : {}),
+        };
       }
     }
 
@@ -681,9 +688,19 @@ export function importPpen(
   event.settings.descriptionStandard = descriptionStandard;
   event.settings.mapStandard = mapStandard;
 
-  // If all courses specify landscape, set it at the event level
-  if (courses.length > 0 && courses.every((c) => c.settings.pageSetup?.orientation === 'landscape')) {
-    event.settings.pageSetup = { ...event.settings.pageSetup, orientation: 'landscape' };
+  // Promote common per-course page setup to event level
+  if (courses.length > 0) {
+    const first = courses[0]!.settings.pageSetup;
+    if (first?.orientation && courses.every((c) => c.settings.pageSetup?.orientation === first.orientation)) {
+      event.settings.pageSetup = { ...event.settings.pageSetup, orientation: first.orientation };
+    }
+    if (first?.margins && courses.every((c) => {
+      const m = c.settings.pageSetup?.margins;
+      return m && m.top === first.margins!.top && m.right === first.margins!.right
+        && m.bottom === first.margins!.bottom && m.left === first.margins!.left;
+    })) {
+      event.settings.pageSetup = { ...event.settings.pageSetup, margins: first.margins };
+    }
   }
 
   // Build controls record
