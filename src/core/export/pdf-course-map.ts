@@ -82,6 +82,26 @@ export async function generateCoursePdf(
 
   let lastCourseName = '';
 
+  // For multi-course export, compute a union bounding box so all courses
+  // share a consistent map position (prevents the map from shifting between pages).
+  let unionBounds: import('@/core/models/types').CourseBounds | null = null;
+  if (isMultiCourse) {
+    for (const ci of indices) {
+      const course = event.courses[ci];
+      if (!course) continue;
+      const b = computeCourseBounds(course, event.controls);
+      if (!b) continue;
+      if (!unionBounds) {
+        unionBounds = { ...b };
+      } else {
+        unionBounds.minX = Math.min(unionBounds.minX, b.minX);
+        unionBounds.minY = Math.min(unionBounds.minY, b.minY);
+        unionBounds.maxX = Math.max(unionBounds.maxX, b.maxX);
+        unionBounds.maxY = Math.max(unionBounds.maxY, b.maxY);
+      }
+    }
+  }
+
   for (const ci of indices) {
     const course: Course | undefined = event.courses[ci];
     if (!course) continue;
@@ -100,10 +120,11 @@ export async function generateCoursePdf(
     const pageSetup = mergePageSetup(event.settings.pageSetup, course.settings.pageSetup);
     const layout = computePageLayout(pageSetup);
 
-    // Compute viewport grid for this course
+    // Compute viewport — use union bounds for multi-course to keep map position consistent
     const printAreaOverride = course.settings.printArea;
+    const viewportBounds = printAreaOverride ? bounds : (unionBounds ?? bounds);
     const multiPage = computeMultiPageViewports(
-      layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds,
+      layout, mapScale, printScale, dpi, imgWidth, imgHeight, viewportBounds,
       30, 15, printAreaOverride,
     );
     const coursePageCount = multiPage.viewports.length;
@@ -515,9 +536,12 @@ async function renderDescriptionBoxToPdf(
   const controlRows = course.controls.length;
   const totalRows = 2 + controlRows; // header + info + controls
 
-  // Calculate cell size to fit within bounds
+  // PurplePen description boxes store two locations with the same Y — the
+  // height is implicit (derived from the number of rows × cell width).
+  // When bounds.height is zero or very small, compute height from the width.
   const cellW = bounds.width / numCols;
-  const cellH = bounds.height / totalRows;
+  const effectiveHeight = bounds.height > cellW ? bounds.height : cellW * totalRows;
+  const cellH = effectiveHeight / totalRows;
   // Use uniform cell size (square cells preferred, but fit to bounds)
   const cellSize = Math.min(cellW, cellH);
 
