@@ -177,16 +177,19 @@ pnpm typecheck      # TypeScript only (no emit)
 ## Knowledge Vault (claude-obsidian)
 
 A persistent, cross-session knowledge base for this project lives in a separate
-claude-obsidian vault (not this repo):
+claude-obsidian vault (not this repo). claude-obsidian v2 keeps the plugin and the vault as
+two distinct directories:
 
-**Path:** `~/Development/Personal/overprint-knowledge`
+- **Vault** (the Obsidian knowledge base): `~/Development/Personal/Overprint-knowledge-vault`
+- **Plugin / product tree** (the claude-obsidian clone): `~/Development/Personal/overprint-knowledge`
 
 It holds distilled knowledge on map rendering, file loading, PurplePen fidelity, OCAD/OMAP,
 and the SVG display architecture — organised into a linked wiki with provenance.
 
-- To **build/update** it: open a Claude Code session **from that directory** (the folder is
-  itself the claude-obsidian plugin + vault), drop sources in `inbox/`, and run
-  `/claude-obsidian:wiki-ingest`. Do not run those skills from this repo — they aren't loaded here.
-- To **use** it from an Overprint session: read the vault's `wiki/index.md` and drill into
-  relevant pages (e.g. `map-rendering-roadmap`, `omap-renderer`, `svg-display-adr015`) when you
-  need context not already in this repo.
+- To **build/update** it: run Claude Code **from the vault**, loading the plugin:
+  `cd ~/Development/Personal/Overprint-knowledge-vault && claude --plugin-dir ~/Development/Personal/overprint-knowledge`.
+  First time: `/claude-obsidian:wiki` (init). Then drop sources in the vault's `inbox/` and run
+  `/claude-obsidian:wiki-ingest`. Those skills are NOT loaded when Claude runs from this repo.
+- To **use** it from an Overprint session: read `Overprint-knowledge-vault/wiki/index.md` and
+  drill into relevant pages (e.g. `map-rendering-roadmap`, `omap-renderer`, `svg-display-adr015`)
+  when you need context not already in this repo.
