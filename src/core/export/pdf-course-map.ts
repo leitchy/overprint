@@ -188,7 +188,7 @@ export async function generateCoursePdf(
         descBoxTopY = importedTopY; // share with course pages
         await renderAutoDescriptionBox(
           page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
-          undefined, undefined, importedCols, undefined, descBoxTopY,
+          event.name, undefined, undefined, importedCols, undefined, descBoxTopY, true,
         );
 
         // Render other special items (text, images, etc.) — desc boxes are filtered out
@@ -280,7 +280,7 @@ export async function generateCoursePdf(
 
         // Auto-generate description box (rendered before special items so
         // images/logos from .ppen draw on top of the white background)
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, partLabel, undefined, undefined, undefined, descBoxTopY);
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, event.name, partLabel, undefined, undefined, undefined, descBoxTopY);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
@@ -688,11 +688,13 @@ async function renderAutoDescriptionBox(
   eventSettings: EventSettings,
   layout: PageLayout,
   font: PDFFont,
-  partLabel?: string, // e.g., "(P1/2)"
-  overrideCellPt?: number, // imported cell size in PDF points
-  overrideColumns?: number, // imported column count
-  _overridePosition?: MapPoint, // deprecated — use overrideTopY
-  overrideTopY?: number, // imported Y position in PDF coords (top of box)
+  eventName: string,
+  partLabel?: string,
+  overrideCellPt?: number,
+  overrideColumns?: number,
+  _overridePosition?: MapPoint,
+  overrideTopY?: number,
+  isAllControls = false,
 ): Promise<void> {
   const lang = eventSettings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
@@ -704,24 +706,113 @@ async function renderAutoDescriptionBox(
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
   const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
-  const headerRows = 2; // course name + length/climb
-  const controlCount = course.controls.length;
+  // --- Step 1: Build explicit row list ---
+  type DescRow =
+    | { kind: 'header'; text: string; fontSize: number }
+    | { kind: 'splitInfo'; sections: string[] }
+    | { kind: 'directive'; leftSymbol: string; distanceText: string }
+    | { kind: 'control'; cc: CourseControl; seqNumber: number | null };
 
-  // Effective column width multiplier (8 symbol cols + optional text col)
+  const secondaryTitle = course.settings.secondaryTitle;
+  const dpi = 96;
+  const scale = eventSettings.printScale;
+  const courseLabel = partLabel ? `${course.name} ${partLabel}` : course.name;
+
+  // Distance helper (straight-line, map pixels → metres → round to 10m)
+  function distBetween(idx1: number, idx2: number): number {
+    const c1 = controls[course.controls[idx1]?.controlId as ControlId];
+    const c2 = controls[course.controls[idx2]?.controlId as ControlId];
+    if (!c1 || !c2) return 0;
+    const dx = c2.position.x - c1.position.x;
+    const dy = c2.position.y - c1.position.y;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    const metres = (distPx / dpi) * 25.4 * (scale / 1000);
+    return Math.round(metres / 10) * 10; // round to nearest 10m
+  }
+
+  // Build header rows
+  const headerRowList: DescRow[] = [];
+  headerRowList.push({ kind: 'header', text: eventName, fontSize: DESC_HEADER_FONT_SIZE });
+
+  if (secondaryTitle && !isAllControls) {
+    headerRowList.push({ kind: 'header', text: secondaryTitle, fontSize: DESC_HEADER_FONT_SIZE - 1 });
+  }
+
+  if (isAllControls) {
+    const numNormal = course.controls.filter((cc) =>
+      cc.type !== 'start' && cc.type !== 'finish',
+    ).length;
+    headerRowList.push({ kind: 'splitInfo', sections: ['All controls', `${numNormal} controls`] });
+  } else {
+    const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
+    const lengthKm = (lengthM / 1000).toFixed(1) + ' km';
+    const climbValue = course.climb ?? course.settings.climb;
+    const climbText = climbValue !== undefined && climbValue >= 0
+      ? `${Math.round(climbValue / 5) * 5} m` : '';
+    const sections = climbText ? [courseLabel, lengthKm, climbText] : [courseLabel, lengthKm];
+    headerRowList.push({ kind: 'splitInfo', sections });
+  }
+
+  // Start directive
+  const hasStart = course.controls.some((cc) => cc.type === 'start');
+  if (hasStart) {
+    const startIdx = course.controls.findIndex((cc) => cc.type === 'start');
+    const firstCtrlIdx = course.controls.findIndex((cc, i) =>
+      i > startIdx && cc.type !== 'start' && cc.type !== 'crossingPoint',
+    );
+    const startDist = (startIdx >= 0 && firstCtrlIdx > startIdx)
+      ? distBetween(startIdx, firstCtrlIdx) : 0;
+    headerRowList.push({ kind: 'directive', leftSymbol: 'start', distanceText: startDist > 0 ? `${startDist} m` : '' });
+  }
+
+  // Build body rows (controls + exchange directives + finish)
+  const bodyRowList: DescRow[] = [];
+  let seqNumber = 0;
+  for (const cc of course.controls) {
+    const isStart = cc.type === 'start';
+    const isFinish = cc.type === 'finish';
+    const isExchange = cc.type === 'mapExchange' || cc.type === 'mapFlip';
+
+    let seq: number | null = null;
+    if (!isStart && !isFinish && !isAllControls) {
+      seqNumber++;
+      seq = seqNumber;
+    }
+
+    bodyRowList.push({ kind: 'control', cc, seqNumber: seq });
+
+    if (isExchange) {
+      bodyRowList.push({ kind: 'directive', leftSymbol: 'exchange', distanceText: '' });
+    }
+  }
+
+  // Finish directive
+  const hasFinish = course.controls.some((cc) => cc.type === 'finish');
+  if (hasFinish) {
+    const finishIdx = course.controls.findIndex((cc) => cc.type === 'finish');
+    const lastCtrlIdx = course.controls.length - 1 -
+      [...course.controls].reverse().findIndex((cc) =>
+        cc.type !== 'finish' && cc.type !== 'crossingPoint',
+      );
+    const finishDist = (lastCtrlIdx >= 0 && finishIdx > lastCtrlIdx)
+      ? distBetween(lastCtrlIdx, finishIdx) : 0;
+    bodyRowList.push({ kind: 'directive', leftSymbol: 'finish', distanceText: finishDist > 0 ? `${finishDist} m` : '' });
+  }
+
+  // --- Step 2: Sizing (uses row counts, not control counts) ---
+  const headerCount = headerRowList.length;
+  const bodyCount = bodyRowList.length;
   const colWidthInCells = hasTextCol ? 8 + DESC_TEXT_COL_MULTIPLIER : 8;
 
-  // Target: description block should use at most 50% of the page width
-  // and at most 55% of the page height. Dynamically size cells to fit.
   const maxBlockWidth = layout.printableWidth * 0.5;
   const maxBlockHeight = (layout.printableHeight - topOffsetPt) * 0.55;
 
-  // Find the number of columns that gives the largest cell size while fitting.
-  // More columns = fewer rows = larger cells (up to the max of 6mm).
+  // Find best column count (maximize cell size)
   let numDescCols = 1;
   let bestCellPt = 0;
   for (let n = 1; n <= 6; n++) {
-    const ctrlPerCol = Math.ceil(controlCount / n);
-    const tallest = headerRows + ctrlPerCol;
+    const bodyPerCol = Math.ceil(bodyCount / n);
+    const tallest = headerCount + bodyPerCol;
     const cellH = maxBlockHeight / tallest;
     const cellW = (maxBlockWidth - gapPt * (n - 1)) / (colWidthInCells * n);
     const cell = Math.min(cellH, cellW, mmToPdfPoints(DESC_CELL_SIZE_MM));
@@ -730,39 +821,35 @@ async function renderAutoDescriptionBox(
       numDescCols = n;
     }
   }
-
-  // Apply overrides from imported .ppen description box
   if (overrideColumns) numDescCols = overrideColumns;
 
-  // Compute cell size to fit the block within max dimensions.
-  // The tallest column has header rows + its share of controls.
-  const controlsPerCol = Math.ceil(controlCount / numDescCols);
-  const tallestColRows = headerRows + controlsPerCol; // first column is tallest (has header)
+  // Compute cell size
+  const bodyPerCol = Math.ceil(bodyCount / numDescCols);
+  const tallestColRows = headerCount + bodyPerCol;
   const cellFromHeight = maxBlockHeight / tallestColRows;
   const totalGridsWidth = maxBlockWidth - gapPt * (numDescCols - 1);
   const cellFromWidth = totalGridsWidth / (colWidthInCells * numDescCols);
-  let cellPt = Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM));
+  let cellPt = Math.max(mmToPdfPoints(2), Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM)));
   if (overrideCellPt) cellPt = overrideCellPt;
 
   const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
   const gridWidth = cellPt * 8 + textColWidthPt;
 
-  // Split controls across columns evenly
-  const columnSlices: { startIdx: number; endIdx: number; showHeader: boolean }[] = [];
-  let remaining = controlCount;
-  let offset = 0;
-
+  // --- Step 3: Split body rows across columns ---
+  const columnBodySlices: { rows: DescRow[]; showHeader: boolean }[] = [];
+  let bodyOffset = 0;
   for (let c = 0; c < numDescCols; c++) {
-    // Distribute evenly: ceil division for remaining controls across remaining columns
-    const colCount = Math.min(remaining, Math.ceil(remaining / (numDescCols - c)));
-    columnSlices.push({ startIdx: offset, endIdx: offset + colCount, showHeader: c === 0 });
-    remaining -= colCount;
-    offset += colCount;
+    const count = Math.min(bodyCount - bodyOffset, Math.ceil((bodyCount - bodyOffset) / (numDescCols - c)));
+    columnBodySlices.push({
+      rows: bodyRowList.slice(bodyOffset, bodyOffset + count),
+      showHeader: c === 0,
+    });
+    bodyOffset += count;
   }
 
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
-  // Position: right-aligned, with optional Y override from imported desc box
+  // --- Positioning (UNCHANGED) ---
   const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
   const blockLeft = blockRight - totalBlockWidth;
   const blockTopY = overrideTopY ?? (layout.pageHeight - layout.marginTop - topOffsetPt);
@@ -875,28 +962,118 @@ async function renderAutoDescriptionBox(
     });
   }
 
-  // Compute info text
-  const dpi = 96;
-  const scale = eventSettings.printScale;
-  const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
-  const climbValue = course.climb ?? course.settings.climb;
-  const climbText = climbValue !== undefined ? `  ${climbValue} m` : '';
-  const infoText = `${Math.round(lengthM)} m${climbText}`;
+  // Helper: draw a 2-section or 3-section info row
+  function drawSplitInfoRow(gridX: number, rowY: number, sections: string[]): void {
+    const numSections = sections.length;
+    // Split grid width proportionally: for 3 sections → 3:3:2, for 2 sections → 4:4
+    const widths = numSections === 3
+      ? [gridWidth * 3 / 8, gridWidth * 3 / 8, gridWidth * 2 / 8]
+      : [gridWidth / 2, gridWidth / 2];
 
-  const headerText = partLabel ? `${course.name} ${partLabel}` : course.name;
+    let x = gridX;
+    for (let i = 0; i < numSections; i++) {
+      const w = widths[i]!;
+      page.drawRectangle({
+        x, y: rowY, width: w, height: cellPt,
+        borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+      });
+      const fontSize = DESC_HEADER_FONT_SIZE;
+      let text = sections[i]!;
+      const maxW = w - cellPt * 0.16;
+      while (font.widthOfTextAtSize(text, fontSize) > maxW && text.length > 1) text = text.slice(0, -1);
+      const tw = font.widthOfTextAtSize(text, fontSize);
+      page.drawText(text, {
+        x: x + (w - tw) / 2, y: rowY + (cellPt - fontSize) / 2,
+        size: fontSize, font, color: DESC_TEXT_COLOR,
+      });
+      x += w;
+    }
+  }
 
-  // Track sequence numbering across columns
-  let seqNumber = 0;
+  // Helper: draw a directive row (start/finish/exchange)
+  // Left section shows a symbol label, right section shows distance text
+  function drawDirectiveRow(gridX: number, rowY: number, symbolType: string, rightText: string): void {
+    // Left section (3 cells wide)
+    const leftW = cellPt * 3;
+    const rightW = gridWidth - leftW;
+    page.drawRectangle({
+      x: gridX, y: rowY, width: leftW, height: cellPt,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+    });
+    page.drawRectangle({
+      x: gridX + leftW, y: rowY, width: rightW, height: cellPt,
+      borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
+    });
 
+    // Draw symbol in left section
+    const cx = gridX + leftW / 2;
+    const cy = rowY + cellPt / 2;
+    const s = cellPt * 0.3; // symbol size
+
+    if (symbolType === 'start') {
+      // Start triangle (pointing right)
+      const triH = s * 0.866; // equilateral triangle half-height
+      page.drawLine({ start: { x: cx - triH, y: cy - s }, end: { x: cx + triH, y: cy }, thickness: 1, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + triH, y: cy }, end: { x: cx - triH, y: cy + s }, thickness: 1, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx - triH, y: cy + s }, end: { x: cx - triH, y: cy - s }, thickness: 1, color: DESC_TEXT_COLOR });
+    } else if (symbolType === 'finish') {
+      // Finish double circle
+      page.drawCircle({ x: cx, y: cy, size: s, borderColor: DESC_TEXT_COLOR, borderWidth: 1 });
+      page.drawCircle({ x: cx, y: cy, size: s * 0.7, borderColor: DESC_TEXT_COLOR, borderWidth: 1 });
+    } else if (symbolType === 'exchange') {
+      // Map exchange arrow (right-pointing arrow)
+      page.drawLine({ start: { x: cx - s, y: cy }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy + s * 0.5 }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy - s * 0.5 }, end: { x: cx + s, y: cy }, thickness: 1.5, color: DESC_TEXT_COLOR });
+    }
+
+    // Right: dashed line with distance text centered
+    if (rightText) {
+      // Draw dashed line
+      const lineY = rowY + cellPt / 2;
+      const lineStartX = gridX + leftW + cellPt * 0.3;
+      const lineEndX = gridX + gridWidth - cellPt * 0.3;
+      const dashLen = cellPt * 0.3;
+      const gapLen = cellPt * 0.15;
+      let dx = lineStartX;
+      while (dx < lineEndX) {
+        const endX = Math.min(dx + dashLen, lineEndX);
+        page.drawLine({
+          start: { x: dx, y: lineY }, end: { x: endX, y: lineY },
+          thickness: 0.5, color: DESC_TEXT_COLOR,
+        });
+        dx += dashLen + gapLen;
+      }
+
+      // Distance text centered over the dashed line
+      const rFontSize = DESC_TEXT_FONT_SIZE;
+      const rw = font.widthOfTextAtSize(rightText, rFontSize);
+      const textX = gridX + leftW + (rightW - rw) / 2;
+      // White background behind text to clear the dashes
+      page.drawRectangle({
+        x: textX - 2, y: lineY - rFontSize / 2 - 1,
+        width: rw + 4, height: rFontSize + 2,
+        color: rgb(1, 1, 1),
+      });
+      page.drawText(rightText, {
+        x: textX, y: rowY + (cellPt - rFontSize) / 2,
+        size: rFontSize, font, color: DESC_TEXT_COLOR,
+      });
+    }
+  }
+
+  // --- Step 4: Render columns ---
   for (let colIdx = 0; colIdx < numDescCols; colIdx++) {
-    const slice = columnSlices[colIdx]!;
+    const slice = columnBodySlices[colIdx]!;
     const colX = blockLeft + colIdx * (gridWidth + gapPt);
-    const colRows = slice.showHeader
-      ? headerRows + (slice.endIdx - slice.startIdx)
-      : (slice.endIdx - slice.startIdx);
-    const colHeight = colRows * cellPt;
 
-    // White background with bleed
+    // All rows for this column
+    const colAllRows: DescRow[] = slice.showHeader
+      ? [...headerRowList, ...slice.rows]
+      : slice.rows;
+    const colHeight = colAllRows.length * cellPt;
+
+    // White background
     page.drawRectangle({
       x: colX - bleedPt, y: blockTopY - colHeight - bleedPt,
       width: gridWidth + bleedPt * 2, height: colHeight + bleedPt * 2,
@@ -910,30 +1087,24 @@ async function renderAutoDescriptionBox(
       borderColor: DESC_BORDER_COLOR, borderWidth: DESC_OUTER_BORDER_WIDTH,
     });
 
-    let rowY = blockTopY; // start from top, grow downward
-
-    // Header rows (first column only)
-    if (slice.showHeader) {
+    // Render each row
+    let rowY = blockTopY;
+    for (const row of colAllRows) {
       rowY -= cellPt;
-      drawHeader(colX, rowY, headerText, DESC_HEADER_FONT_SIZE);
-      rowY -= cellPt;
-      drawHeader(colX, rowY, infoText, DESC_HEADER_FONT_SIZE);
-    }
-
-    // Control rows
-    for (let i = slice.startIdx; i < slice.endIdx; i++) {
-      const cc = course.controls[i]!;
-      const isStart = cc.type === 'start';
-      const isFinish = cc.type === 'finish';
-
-      let seq: number | null = null;
-      if (!isStart && !isFinish) {
-        seqNumber++;
-        seq = seqNumber;
+      switch (row.kind) {
+        case 'header':
+          drawHeader(colX, rowY, row.text, row.fontSize);
+          break;
+        case 'splitInfo':
+          drawSplitInfoRow(colX, rowY, row.sections);
+          break;
+        case 'directive':
+          drawDirectiveRow(colX, rowY, row.leftSymbol, row.distanceText);
+          break;
+        case 'control':
+          await drawControlRow(colX, rowY, row.cc, row.seqNumber);
+          break;
       }
-
-      rowY -= cellPt;
-      await drawControlRow(colX, rowY, cc, seq);
     }
   }
 }

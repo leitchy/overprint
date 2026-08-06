@@ -18,14 +18,33 @@ export async function loadPdfAsImage(
   options: LoadPdfOptions = {},
 ): Promise<LoadPdfResult> {
   const { dpi = DEFAULT_DPI, pageNumber = 1 } = options;
+  const arrayBuffer = await file.arrayBuffer();
+  const canvas = await renderPdfPageToCanvas(arrayBuffer, dpi, pageNumber);
+  return { canvas, width: canvas.width, height: canvas.height, arrayBuffer };
+}
+
+/**
+ * Render a single PDF page to a canvas at the given DPI.
+ *
+ * Shared by the initial load and by the adaptive re-rasterizer, which re-renders
+ * the stored PDF buffer at a higher DPI when the user zooms in. The `arrayBuffer`
+ * is transferred to PDF.js, so pass a copy if the caller needs to reuse it — the
+ * app keeps the original in the map-image store and hands slices/copies here.
+ */
+export async function renderPdfPageToCanvas(
+  arrayBuffer: ArrayBuffer,
+  dpi: number,
+  pageNumber = 1,
+): Promise<HTMLCanvasElement> {
   const scale = dpi / PDF_INTERNAL_DPI;
 
   // Lazy import to avoid loading PDF.js at module evaluation time
   // (PDF.js requires DOM APIs not available in test environments)
   const { pdfjsLib } = await import('./pdf-worker-setup');
 
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  // PDF.js detaches the buffer it reads from; render from a copy so the caller's
+  // stored buffer stays intact for repeated re-renders and export embedding.
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
 
   try {
     const page = await pdf.getPage(pageNumber);
@@ -38,13 +57,7 @@ export async function loadPdfAsImage(
       canvas.height = Math.floor(viewport.height);
 
       await page.render({ canvas, viewport }).promise;
-
-      return {
-        canvas,
-        width: canvas.width,
-        height: canvas.height,
-        arrayBuffer,
-      };
+      return canvas;
     } finally {
       page.cleanup();
     }

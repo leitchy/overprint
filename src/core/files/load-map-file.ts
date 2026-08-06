@@ -54,8 +54,8 @@ export async function loadMapFile(file: File): Promise<boolean> {
       const { loadPdfAsImage } = await import('./load-pdf');
       const dpi = existingMapFile?.dpi ?? 200;
       const result = await loadPdfAsImage(file, { dpi });
-      useMapImageStore.getState().setImage(result.canvas, result.width, result.height);
       useMapImageStore.getState().setPdfArrayBuffer(result.arrayBuffer);
+      useMapImageStore.getState().setImage(result.canvas, result.width, result.height, { kind: 'pdf' });
       useEventStore.getState().setMapFile({
         name: file.name,
         type: 'pdf',
@@ -66,7 +66,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
     } else if (fileType === 'ocad') {
       const { loadOcadMap } = await import('./load-ocad');
       const result = await loadOcadMap(file);
-      useMapImageStore.getState().setImage(result.image, result.width, result.height);
+      useMapImageStore.getState().setImage(result.image, result.width, result.height, { kind: 'svg', svg: result.svg });
       // OCAD DPI is computed from the file's coordinate geometry and must not
       // be overridden by a stale saved value.  Scale is also authoritative;
       // fall back only when the OCAD metadata is absent (result.scale === null).
@@ -82,7 +82,7 @@ export async function loadMapFile(file: File): Promise<boolean> {
     } else if (fileType === 'omap') {
       const { loadOmapMap } = await import('./load-omap');
       const result = await loadOmapMap(file);
-      useMapImageStore.getState().setImage(result.image, result.width, result.height);
+      useMapImageStore.getState().setImage(result.image, result.width, result.height, { kind: 'svg', svg: result.svg });
       // OOM DPI + scale are computed from the file and are authoritative.
       useEventStore.getState().setMapFile({
         name: file.name,

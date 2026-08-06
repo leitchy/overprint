@@ -7,6 +7,8 @@ if (typeof (globalThis as any).Buffer === 'undefined') {
 }
 
 import type { GeoReference } from '@/core/models/types';
+import { BASE_RASTER_LONG_SIDE } from './raster-config';
+import { rasterizeSvgToImage } from './rasterize-svg';
 
 interface LoadOcadResult {
   image: HTMLImageElement;
@@ -18,6 +20,8 @@ interface LoadOcadResult {
   georef: GeoReference | null;
   viewBox: { x: number; y: number; width: number; height: number };
   renderScale: number;
+  /** Sized-less SVG string (viewBox only) for adaptive re-rasterization on zoom. */
+  svg: string;
 }
 
 export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
@@ -53,17 +57,12 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   }
 
   // OCAD coordinates are in 1/100mm — these can be huge numbers.
-  // Scale to a reasonable pixel size for rendering (target ~4000px on longest side
-  // for good quality without hitting canvas limits).
-  const TARGET_LONG_SIDE = 4000;
+  // Scale to a reasonable pixel size for the base render (longest side ~4000px);
+  // the adaptive re-rasterizer produces sharper bitmaps on zoom from the same SVG.
   const longestSide = Math.max(svgWidth, svgHeight);
-  const renderScale = longestSide > 0 ? TARGET_LONG_SIDE / longestSide : 1;
+  const renderScale = longestSide > 0 ? BASE_RASTER_LONG_SIDE / longestSide : 1;
   const pixelWidth = Math.round(svgWidth * renderScale);
   const pixelHeight = Math.round(svgHeight * renderScale);
-
-  // Set explicit pixel dimensions on SVG (required for <img> rasterization)
-  svgEl.setAttribute('width', String(pixelWidth));
-  svgEl.setAttribute('height', String(pixelHeight));
 
   // Inject rectangle symbol objects as SVG polygons.
   // ocad2geojson ignores rectangle symbols entirely (RectangleSymbolType = 7),
@@ -76,21 +75,13 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   // SVG loaded via <img> or data URL cannot resolve system fonts.
   // Replace specific font-family declarations with generic fallbacks so
   // text elements are visible (correct position/size, slightly different face).
+  // The serialized SVG carries a viewBox but no width/height, so the same string
+  // can be re-rasterized at any resolution by the adaptive renderer.
   let svgStr = new XMLSerializer().serializeToString(svgEl);
   svgStr = svgStr.replace(/font-family="[^"]*"/g, 'font-family="sans-serif"');
 
-  // Rasterise via data URL — better SVG text rendering than blob URL
-  const svgBase64 = btoa(unescape(encodeURIComponent(svgStr)));
-  const url = `data:image/svg+xml;base64,${svgBase64}`;
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`Failed to render OCAD SVG: ${file.name}`));
-    img.src = url;
-  });
-
-  // No URL.revokeObjectURL needed — data URLs don't create object references
+  // Base render — data URL gives better SVG text rendering than blob URL.
+  const image = await rasterizeSvgToImage(svgStr, pixelWidth, pixelHeight, 'data-url');
 
   // Extract map scale from OCAD parameter strings
   const scale = extractMapScale(ocadFile);
@@ -114,6 +105,7 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
     georef,
     viewBox: { x: svgMinX, y: svgMinY, width: svgWidth, height: svgHeight },
     renderScale,
+    svg: svgStr,
   };
 }
 
