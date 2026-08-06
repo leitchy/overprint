@@ -207,4 +207,55 @@ describe('auditEvent', () => {
       expect(lastErrorIndex).toBeLessThan(firstWarningIndex);
     }
   });
+
+  it('reports controls too close with the same feature', () => {
+    // (100,100) and (110,110) at 1:10000/150dpi ≈ 24m apart, same feature 1.1
+    const { course, controls } = buildCourseWithControls('Course 1', [
+      { code: 31, x: 100, y: 100, type: 'start' },
+      { code: 32, x: 110, y: 110 },
+      { code: 33, x: 900, y: 900, type: 'finish' },
+    ]);
+    const event = buildEvent({
+      courses: [course],
+      controls,
+      mapFile: { name: 'test.pdf', type: 'pdf', scale: 10000, dpi: 150 },
+    });
+    expect(auditEvent(event).some((i) => i.messageKey === 'auditCloseControlsSameFeature')).toBe(true);
+  });
+
+  it('reports legs run in opposite directions across courses', () => {
+    const a = createControl(31, { x: 100, y: 100 }, { columnD: '1.1' });
+    const b = createControl(32, { x: 500, y: 500 }, { columnD: '1.2' });
+    const controls: Record<ControlId, Control> = { [a.id]: a, [b.id]: b };
+    const c1 = createCourse('Course 1');
+    c1.controls = [{ controlId: a.id, type: 'control' }, { controlId: b.id, type: 'control' }];
+    const c2 = createCourse('Course 2');
+    c2.controls = [{ controlId: b.id, type: 'control' }, { controlId: a.id, type: 'control' }];
+    const event = buildEvent({
+      courses: [c1, c2],
+      controls,
+      mapFile: { name: 'test.pdf', type: 'pdf', scale: 10000, dpi: 150 },
+    });
+    const opp = auditEvent(event).filter((i) => i.messageKey === 'auditOppositeLegs');
+    expect(opp).toHaveLength(1); // reported once per unordered pair
+  });
+
+  it('reports consecutive duplicate controls', () => {
+    const a = createControl(31, { x: 100, y: 100 }, { columnD: '1.1' });
+    const controls: Record<ControlId, Control> = { [a.id]: a };
+    const course = createCourse('Course 1');
+    course.controls = [
+      { controlId: a.id, type: 'control' },
+      { controlId: a.id, type: 'control' },
+    ];
+    const event = buildEvent({
+      courses: [course],
+      controls,
+      mapFile: { name: 'test.pdf', type: 'pdf', scale: 10000, dpi: 150 },
+    });
+    const items = auditEvent(event);
+    const dup = items.find((i) => i.messageKey === 'auditConsecutiveDuplicate');
+    expect(dup).toBeDefined();
+    expect(dup?.severity).toBe('error');
+  });
 });
