@@ -63,6 +63,27 @@ Hardcode a fixture SVG behind the Stage in dev and verify on **Chrome, Firefox, 
 
 **If iOS blend fails:** try dropping `will-change` on Safari (accept per-frame repaint; WebKit's SVG rasterizer is fast). If it still fails, ship vector maps via the existing #1 raster path behind a per-browser flag — the escape hatch already exists in shipped code. The spike outcome decides whether this ADR moves to Accepted.
 
+### Phase 0 spike results (2026-08-06)
+
+Built behind `?svgmap=1` (`map-svg-layer.tsx`, `use-svg-transform-sync` via Konva attr events, commit `c26f117`). Verified on **Chrome** with the Mt Taylor OCAD fixture:
+
+- ✅ **Live SVG renders razor-sharp** — 1874 nodes; at 3× zoom every contour, dot-screen and cliff symbol is crisp vector, zero blur (vs. the bitmap's upscale blur). This is the target quality.
+- ✅ **Transform stays glued** — the host `transform` matched the stage exactly through zoom-button steps *and* direct `stage.scale/position` mutation (attr-event sync works on every path, including imperative gesture mutation).
+- ✅ **1:1 alignment** — a placed control sits on the correct map feature; scale bar / text crisp.
+- ✅ **KonvaImage suppressed** in SVG mode; **container `isolation: isolate`** applied; SVG is first child.
+- ✅ **Overprint composites over the SVG**, zero console errors.
+- ⚠️ **Bug found & fixed (unrelated to #3):** the overprint `mix-blend-mode: multiply` was **not being applied at all** in the current build — the blend effect's empty-deps ran before the Stage mounted (size measured async) and never re-ran. Fixed in commit `9081243` (re-run once size is non-zero + on map load). This was a latent bug in shipped v0.19.0, surfaced by the spike.
+- ❌ **iOS Safari blend — FAILS (tested 2026-08 on a real iPhone).** The DOM-SVG map renders correctly and the overprint aligns and does not crash, but the `mix-blend-mode: multiply` does **not** composite against the SVG — the purple overprint renders **flat/opaque** (bright magenta over a bright-green field, where multiply would give a dark olive). This is the predicted WebKit bug: the SVG, promoted to its own GPU-composited layer by the per-frame CSS `transform` (and `will-change`), leaves the multiply canvas's backdrop → multiply blends against white, i.e. no-op. Desktop/Chrome is unaffected (multiply verified there).
+
+### Decision from the spike
+
+- **Desktop / non-Safari:** DOM-SVG (#3) is viable — ship it there.
+- **iOS / Safari:** fall back to the shipped **#1 adaptive-raster** path (map + overprint are same-context Konva canvases, so multiply already works and sharpness is already good). Detect via the existing `raster-config` iOS check / a Safari UA test.
+- **Optional experiment before committing the fallback:** drop `will-change: transform` on Safari and re-test on-device — if the SVG stays in the multiply backdrop, the blend may work and iOS could keep true vector. Only fall back if that fails too.
+- Nothing shipped is affected — the spike is opt-in behind `?svgmap=1`.
+
+Status remains **Proposed** until Phase 1 lands the non-Safari DOM-SVG path with the Safari fallback.
+
 ## Implementation phases (post-gate)
 
 - **Phase 1 — core.** New `map-svg-layer.tsx` + `use-svg-transform-sync.ts`; `useDomSvgMap = rerender?.kind === 'svg' && !svgLayerDisabled` predicate; render `KonvaImage` only when `!useDomSvgMap`; early-return in `use-adaptive-map-raster` for the svg kind; `isolation:isolate` + `bg-white` on the container. Inject SVG via `innerHTML` in an effect keyed on `mapVersion` (never through React diffing of the multi-MB subtree).

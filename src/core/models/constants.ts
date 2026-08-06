@@ -3,8 +3,14 @@
  * All consumers must import from here — never define these inline.
  */
 
-/** IOF overprint purple — Pantone 814 approximation */
-export const OVERPRINT_PURPLE = '#C850A0';
+/**
+ * IOF course-overprint purple. ISOM 2017 Appendix 1 §4 defines it as CMYK 35/85/0/0
+ * or PMS "Purple"; the IOF gives no official RGB (print-only standard). #BB29BB is the
+ * sRGB of Pantone Purple C — the named spot colour — replacing the earlier pinker
+ * "Pantone 814" approximation. Exact on-screen sRGB is a rendering choice; see the
+ * overprint-standard research notes.
+ */
+export const OVERPRINT_PURPLE = '#BB29BB';
 
 /** Non-current control colour for All Controls view — pink/magenta */
 export const NON_CURRENT_COLOR = '#E8A0D0';

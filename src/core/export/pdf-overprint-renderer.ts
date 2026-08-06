@@ -11,11 +11,20 @@ import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
-import { IOF_OVERPRINT_MM } from '@/core/models/constants';
+import { IOF_OVERPRINT_MM, OVERPRINT_PURPLE } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
-/** IOF purple: Pantone 814 approximation — #C850A0 */
-const PURPLE = rgb(200 / 255, 80 / 255, 160 / 255);
+/**
+ * IOF course-overprint purple, single-sourced from OVERPRINT_PURPLE (PMS "Purple",
+ * ≈ CMYK 35/85/0/0). Kept in sync with the on-screen colour so PDF and screen match.
+ * (Future: emit DeviceCMYK 35/85/0/0 + colour-order overprint per ISOM App. 1.)
+ */
+const PURPLE = (() => {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(OVERPRINT_PURPLE);
+  return m
+    ? rgb(parseInt(m[1]!, 16) / 255, parseInt(m[2]!, 16) / 255, parseInt(m[3]!, 16) / 255)
+    : rgb(187 / 255, 41 / 255, 187 / 255);
+})();
 
 interface PdfOverprintContext {
   page: PDFPage;

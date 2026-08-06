@@ -108,7 +108,7 @@ overprint/
 - **IOF XML Data Standard v3** for course data interchange
 - **ISOM 2017-2**: Control circle 5.0mm, start triangle 6.0mm side, finish 5.0mm/3.5mm
 - **ISSprOM 2019-2**: Sprint map symbol set (smaller overprint dimensions)
-- **Purple overprint colour**: Pantone 814 approximation — `#CD59A4` / `rgb(205, 89, 164)`
+- **Purple overprint colour**: IOF spec = CMYK 35/85/0/0 or PMS "Purple" (ISOM 2017 Appendix 1 §4; no official RGB). We use `#BB29BB` (sRGB of Pantone Purple C). Overprint is a **solid** colour — the standard's "map shows through" is by colour/draw **order** (black/brown/blue 100% over the purple), not alpha blending. See docs/adrs and the standards-conformance notes.
 
 ## Current Status
 
@@ -173,3 +173,23 @@ pnpm typecheck      # TypeScript only (no emit)
 - Accessibility: canvas-based apps are inherently tricky for a11y. Acknowledge this but don't let it block progress.
 - OCAD files use 1/100mm internal coordinates. DPI is computed from viewBox geometry. Scale is from param string 1039.
 - License: AGPL-3.0-only
+
+## Knowledge Vault (claude-obsidian)
+
+A persistent, cross-session knowledge base for this project lives in a separate
+claude-obsidian vault (not this repo). claude-obsidian v2 keeps the plugin and the vault as
+two distinct directories:
+
+- **Vault** (the Obsidian knowledge base): `~/Development/Personal/Overprint-knowledge-vault`
+- **Plugin / product tree** (the claude-obsidian clone): `~/Development/Personal/overprint-knowledge`
+
+It holds distilled knowledge on map rendering, file loading, PurplePen fidelity, OCAD/OMAP,
+and the SVG display architecture — organised into a linked wiki with provenance.
+
+- To **build/update** it: run Claude Code **from the vault**, loading the plugin:
+  `cd ~/Development/Personal/Overprint-knowledge-vault && claude --plugin-dir ~/Development/Personal/overprint-knowledge`.
+  First time: `/claude-obsidian:wiki` (init). Then drop sources in the vault's `inbox/` and run
+  `/claude-obsidian:wiki-ingest`. Those skills are NOT loaded when Claude runs from this repo.
+- To **use** it from an Overprint session: read `Overprint-knowledge-vault/wiki/index.md` and
+  drill into relevant pages (e.g. `map-rendering-roadmap`, `omap-renderer`, `svg-display-adr015`)
+  when you need context not already in this repo.

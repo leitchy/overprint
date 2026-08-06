@@ -23,7 +23,7 @@ const PDF_BASE_DPI = 200;
  * (logical dimensions and control coordinates are unchanged). Zooming back out
  * restores the lightweight base bitmap to release memory.
  */
-export function useAdaptiveMapRaster(): void {
+export function useAdaptiveMapRaster(disabled = false): void {
   const mapVersion = useMapImageStore((s) => s.mapVersion);
 
   // Generation guard so a slow render can't overwrite a newer one.
@@ -44,6 +44,7 @@ export function useAdaptiveMapRaster(): void {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const run = async () => {
+      if (disabled) return; // DOM-SVG layer owns display — no bitmap swaps
       const store = useMapImageStore.getState();
       const rerender = store.rerender;
       if (!rerender) return; // raster maps: nothing to sharpen
@@ -111,7 +112,7 @@ export function useAdaptiveMapRaster(): void {
       unsub();
       if (timer) clearTimeout(timer);
     };
-  }, [mapVersion]);
+  }, [mapVersion, disabled]);
 }
 
 type MapImageBitmap = HTMLImageElement | HTMLCanvasElement | null;

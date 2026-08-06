@@ -3,6 +3,7 @@ import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
 import { useViewportStore } from '@/stores/viewport-store';
 import type { TextItem, SpecialItem } from '@/core/models/types';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 
 /**
  * HTML input overlay for editing text special items inline on the canvas.
@@ -64,7 +65,7 @@ export function InlineTextEditor() {
         top: screenY - screenFontSize * 0.2,
         fontSize: Math.max(12, screenFontSize),
         fontFamily: 'sans-serif',
-        color: item.color ?? '#C850A0',
+        color: item.color ?? OVERPRINT_PURPLE,
         fontWeight: item.fontWeight === 'bold' ? 'bold' : 'normal',
         fontStyle: item.fontStyle === 'italic' ? 'italic' : 'normal',
         background: 'rgba(255,255,255,0.9)',
