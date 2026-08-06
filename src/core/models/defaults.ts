@@ -23,9 +23,9 @@ export const DEFAULT_PAGE_SETUP: PageSetup = {
 
 export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   printScale: 15000,                // 1:15000
-  controlCircleDiameter: 5.0,      // mm (ISOM 2017-2: 5.0mm outer diameter)
-  lineWidth: 0.2,                   // mm
-  numberSize: 4.0,                  // mm (IOF spec)
+  controlCircleDiameter: 5.0,      // mm (ISOM 2017-2 §3.7: 5.0mm ø, centre-to-centre)
+  lineWidth: 0.35,                  // mm (ISOM 2017-2 §3.7)
+  numberSize: 4.0,                  // mm (IOF spec: digit height)
   descriptionStandard: '2024',
   mapStandard: 'ISOM2017',
   pageSetup: DEFAULT_PAGE_SETUP,

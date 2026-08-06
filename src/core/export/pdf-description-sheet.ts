@@ -292,6 +292,8 @@ export async function generateDescriptionSheetPdf(
     : course.controls;
 
   let seqNumber = 0;
+  const gridTopY = currentY; // top of the control-row block (for the outer frame)
+  let controlRowIndex = 0;
 
   for (const cc of displayControls) {
     const ctrl: Control | undefined = event.controls[cc.controlId as ControlId];
@@ -335,6 +337,29 @@ export async function generateDescriptionSheetPdf(
     ];
 
     await drawRow(cells);
+
+    // IOF convention: a heavier horizontal line after every 3rd control row.
+    controlRowIndex += 1;
+    if (controlRowIndex % 3 === 0) {
+      page.drawLine({
+        start: { x: startX, y: currentY },
+        end: { x: startX + gridWidth, y: currentY },
+        thickness: BORDER_WIDTH * 3,
+        color: BORDER_COLOR,
+      });
+    }
+  }
+
+  // Thicker outer frame around the whole control-row block.
+  if (controlRowIndex > 0) {
+    page.drawRectangle({
+      x: startX,
+      y: currentY,
+      width: gridWidth,
+      height: gridTopY - currentY,
+      borderColor: BORDER_COLOR,
+      borderWidth: BORDER_WIDTH * 3,
+    });
   }
 
   // ---------------------------------------------------------------------------
