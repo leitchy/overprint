@@ -11,7 +11,7 @@ import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
-import { IOF_OVERPRINT_MM, OVERPRINT_PURPLE } from '@/core/models/constants';
+import { overprintDims, OVERPRINT_PURPLE } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
 /**
@@ -69,13 +69,14 @@ export function renderOverprint(
   if (resolved.length === 0) return;
 
   // Dimension helpers (IOF exact, in PDF points)
+  const std = overprintDims(settings.mapStandard);
   const circleRadius = mmToPdfPoints(settings.controlCircleDiameter / 2);
-  const startTriangleSide = mmToPdfPoints(IOF_OVERPRINT_MM.startTriangleSide);
-  const finishOuterRadius = mmToPdfPoints(IOF_OVERPRINT_MM.finishOuterDiameter / 2);
-  const finishInnerRadius = mmToPdfPoints(IOF_OVERPRINT_MM.finishInnerDiameter / 2);
-  const circleGap = mmToPdfPoints(IOF_OVERPRINT_MM.circleGap);
+  const startTriangleSide = mmToPdfPoints(std.startTriangleSide);
+  const finishOuterRadius = mmToPdfPoints(std.finishOuterDiameter / 2);
+  const finishInnerRadius = mmToPdfPoints(std.finishInnerDiameter / 2);
+  const circleGap = mmToPdfPoints(std.circleGap);
   const numberSize = mmToPdfPoints(settings.numberSize);
-  const crossingPointArm = mmToPdfPoints(IOF_OVERPRINT_MM.crossingPointArm);
+  const crossingPointArm = mmToPdfPoints(std.crossingPointArm);
 
   function shapeOffset(type: CourseControlType): number {
     return computeShapeOffset(

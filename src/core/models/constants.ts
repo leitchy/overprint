@@ -40,11 +40,53 @@ export const SCREEN_LINE_MULTIPLIER = 2;
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 
-/** IOF overprint dimensions in mm (ISOM 2017-2 / IOF Control Description 2024) */
-export const IOF_OVERPRINT_MM = {
-  startTriangleSide: 6.0,
-  finishOuterDiameter: 5.0,
-  finishInnerDiameter: 3.5,
-  circleGap: 0.3,
-  crossingPointArm: 3.0,
-} as const;
+import type { MapStandard } from './types';
+
+/**
+ * IOF course-overprint dimensions, in mm at the reference scale, keyed by map
+ * standard (ISOM 2017-2 §3.7 at 1:15000; ISSprOM 2019-2 §4.7 at 1:4000). Circle and
+ * finish diameters are centre-to-centre of the stroke. See
+ * docs/reference/standards-conformance.md §1 for the full cited table.
+ *
+ * `controlCircleDiameter`, `lineWidth` and `numberDigitHeight` are the per-standard
+ * DEFAULTS for the corresponding (user-editable) EventSettings fields; the other
+ * dimensions are fixed by the standard and taken from here directly.
+ */
+export interface OverprintStandardDims {
+  startTriangleSide: number;
+  finishOuterDiameter: number;
+  finishInnerDiameter: number;
+  circleGap: number;
+  crossingPointArm: number;
+  controlCircleDiameter: number;
+  lineWidth: number;
+  numberDigitHeight: number;
+}
+
+export const OVERPRINT_DIMS: Record<MapStandard, OverprintStandardDims> = {
+  ISOM2017: {
+    startTriangleSide: 6.0,
+    finishOuterDiameter: 6.0,
+    finishInnerDiameter: 4.0,
+    circleGap: 0.3,
+    crossingPointArm: 3.0,
+    controlCircleDiameter: 5.0,
+    lineWidth: 0.35,
+    numberDigitHeight: 4.0,
+  },
+  ISSprOM2019: {
+    startTriangleSide: 7.0,
+    finishOuterDiameter: 7.0,
+    finishInnerDiameter: 5.0,
+    circleGap: 0.3,
+    crossingPointArm: 3.0,
+    controlCircleDiameter: 6.0,
+    lineWidth: 0.35,
+    numberDigitHeight: 4.0,
+  },
+};
+
+/** Resolve the overprint dimension table for a standard (ISOM fallback). */
+export function overprintDims(standard: MapStandard): OverprintStandardDims {
+  return OVERPRINT_DIMS[standard] ?? OVERPRINT_DIMS.ISOM2017;
+}
