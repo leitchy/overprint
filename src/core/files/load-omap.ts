@@ -87,6 +87,18 @@ interface OmapSymbol {
   dashArray?: string;
   /** Line border (double-line edge): a stroke drawn on both sides of the core line */
   border?: { color: number; width: number; shift: number };
+  /** Along-line glyph slots (nested point symbols stamped along the path) */
+  midSymbol?: OmapPointGlyph;
+  startSymbol?: OmapPointGlyph;
+  endSymbol?: OmapPointGlyph;
+  /** Along-line placement (all in 1/1000 mm / counts) */
+  segmentLength?: number;
+  endLength?: number;
+  midSymbolsPerSpot?: number;
+  midSymbolDistance?: number;
+  minMidSymbolCount?: number;
+  minMidSymbolCountClosed?: number;
+  showAtLeastOneSymbol?: boolean;
   /** Area pattern definitions (hatching, dot patterns) */
   patterns: OmapPatternDef[];
   /** Text symbol: font family name (e.g., "Arial", "Calibri") */
@@ -211,6 +223,88 @@ function parseBorder(lineSym: Element): { color: number; width: number; shift: n
   return { color: numAttr(b, 'color', -1), width, shift: numAttr(b, 'shift', 0) };
 }
 
+/** Parse a `;`-separated "x y [flags]" coord string into OmapCoords. */
+function parseCoordText(text: string): OmapCoord[] {
+  const out: OmapCoord[] = [];
+  for (const seg of text.split(';')) {
+    const t = seg.trim();
+    if (!t) continue;
+    const p = t.split(/\s+/);
+    if (p.length < 2) continue;
+    const x = Number(p[0]);
+    const y = Number(p[1]);
+    const f = p.length >= 3 ? (Number(p[2]) || 0) : 0;
+    if (Number.isFinite(x) && Number.isFinite(y)) out.push({ x, y, flags: f });
+  }
+  return out;
+}
+
+/**
+ * Parse a `<point_symbol>` element into a glyph definition (inner/outer dot + a
+ * list of sub-element shapes). Shared by top-level point symbols AND the nested
+ * point symbols used as along-line glyph slots (mid/start/end/dash symbols),
+ * whose XML has the identical structure.
+ */
+function parsePointGlyph(pointSym: Element): OmapPointGlyph {
+  const innerRadius = numAttr(pointSym, 'inner_radius', 0);
+  const innerColor = numAttr(pointSym, 'inner_color', -1);
+  const outerWidth = numAttr(pointSym, 'outer_width', 0);
+  const outerColor = numAttr(pointSym, 'outer_color', -1);
+
+  const elements: OmapGlyphElement[] = [];
+  for (const elemEl of qAll(pointSym, 'element')) {
+    const subSymEl = q(elemEl, 'symbol');
+    if (!subSymEl) continue;
+    const subType = numAttr(subSymEl, 'type', 0);
+
+    let elemColor = -1;
+    let elemLineWidth = 0;
+    if (subType === 2) {
+      const ls = q(subSymEl, 'line_symbol');
+      if (ls) {
+        elemColor = numAttr(ls, 'color', -1);
+        elemLineWidth = numAttr(ls, 'line_width', 150);
+      }
+    } else if (subType === 4) {
+      const as = q(subSymEl, 'area_symbol');
+      if (as) elemColor = numAttr(as, 'inner_color', -1);
+    } else if (subType === 1) {
+      const ps = q(subSymEl, 'point_symbol');
+      if (ps) {
+        elemColor = numAttr(ps, 'inner_color', -1);
+        if (elemColor < 0) elemColor = numAttr(ps, 'outer_color', -1);
+        elemLineWidth = numAttr(ps, 'outer_width', 0);
+      }
+    }
+
+    const objEl = q(elemEl, 'object');
+    if (!objEl) continue;
+    const objType = numAttr(objEl, 'type', 0);
+    const coordsEl = q(objEl, 'coords');
+    const elemCoords = coordsEl ? parseCoordText(coordsEl.textContent ?? '') : [];
+
+    elements.push({ symType: subType, color: elemColor, lineWidth: elemLineWidth, coords: elemCoords, objType });
+  }
+
+  return { innerRadius, innerColor, outerWidth, outerColor, elements };
+}
+
+/**
+ * Parse an along-line glyph slot (`mid_symbol`/`start_symbol`/`end_symbol`/
+ * `dash_symbol`) of a `<line_symbol>`. Returns undefined for an absent or empty
+ * slot. Navigation is strictly slot → its `point_symbol` (document-order first),
+ * so the glyph's own nested line/area sub-symbols are never picked up by mistake.
+ */
+function parseSlotGlyph(lineSym: Element, slot: string): OmapPointGlyph | undefined {
+  const slotEl = q(lineSym, slot);
+  if (!slotEl) return undefined;
+  const ps = q(slotEl, 'point_symbol');
+  if (!ps) return undefined;
+  const g = parsePointGlyph(ps);
+  if (g.elements.length === 0 && g.innerRadius <= 0) return undefined;
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 // Extraction functions
 // ---------------------------------------------------------------------------
@@ -323,6 +417,16 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let fontSize = 4000;
     let dashArray: string | undefined;
     let border: { color: number; width: number; shift: number } | undefined;
+    let midSymbol: OmapPointGlyph | undefined;
+    let startSymbol: OmapPointGlyph | undefined;
+    let endSymbol: OmapPointGlyph | undefined;
+    let segmentLength: number | undefined;
+    let endLength: number | undefined;
+    let midSymbolsPerSpot: number | undefined;
+    let midSymbolDistance: number | undefined;
+    let minMidSymbolCount: number | undefined;
+    let minMidSymbolCountClosed: number | undefined;
+    let showAtLeastOneSymbol: boolean | undefined;
     let partIds: number[] | undefined;
     const patterns: OmapPatternDef[] = [];
     let pointGlyph: OmapPointGlyph | undefined;
@@ -339,6 +443,19 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         lineWidth = numAttr(lineSym, 'line_width', 150);
         dashArray = parseDashArray(lineSym);
         border = parseBorder(lineSym);
+        // Along-line glyph slots + placement (non-dashed lines on real maps)
+        midSymbol = parseSlotGlyph(lineSym, 'mid_symbol');
+        startSymbol = parseSlotGlyph(lineSym, 'start_symbol');
+        endSymbol = parseSlotGlyph(lineSym, 'end_symbol');
+        if (midSymbol || startSymbol || endSymbol) {
+          segmentLength = numAttr(lineSym, 'segment_length', 0);
+          endLength = numAttr(lineSym, 'end_length', 0);
+          midSymbolsPerSpot = numAttr(lineSym, 'mid_symbols_per_spot', 1);
+          midSymbolDistance = numAttr(lineSym, 'mid_symbol_distance', 0);
+          minMidSymbolCount = numAttr(lineSym, 'minimum_mid_symbol_count', 0);
+          minMidSymbolCountClosed = numAttr(lineSym, 'minimum_mid_symbol_count_when_closed', 0);
+          showAtLeastOneSymbol = lineSym.getAttribute('show_at_least_one_symbol') === 'true';
+        }
       }
     } else if (type === 4) {
       // Area symbol — solid fill from inner_color, patterns from <pattern> elements
@@ -394,84 +511,14 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       // Point symbol — parse full glyph definition
       const pointSym = q(el, 'point_symbol');
       if (pointSym) {
-        const innerRadius = numAttr(pointSym, 'inner_radius', 0);
-        const innerColor = numAttr(pointSym, 'inner_color', -1);
-        const outerWidth = numAttr(pointSym, 'outer_width', 0);
-        const outerColor = numAttr(pointSym, 'outer_color', -1);
-        colorIndex = innerColor;
-
-        // Parse glyph elements
-        const glyphElements: OmapGlyphElement[] = [];
-        for (const elemEl of qAll(pointSym, 'element')) {
-          const subSymEl = q(elemEl, 'symbol');
-          if (!subSymEl) continue;
-          const subType = numAttr(subSymEl, 'type', 0);
-
-          // Extract color and lineWidth from sub-symbol
-          let elemColor = -1;
-          let elemLineWidth = 0;
-          if (subType === 2) {
-            const ls = q(subSymEl, 'line_symbol');
-            if (ls) {
-              elemColor = numAttr(ls, 'color', -1);
-              elemLineWidth = numAttr(ls, 'line_width', 150);
-            }
-          } else if (subType === 4) {
-            const as = q(subSymEl, 'area_symbol');
-            if (as) elemColor = numAttr(as, 'inner_color', -1);
-          } else if (subType === 1) {
-            // Nested point sub-symbol
-            const ps = q(subSymEl, 'point_symbol');
-            if (ps) {
-              elemColor = numAttr(ps, 'inner_color', -1);
-              if (elemColor < 0) elemColor = numAttr(ps, 'outer_color', -1);
-              elemLineWidth = numAttr(ps, 'outer_width', 0);
-            }
+        pointGlyph = parsePointGlyph(pointSym);
+        colorIndex = pointGlyph.innerColor;
+        // Fall back to the first coloured element (matches prior behaviour)
+        if (colorIndex < 0) {
+          for (const elem of pointGlyph.elements) {
+            if (elem.color >= 0) { colorIndex = elem.color; break; }
           }
-
-          // Extract element's object coords
-          const objEl = q(elemEl, 'object');
-          if (!objEl) continue;
-          const objType = numAttr(objEl, 'type', 0);
-          const coordsEl = q(objEl, 'coords');
-          const elemCoords: OmapCoord[] = [];
-          if (coordsEl) {
-            const coordText = coordsEl.textContent ?? '';
-            for (const seg of coordText.split(';')) {
-              const trimmed = seg.trim();
-              if (!trimmed) continue;
-              const p = trimmed.split(/\s+/);
-              if (p.length >= 2) {
-                const ex = Number(p[0]);
-                const ey = Number(p[1]);
-                const ef = p.length >= 3 ? (Number(p[2]) || 0) : 0;
-                if (Number.isFinite(ex) && Number.isFinite(ey)) {
-                  elemCoords.push({ x: ex, y: ey, flags: ef });
-                }
-              }
-            }
-          }
-
-          glyphElements.push({
-            symType: subType,
-            color: elemColor,
-            lineWidth: elemLineWidth,
-            coords: elemCoords,
-            objType,
-          });
-
-          // Use first element's color as fallback for the symbol's colorIndex
-          if (colorIndex < 0 && elemColor >= 0) colorIndex = elemColor;
         }
-
-        // Store the full glyph definition (even for simple dots — innerRadius > 0)
-        pointGlyph = {
-          innerRadius,
-          innerColor,
-          outerWidth,
-          outerColor,
-          elements: glyphElements,
-        };
       }
     } else if (type === 8) {
       // Text symbol
@@ -527,6 +574,9 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     symbols.set(id, {
       id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patterns,
       partIds, dashArray, border,
+      midSymbol, startSymbol, endSymbol,
+      segmentLength, endLength, midSymbolsPerSpot, midSymbolDistance,
+      minMidSymbolCount, minMidSymbolCountClosed, showAtLeastOneSymbol,
       fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
       lineSpacing: textLineSpacing, pointGlyph,
     });
@@ -551,6 +601,16 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         sym.lineWidth = part.lineWidth;
         sym.dashArray = part.dashArray;
         sym.border = part.border;
+        sym.midSymbol = part.midSymbol;
+        sym.startSymbol = part.startSymbol;
+        sym.endSymbol = part.endSymbol;
+        sym.segmentLength = part.segmentLength;
+        sym.endLength = part.endLength;
+        sym.midSymbolsPerSpot = part.midSymbolsPerSpot;
+        sym.midSymbolDistance = part.midSymbolDistance;
+        sym.minMidSymbolCount = part.minMidSymbolCount;
+        sym.minMidSymbolCountClosed = part.minMidSymbolCountClosed;
+        sym.showAtLeastOneSymbol = part.showAtLeastOneSymbol;
       } else if (part.type === 1 && sym.colorIndex < 0) {
         sym.colorIndex = part.colorIndex;
       }
@@ -812,22 +872,57 @@ function buildSvg(
         mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"/>` });
       }
     } else {
-      // Line — skip genuinely invisible helper lines (line_width 0) instead of
-      // inflating them to a visible minimum.
-      if (sym.lineWidth <= 0) continue;
       const d = coordsToPath(obj.coords, false);
       const sw = Math.max(sym.lineWidth, 30);
-      const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
-      const cap = sym.dashArray ? 'butt' : 'round';
       const pri = priOf(sym.colorIndex);
-      // Double-line border: a wide stroke in the border colour drawn UNDER the core
-      // (paint-order trick), so the border shows as an edge band on both sides.
-      // Emitted at the core's priority and BEFORE the core so it stays underneath.
-      if (sym.border) {
-        const outer = sw + 2 * sym.border.shift + sym.border.width;
-        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"/>` });
+
+      // Core + border strokes — skipped for invisible helper lines (width 0),
+      // but along-line glyphs below still render for glyph-only lines.
+      if (sym.lineWidth > 0) {
+        const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
+        const cap = sym.dashArray ? 'butt' : 'round';
+        // Double-line border: a wide stroke in the border colour drawn UNDER the
+        // core (paint-order trick), emitted first so it stays underneath.
+        if (sym.border) {
+          const outer = sw + 2 * sym.border.shift + sym.border.width;
+          mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"/>` });
+        }
+        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
       }
-      mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
+
+      // Along-line glyphs: mid symbols repeated along each sub-path (walls, fences,
+      // stair treads); start/end symbols at the path ends (e.g. north-line arrow).
+      // Stamped at the glyph's own colour priority so black treads sort above the
+      // brown stair band, etc.
+      if (sym.midSymbol || sym.startSymbol || sym.endSymbol) {
+        const subs = flattenCoords(obj.coords);
+        if (sym.midSymbol) {
+          const glyph = sym.midSymbol;
+          const gpri = priOf(glyphMinColor(glyph));
+          const perSpot = Math.max(1, sym.midSymbolsPerSpot ?? 1);
+          const midDist = sym.midSymbolDistance ?? 0;
+          for (const sp of subs) {
+            for (const spotD of midSpots(sp, sym)) {
+              for (let k = 0; k < perSpot; k++) {
+                const at = sampleAt(sp, spotD + (k - (perSpot - 1) / 2) * midDist);
+                const g = renderGlyph(glyph, colors, `translate(${at.x},${at.y}) rotate(${at.angleDeg})`);
+                if (g) mapFrags.push({ pri: gpri, svg: g });
+              }
+            }
+          }
+        }
+        if (sym.startSymbol && subs.length > 0) {
+          const at = sampleAt(subs[0]!, 0);
+          const g = renderGlyph(sym.startSymbol, colors, `translate(${at.x},${at.y}) rotate(${at.angleDeg})`);
+          if (g) mapFrags.push({ pri: priOf(glyphMinColor(sym.startSymbol)), svg: g });
+        }
+        if (sym.endSymbol && subs.length > 0) {
+          const sp = subs[subs.length - 1]!;
+          const at = sampleAt(sp, sp.length);
+          const g = renderGlyph(sym.endSymbol, colors, `translate(${at.x},${at.y}) rotate(${at.angleDeg})`);
+          if (g) mapFrags.push({ pri: priOf(glyphMinColor(sym.endSymbol)), svg: g });
+        }
+      }
     }
   }
 
@@ -840,61 +935,17 @@ function buildSvg(
     const sym = symbols.get(obj.symbolId)!;
     const c = obj.coords[0]!;
     const glyph = sym.pointGlyph;
-
-    if (!glyph) {
-      // Fallback for symbols without glyph data
-      const fill = colorStr(colors, sym.colorIndex);
-      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
-      continue;
-    }
-
-    // Build rotation transform (OMAP stores rotation in radians)
+    // OMAP stores rotation in radians; SVG rotate() is CW in the Y-down frame, no sign flip.
     const rotDeg = obj.rotation ? (obj.rotation * 180) / Math.PI : 0;
     const transform = rotDeg !== 0
       ? `translate(${c.x},${c.y}) rotate(${rotDeg})`
       : `translate(${c.x},${c.y})`;
-
-    if (glyph.elements.length > 0) {
-      // Complex glyph: render sub-elements in a translated group
-      parts.push(`<g transform="${transform}">`);
-      for (const elem of glyph.elements) {
-        const elemFill = colorStr(colors, elem.color);
-        if (elem.symType === 1 && elem.objType === 0 && elem.coords.length > 0) {
-          // Nested point sub-symbol (e.g., ring) at relative position
-          const ep = elem.coords[0]!;
-          if (glyph.innerRadius > 0 && glyph.innerColor >= 0) {
-            parts.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
-          }
-          if (elem.lineWidth > 0) {
-            parts.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius || 360}" fill="none" stroke="${elemFill}" stroke-width="${elem.lineWidth}"/>`);
-          }
-        } else if (elem.symType === 2 && elem.coords.length >= 2) {
-          // Line sub-symbol: render as path
-          const d = coordsToPath(elem.coords, false);
-          const sw = Math.max(elem.lineWidth, 50);
-          parts.push(`<path d="${d}" fill="none" stroke="${elemFill}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
-        } else if (elem.symType === 4 && elem.coords.length >= 3) {
-          // Area sub-symbol: render as filled path
-          const d = coordsToPath(elem.coords, true);
-          parts.push(`<path d="${d}" fill="${elemFill}" fill-rule="evenodd"/>`);
-        }
-      }
-      parts.push('</g>');
+    const svg = glyph ? renderGlyph(glyph, colors, transform) : '';
+    if (svg) {
+      parts.push(svg);
     } else {
-      // Simple point: dot or ring based on inner/outer properties
-      if (glyph.innerColor >= 0 && glyph.innerRadius > 0) {
-        // Filled dot
-        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
-      }
-      if (glyph.outerColor >= 0 && glyph.outerWidth > 0) {
-        // Ring (circle outline)
-        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="${glyph.innerRadius}" fill="none" stroke="${colorStr(colors, glyph.outerColor)}" stroke-width="${glyph.outerWidth}"/>`);
-      }
-      // If neither inner nor outer, fallback
-      if (glyph.innerColor < 0 && glyph.outerColor < 0) {
-        const fill = colorStr(colors, sym.colorIndex);
-        parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${fill}"/>`);
-      }
+      // Fallback dot (glyphless symbol or a glyph that drew nothing)
+      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${colorStr(colors, sym.colorIndex)}"/>`);
     }
   }
 
@@ -1045,6 +1096,211 @@ function coordsToPath(coords: OmapCoord[], close: boolean): string {
 
   return d;
 }
+
+// ---------------------------------------------------------------------------
+// Along-line symbol stamping (mid/start/end glyphs)
+// ---------------------------------------------------------------------------
+
+/** A path sub-segment flattened to a polyline with cumulative arc lengths. */
+interface FlatSubPath {
+  pts: { x: number; y: number }[];
+  cum: number[]; // cum[0] = 0, cum[k] = length up to pts[k]
+  length: number;
+  closed: boolean;
+}
+
+/** Flatten one cubic bezier to points (endpoint inclusive), appending via push. */
+function flattenCubic(
+  p0: { x: number; y: number },
+  c1: OmapCoord, c2: OmapCoord, p1: OmapCoord,
+  push: (x: number, y: number) => void,
+): void {
+  const approx =
+    Math.hypot(c1.x - p0.x, c1.y - p0.y) +
+    Math.hypot(c2.x - c1.x, c2.y - c1.y) +
+    Math.hypot(p1.x - c2.x, p1.y - c2.y);
+  const n = Math.min(24, Math.max(4, Math.ceil(approx / 300)));
+  for (let s = 1; s <= n; s++) {
+    const t = s / n;
+    const mt = 1 - t;
+    const x = mt * mt * mt * p0.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * p1.x;
+    const y = mt * mt * mt * p0.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * p1.y;
+    push(x, y);
+  }
+}
+
+/**
+ * Flatten OMAP coords (straight + bezier segments, with hole/close flags) into
+ * one or more polyline sub-paths with cumulative arc length. Mirrors the
+ * `coordsToPath` state machine so stamp positions line up with the drawn stroke.
+ * @internal
+ */
+function flattenCoords(coords: OmapCoord[]): FlatSubPath[] {
+  const subs: FlatSubPath[] = [];
+  if (coords.length === 0) return subs;
+
+  let pts: { x: number; y: number }[] = [{ x: coords[0]!.x, y: coords[0]!.y }];
+  let closed = false;
+  const pushPt = (x: number, y: number) => {
+    const last = pts[pts.length - 1]!;
+    if (Math.hypot(x - last.x, y - last.y) > 1e-6) pts.push({ x, y });
+  };
+  const flush = () => {
+    if (pts.length >= 2) {
+      const cum = [0];
+      let len = 0;
+      for (let k = 1; k < pts.length; k++) {
+        len += Math.hypot(pts[k]!.x - pts[k - 1]!.x, pts[k]!.y - pts[k - 1]!.y);
+        cum.push(len);
+      }
+      subs.push({ pts, cum, length: len, closed });
+    }
+    pts = [];
+    closed = false;
+  };
+  const startNext = (idx: number): number => {
+    if (idx < coords.length) { pts = [{ x: coords[idx]!.x, y: coords[idx]!.y }]; return idx + 1; }
+    pts = [];
+    return idx;
+  };
+
+  let i = 1;
+  while (i < coords.length) {
+    const prev = coords[i - 1]!;
+    if ((prev.flags & COORD_CURVE_START) && i + 2 <= coords.length) {
+      const cp1 = coords[i]!;
+      const cp2 = coords[i + 1]!;
+      const p0 = pts[pts.length - 1]!;
+      if (i + 2 < coords.length) {
+        const end = coords[i + 2]!;
+        flattenCubic(p0, cp1, cp2, end, pushPt);
+        i += 3;
+        if (end.flags & COORD_HOLE_POINT) {
+          if (end.flags & COORD_CLOSE_POINT) closed = true;
+          flush();
+          i = startNext(i);
+        } else if (end.flags & COORD_CLOSE_POINT) {
+          closed = true;
+          flush();
+          i = startNext(i);
+        }
+      } else {
+        flattenCubic(p0, cp1, cp2, cp2, pushPt);
+        i += 2;
+      }
+    } else {
+      const c = coords[i]!;
+      if (c.flags & COORD_HOLE_POINT) {
+        pushPt(c.x, c.y);
+        flush();
+        i = startNext(i + 1);
+      } else if (c.flags & COORD_CLOSE_POINT) {
+        pushPt(c.x, c.y);
+        closed = true;
+        flush();
+        i = startNext(i + 1);
+      } else {
+        pushPt(c.x, c.y);
+        i++;
+      }
+    }
+  }
+  flush();
+  return subs;
+}
+
+/** Position + tangent angle (deg, CW in Y-down) at arc length `d` along a sub-path. @internal */
+function sampleAt(sp: FlatSubPath, d: number): { x: number; y: number; angleDeg: number } {
+  const dd = Math.max(0, Math.min(d, sp.length));
+  let i = 0;
+  while (i < sp.cum.length - 2 && sp.cum[i + 1]! < dd) i++;
+  const a = sp.pts[i]!;
+  const b = sp.pts[i + 1]!;
+  const segLen = sp.cum[i + 1]! - sp.cum[i]!;
+  const t = segLen > 1e-9 ? (dd - sp.cum[i]!) / segLen : 0;
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    angleDeg: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI,
+  };
+}
+
+/**
+ * Arc-length positions for mid-symbol spots along one sub-path, matching OOM's
+ * even-spacing-with-end-margins behaviour (approximation; exact for non-dashed
+ * lines). @internal
+ */
+function midSpots(sp: FlatSubPath, sym: OmapSymbol): number[] {
+  const L = sp.length;
+  if (L <= 0) return [];
+  const s = sym.segmentLength && sym.segmentLength > 0 ? sym.segmentLength : L;
+  const e = sym.endLength ?? 0;
+
+  if (sp.closed) {
+    const n = Math.max(Math.round(L / s), Math.max(1, sym.minMidSymbolCountClosed ?? 0));
+    return Array.from({ length: n }, (_, i) => (i * L) / n);
+  }
+
+  const usable = L - 2 * e;
+  if (usable <= 0) return sym.showAtLeastOneSymbol ? [L / 2] : [];
+
+  const minCount = sym.minMidSymbolCount ?? 0;
+  const n = Math.max(Math.round(usable / s), Math.max(1, minCount - 1));
+  const spacing = usable / n;
+  return Array.from({ length: n + 1 }, (_, i) => e + i * spacing);
+}
+
+/** Lowest colour index used by a glyph's drawable parts (its draw priority). */
+function glyphMinColor(glyph: OmapPointGlyph): number {
+  let m = -1;
+  const consider = (ci: number) => { if (ci >= 0 && (m < 0 || ci < m)) m = ci; };
+  consider(glyph.innerColor);
+  consider(glyph.outerColor);
+  for (const elem of glyph.elements) consider(elem.color);
+  return m;
+}
+
+/**
+ * Render a point glyph (inner/outer dot + sub-element shapes) at the origin,
+ * wrapped in the given transform. Returns '' when nothing is drawable. Shared by
+ * point objects and along-line stamps.
+ */
+function renderGlyph(glyph: OmapPointGlyph, colors: Map<number, OmapColor>, transform: string): string {
+  const inner: string[] = [];
+  if (glyph.elements.length > 0) {
+    for (const elem of glyph.elements) {
+      const elemFill = colorStr(colors, elem.color);
+      if (elem.symType === 1 && elem.objType === 0 && elem.coords.length > 0) {
+        const ep = elem.coords[0]!;
+        if (glyph.innerRadius > 0 && glyph.innerColor >= 0) {
+          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+        }
+        if (elem.lineWidth > 0) {
+          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius || 360}" fill="none" stroke="${elemFill}" stroke-width="${elem.lineWidth}"/>`);
+        }
+      } else if (elem.symType === 2 && elem.coords.length >= 2) {
+        const d = coordsToPath(elem.coords, false);
+        const sw = Math.max(elem.lineWidth, 50);
+        inner.push(`<path d="${d}" fill="none" stroke="${elemFill}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
+      } else if (elem.symType === 4 && elem.coords.length >= 3) {
+        const d = coordsToPath(elem.coords, true);
+        inner.push(`<path d="${d}" fill="${elemFill}" fill-rule="evenodd"/>`);
+      }
+    }
+  } else {
+    if (glyph.innerColor >= 0 && glyph.innerRadius > 0) {
+      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+    }
+    if (glyph.outerColor >= 0 && glyph.outerWidth > 0) {
+      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="none" stroke="${colorStr(colors, glyph.outerColor)}" stroke-width="${glyph.outerWidth}"/>`);
+    }
+  }
+  if (inner.length === 0) return '';
+  return `<g transform="${transform}">${inner.join('')}</g>`;
+}
+
+/** @internal Exported for testing */
+export { flattenCoords as _flattenCoords, sampleAt as _sampleAt };
 
 // ---------------------------------------------------------------------------
 // Main loader
