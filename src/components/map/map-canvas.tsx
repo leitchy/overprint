@@ -5,6 +5,7 @@ import type Konva from 'konva';
 import { useCanvasSize } from './use-canvas-size';
 import { useMapNavigation, fitToView } from './use-map-navigation';
 import { useAdaptiveMapRaster } from './use-adaptive-map-raster';
+import { MapSvgLayer } from './map-svg-layer';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
@@ -60,10 +61,20 @@ export function MapCanvas() {
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
   const mapVersion = useMapImageStore((s) => s.mapVersion);
+  const rerenderKind = useMapImageStore((s) => s.rerender?.kind);
   const activeTool = useToolStore((s) => s.activeTool);
 
+  // ADR-015 Phase 0 SPIKE — live DOM-SVG map, gated behind `?svgmap=1` so normal
+  // rendering is untouched. Active only for vector (OCAD/OMAP) maps.
+  const spikeSvg = useMemo(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('svgmap'),
+    [],
+  );
+  const useDomSvgMap = spikeSvg && rerenderKind === 'svg';
+
   // Re-rasterize vector maps at higher density when zoomed in (roadmap #1).
-  useAdaptiveMapRaster();
+  // Disabled when the DOM-SVG spike owns display (it's already live-vector).
+  useAdaptiveMapRaster(useDomSvgMap);
 
   // Narrow event store selectors — each subscribes only to its slice
   const courses = useEventStore((s) => s.event?.courses);
@@ -389,8 +400,18 @@ export function MapCanvas() {
   }, []);
 
   return (
-    <div ref={containerRef} data-map-container className="relative h-full w-full overflow-hidden touch-none">
+    <div
+      ref={containerRef}
+      data-map-container
+      className={`relative h-full w-full overflow-hidden touch-none${useDomSvgMap ? ' bg-white' : ''}`}
+      // isolation:isolate bounds the multiply blend group to this container so the
+      // overprint blends against the sibling SVG (below the Stage), not the app shell.
+      style={useDomSvgMap ? { isolation: 'isolate' } : undefined}
+    >
       {size.width > 0 && size.height > 0 && (
+        <>
+        {/* SPIKE: live DOM-SVG map, painted BELOW the Stage (first child) */}
+        {useDomSvgMap && <MapSvgLayer stageRef={stageRef} />}
         <Stage
           ref={(node) => {
             // Keep both the local ref and the module-level instance in sync
@@ -428,7 +449,7 @@ export function MapCanvas() {
             listening={false}
             opacity={1}
           >
-            {image && (
+            {image && !useDomSvgMap && (
               <KonvaImage
                 image={image}
                 width={imageWidth}
@@ -627,6 +648,7 @@ export function MapCanvas() {
             )}
           </Layer>
         </Stage>
+        </>
       )}
       {/* GPS bridge (non-rendering) — connects GPS hook to geo-transform pipeline */}
       <GpsBridge />
