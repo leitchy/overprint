@@ -14,6 +14,12 @@ describe('generateTextDescription', () => {
     expect(text.toLowerCase()).toContain('terrace');
   });
 
+  it('uses free-text column-F dimensions (takes precedence over the F symbol)', () => {
+    const desc: ControlDescription = { columnD: '1.1', columnF: '10.1', columnFText: '2.5' };
+    const text = generateTextDescription(desc);
+    expect(text).toContain('2.5');
+  });
+
   it('combines column C and D', () => {
     const desc: ControlDescription = {
       columnC: '0.1N', // North

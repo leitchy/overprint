@@ -87,6 +87,9 @@ export function DescriptionPanel() {
         return control.description[key];
       })()
     : undefined;
+  const pickerCurrentText = picker && picker.column === 'F'
+    ? event.controls[picker.controlId]?.description.columnFText
+    : undefined;
 
   const sheetContent = (
     <>
@@ -126,6 +129,8 @@ export function DescriptionPanel() {
           column={picker.column}
           anchorRect={picker.anchorRect}
           currentValue={pickerCurrentValue}
+          textValue={pickerCurrentText}
+          onTextChange={(text) => useEventStore.getState().setColumnFText(picker.controlId, text)}
           lang={descriptionLang}
           onSelect={handleSymbolSelect}
           onClose={() => setPicker(null)}

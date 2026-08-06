@@ -106,6 +106,8 @@ interface EventActions {
 
   // Description editing
   updateControlDescription: (id: ControlId, column: string, value: string | undefined) => void;
+  /** Set free-text dimensions for description column F (takes precedence over the F symbol). */
+  setColumnFText: (id: ControlId, text: string | undefined) => void;
 
   // File operations
   loadEvent: (event: OverprintEvent) => void;
@@ -559,6 +561,14 @@ export const useEventStore = create<EventState & EventActions>()(
             const desc = control.description as Record<string, string | undefined>;
             desc[descKey] = value;
           }
+        });
+      },
+
+      setColumnFText: (id: ControlId, text: string | undefined) => {
+        set((state) => {
+          const control = state.event?.controls[id];
+          if (!control) return;
+          control.description.columnFText = text && text.trim() !== '' ? text : undefined;
         });
       },
 

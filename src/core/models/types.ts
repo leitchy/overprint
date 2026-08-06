@@ -64,7 +64,8 @@ export interface ControlDescription {
   columnC?: string; // Which of similar features
   columnD: string;  // Feature (the control feature symbol) — required
   columnE?: string; // Appearance / detail
-  columnF?: string; // Dimensions / combinations
+  columnF?: string; // Dimensions / combinations (symbol, e.g. crossing/junction)
+  columnFText?: string; // Free-text dimensions, e.g. "2.5" or "8 x 4" — takes precedence over columnF when set
   columnG?: string; // Location of flag
   columnH?: string; // Other information
 }

@@ -331,7 +331,7 @@ export async function generateDescriptionSheetPdf(
       symOrText(desc.columnC),
       symOrText(desc.columnD),
       symOrText(desc.columnE),
-      symOrText(desc.columnF),
+      desc.columnFText ?? symOrText(desc.columnF),
       symOrText(desc.columnG),
       symOrText(desc.columnH),
     ];

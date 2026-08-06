@@ -4,6 +4,8 @@ import { SymbolIcon } from './symbol-icon';
 
 interface DescriptionCellProps {
   value?: string;           // IOF symbol ID
+  /** Free-text content (e.g. column-F dimensions). Takes precedence over `value`. */
+  text?: string;
   lang?: string;            // BCP 47 language tag for symbol name/tooltip
   isEditable?: boolean;
   isSelected?: boolean;
@@ -14,6 +16,7 @@ interface DescriptionCellProps {
 
 export function DescriptionCell({
   value,
+  text,
   lang = 'en',
   isEditable = false,
   isSelected = false,
@@ -21,8 +24,9 @@ export function DescriptionCell({
   onClick,
 }: DescriptionCellProps) {
   const cellRef = useRef<HTMLDivElement>(null);
+  const hasText = !!text && text.trim() !== '';
   const hasSvg = value ? !!getSymbolSvg(value) : false;
-  const isEmpty = !value;
+  const isEmpty = !value && !hasText;
 
   const handleClick = () => {
     if (isEditable && cellRef.current) {
@@ -55,9 +59,11 @@ export function DescriptionCell({
           : undefined
       }
       role={isEditable ? 'button' : undefined}
-      title={value ? getSymbolName(value, lang) : isEditable ? 'Click to set' : ''}
+      title={hasText ? text : value ? getSymbolName(value, lang) : isEditable ? 'Click to set' : ''}
     >
-      {value && (
+      {hasText ? (
+        <span className="truncate text-[10px] font-medium leading-tight text-gray-700">{text}</span>
+      ) : value ? (
         hasSvg && !textOnly ? (
           <SymbolIcon symbolId={value} size={20} />
         ) : (
@@ -65,7 +71,7 @@ export function DescriptionCell({
             {getSymbolName(value, lang)}
           </span>
         )
-      )}
+      ) : null}
     </div>
   );
 }
