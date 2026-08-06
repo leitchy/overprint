@@ -61,6 +61,7 @@ export function CoursePanel({
   const setCourseControlType = useEventStore((s) => s.setCourseControlType);
   const setCourseType = useEventStore((s) => s.setCourseType);
   const setControlScore = useEventStore((s) => s.setControlScore);
+  const autoPlaceNumbers = useEventStore((s) => s.autoPlaceNumbers);
   const activePartIndex = useEventStore((s) => s.activePartIndex);
   const setActivePartIndex = useEventStore((s) => s.setActivePartIndex);
   const setPartShowFinish = useEventStore((s) => s.setPartShowFinish);
@@ -414,6 +415,17 @@ export function CoursePanel({
                   <option value="none">{t('labelNone')}</option>
                 </select>
               </div>
+
+              {/* Auto-place control numbers */}
+              {!isScoreCourse && (
+                <button
+                  onClick={() => autoPlaceNumbers(courseId)}
+                  className="w-full rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+                  title="Position all control numbers automatically to avoid legs, circles and other numbers"
+                >
+                  Auto-place numbers
+                </button>
+              )}
 
               {/* Description appearance */}
               <div>

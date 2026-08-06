@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { temporal } from 'zundo';
+import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
+import { autoNumberOffsets } from '@/core/geometry/auto-number-placement';
 import type {
   Control,
   ControlDescription,
@@ -120,6 +122,8 @@ interface EventActions {
 
   // Number offset (per-course draggable number position)
   setNumberOffset: (courseId: CourseId, controlIndex: number, offset: MapPoint) => void;
+  /** Auto-place all control numbers in a course to avoid legs/circles/other numbers. */
+  autoPlaceNumbers: (courseId: CourseId) => void;
 
   // Leg bend points
   setBendPoints: (courseId: CourseId, controlIndex: number, bendPoints: MapPoint[] | undefined) => void;
@@ -614,6 +618,21 @@ export const useEventStore = create<EventState & EventActions>()(
           const cc = course.controls[controlIndex];
           if (cc) {
             cc.numberOffset = offset;
+          }
+        });
+      },
+
+      autoPlaceNumbers: (courseId: CourseId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          const dpi = state.event.mapFile?.dpi ?? 150;
+          const dims = overprintPixelDimensions(state.event.settings, dpi);
+          const offsets = autoNumberOffsets(course, state.event.controls, dims);
+          for (const [index, offset] of offsets) {
+            const cc = course.controls[index];
+            if (cc) cc.numberOffset = offset;
           }
         });
       },

@@ -148,7 +148,7 @@ export function nearestSegmentIndex(path: MapPoint[], point: MapPoint): number {
 }
 
 /** Squared distance from a point to a line segment. */
-function pointToSegmentDistanceSq(p: MapPoint, a: MapPoint, b: MapPoint): number {
+export function pointToSegmentDistanceSq(p: MapPoint, a: MapPoint, b: MapPoint): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const lenSq = dx * dx + dy * dy;
