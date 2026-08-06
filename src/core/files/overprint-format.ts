@@ -84,22 +84,28 @@ export function deserializeEvent(json: string): DeserializeResult {
  * Also apply defaults for any missing fields (forward compat).
  */
 function restoreBrandedIds(raw: OverprintEvent): OverprintEvent {
+  const mergedSettings = {
+    ...DEFAULT_EVENT_SETTINGS,
+    ...raw.settings,
+    pageSetup: {
+      ...DEFAULT_EVENT_SETTINGS.pageSetup,
+      ...(raw.settings?.pageSetup ?? {}),
+      margins: {
+        ...DEFAULT_EVENT_SETTINGS.pageSetup.margins,
+        ...(raw.settings?.pageSetup?.margins ?? {}),
+      },
+    },
+  };
+
+  // Migration: bump the old buggy default line width (exactly 0.2mm) to the IOF-spec
+  // 0.35mm (ISOM 2017-2 §3.7). Any other deliberately-set width is left untouched.
+  if (mergedSettings.lineWidth === 0.2) mergedSettings.lineWidth = 0.35;
+
   // Restore event ID
   const event: OverprintEvent = {
     ...raw,
     id: asEventId(raw.id as unknown as string),
-    settings: {
-      ...DEFAULT_EVENT_SETTINGS,
-      ...raw.settings,
-      pageSetup: {
-        ...DEFAULT_EVENT_SETTINGS.pageSetup,
-        ...(raw.settings?.pageSetup ?? {}),
-        margins: {
-          ...DEFAULT_EVENT_SETTINGS.pageSetup.margins,
-          ...(raw.settings?.pageSetup?.margins ?? {}),
-        },
-      },
-    },
+    settings: mergedSettings,
   };
 
   // Restore control IDs in the controls record

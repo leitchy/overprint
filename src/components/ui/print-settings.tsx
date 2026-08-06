@@ -1,10 +1,14 @@
 import { useEventStore } from '@/stores/event-store';
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { useT } from '@/i18n/use-t';
-import type { PaperSize } from '@/core/models/types';
-import { SCALE_PRESETS } from '@/core/models/constants';
-import { DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
+import type { PaperSize, MapStandard, EventSettings } from '@/core/models/types';
+import { SCALE_PRESETS, overprintDims } from '@/core/models/constants';
 import { useModalClose } from './use-modal-close';
+
+const MAP_STANDARDS: Array<{ value: MapStandard; label: string }> = [
+  { value: 'ISOM2017', label: 'ISOM 2017 (Forest)' },
+  { value: 'ISSprOM2019', label: 'ISSprOM 2019 (Sprint)' },
+];
 
 const PAPER_SIZES: Array<{ value: PaperSize; label: string }> = [
   { value: 'A4', label: 'A4 (210 × 297 mm)' },
@@ -28,8 +32,24 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
   const { pageSetup, printScale, mapTitle, contourInterval, mapAuthor } = settings;
 
+  // Per-standard overprint defaults (drive the appearance-row defaults + standard switch)
+  const std = overprintDims(settings.mapStandard);
+
   const updatePageSetup = (updates: Partial<typeof pageSetup>) => {
     updateSettings({ pageSetup: { ...pageSetup, ...updates } });
+  };
+
+  // Switching map standard applies that standard's overprint defaults, but keeps any
+  // value the user has customised (i.e. that still matches the OLD standard's default).
+  const changeMapStandard = (newStandard: MapStandard) => {
+    const oldD = overprintDims(settings.mapStandard);
+    const newD = overprintDims(newStandard);
+    const near = (a: number, b: number) => Math.abs(a - b) < 0.001;
+    const patch: Partial<EventSettings> = { mapStandard: newStandard };
+    if (near(settings.controlCircleDiameter, oldD.controlCircleDiameter)) patch.controlCircleDiameter = newD.controlCircleDiameter;
+    if (near(settings.lineWidth, oldD.lineWidth)) patch.lineWidth = newD.lineWidth;
+    if (near(settings.numberSize, oldD.numberDigitHeight)) patch.numberSize = newD.numberDigitHeight;
+    updateSettings(patch);
   };
 
   const updateMargin = (side: 'top' | 'right' | 'bottom' | 'left', value: number) => {
@@ -218,25 +238,39 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
             <span className="block text-sm font-medium text-gray-700 mb-2">
               {t('overprintAppearance')}
             </span>
+            {/* Map standard — sets the IOF overprint dimensions (ISOM forest vs ISSprOM sprint) */}
+            <div className="mb-2">
+              <label htmlFor="map-standard" className="block text-xs text-gray-600">Map standard</label>
+              <select
+                id="map-standard"
+                value={settings.mapStandard}
+                onChange={(e) => changeMapStandard(e.target.value as MapStandard)}
+                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 outline-none focus:border-violet-400"
+              >
+                {MAP_STANDARDS.map((ms) => (
+                  <option key={ms.value} value={ms.value}>{ms.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-2">
               <AppearanceRow
                 label={t('controlCircleDiameter')}
                 value={settings.controlCircleDiameter}
-                defaultValue={DEFAULT_EVENT_SETTINGS.controlCircleDiameter}
-                min={3} max={7} step={0.1}
+                defaultValue={std.controlCircleDiameter}
+                min={3} max={8} step={0.1}
                 onChange={(v) => updateSettings({ controlCircleDiameter: v })}
               />
               <AppearanceRow
                 label={t('lineWidthLabel')}
                 value={settings.lineWidth}
-                defaultValue={DEFAULT_EVENT_SETTINGS.lineWidth}
+                defaultValue={std.lineWidth}
                 min={0.1} max={1} step={0.05}
                 onChange={(v) => updateSettings({ lineWidth: v })}
               />
               <AppearanceRow
                 label={t('numberSizeLabel')}
                 value={settings.numberSize}
-                defaultValue={DEFAULT_EVENT_SETTINGS.numberSize}
+                defaultValue={std.numberDigitHeight}
                 min={2} max={6} step={0.1}
                 onChange={(v) => updateSettings({ numberSize: v })}
               />
