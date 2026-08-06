@@ -173,3 +173,20 @@ pnpm typecheck      # TypeScript only (no emit)
 - Accessibility: canvas-based apps are inherently tricky for a11y. Acknowledge this but don't let it block progress.
 - OCAD files use 1/100mm internal coordinates. DPI is computed from viewBox geometry. Scale is from param string 1039.
 - License: AGPL-3.0-only
+
+## Knowledge Vault (claude-obsidian)
+
+A persistent, cross-session knowledge base for this project lives in a separate
+claude-obsidian vault (not this repo):
+
+**Path:** `~/Development/Personal/overprint-knowledge`
+
+It holds distilled knowledge on map rendering, file loading, PurplePen fidelity, OCAD/OMAP,
+and the SVG display architecture — organised into a linked wiki with provenance.
+
+- To **build/update** it: open a Claude Code session **from that directory** (the folder is
+  itself the claude-obsidian plugin + vault), drop sources in `inbox/`, and run
+  `/claude-obsidian:wiki-ingest`. Do not run those skills from this repo — they aren't loaded here.
+- To **use** it from an Overprint session: read the vault's `wiki/index.md` and drill into
+  relevant pages (e.g. `map-rendering-roadmap`, `omap-renderer`, `svg-display-adr015`) when you
+  need context not already in this repo.
