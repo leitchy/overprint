@@ -63,6 +63,18 @@ Hardcode a fixture SVG behind the Stage in dev and verify on **Chrome, Firefox, 
 
 **If iOS blend fails:** try dropping `will-change` on Safari (accept per-frame repaint; WebKit's SVG rasterizer is fast). If it still fails, ship vector maps via the existing #1 raster path behind a per-browser flag — the escape hatch already exists in shipped code. The spike outcome decides whether this ADR moves to Accepted.
 
+### Phase 0 spike results (2026-08-06)
+
+Built behind `?svgmap=1` (`map-svg-layer.tsx`, `use-svg-transform-sync` via Konva attr events, commit `c26f117`). Verified on **Chrome** with the Mt Taylor OCAD fixture:
+
+- ✅ **Live SVG renders razor-sharp** — 1874 nodes; at 3× zoom every contour, dot-screen and cliff symbol is crisp vector, zero blur (vs. the bitmap's upscale blur). This is the target quality.
+- ✅ **Transform stays glued** — the host `transform` matched the stage exactly through zoom-button steps *and* direct `stage.scale/position` mutation (attr-event sync works on every path, including imperative gesture mutation).
+- ✅ **1:1 alignment** — a placed control sits on the correct map feature; scale bar / text crisp.
+- ✅ **KonvaImage suppressed** in SVG mode; **container `isolation: isolate`** applied; SVG is first child.
+- ✅ **Overprint composites over the SVG**, zero console errors.
+- ⚠️ **Bug found & fixed (unrelated to #3):** the overprint `mix-blend-mode: multiply` was **not being applied at all** in the current build — the blend effect's empty-deps ran before the Stage mounted (size measured async) and never re-ran. Fixed in commit `9081243` (re-run once size is non-zero + on map load). This was a latent bug in shipped v0.19.0, surfaced by the spike.
+- ❓ **iOS Safari blend — STILL PENDING.** Requires a real device. Test: `pnpm dev` → open `https://<network-ip>:5173/?svgmap=1` on the iPhone (accept the self-signed cert), load a vector map, add a control over a dark map feature, confirm the purple darkens (multiplies) rather than sitting flat. That result gates Proposed → Accepted.
+
 ## Implementation phases (post-gate)
 
 - **Phase 1 — core.** New `map-svg-layer.tsx` + `use-svg-transform-sync.ts`; `useDomSvgMap = rerender?.kind === 'svg' && !svgLayerDisabled` predicate; render `KonvaImage` only when `!useDomSvgMap`; early-return in `use-adaptive-map-raster` for the svg kind; `isolation:isolate` + `bg-white` on the container. Inject SVG via `innerHTML` in an effect keyed on `mapVersion` (never through React diffing of the multi-MB subtree).
