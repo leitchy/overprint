@@ -120,6 +120,8 @@ interface OmapObject {
 }
 
 import type { GeoReference } from '@/core/models/types';
+import { BASE_RASTER_LONG_SIDE } from './raster-config';
+import { rasterizeSvgToImage } from './rasterize-svg';
 
 interface LoadOmapResult {
   image: HTMLImageElement;
@@ -130,6 +132,8 @@ interface LoadOmapResult {
   georef: GeoReference | null;
   viewBox: { x: number; y: number; width: number; height: number };
   renderScale: number;
+  /** Sized-less SVG string (viewBox only) for adaptive re-rasterization on zoom. */
+  svg: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -923,8 +927,6 @@ function coordsToPath(coords: OmapCoord[], close: boolean): string {
 // Main loader
 // ---------------------------------------------------------------------------
 
-const TARGET_LONG_SIDE = 4000;
-
 export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
   const xmlString = await file.text();
 
@@ -970,26 +972,14 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
   }
 
   const longestSide = Math.max(svgWidth, svgHeight);
-  const renderScale = longestSide > 0 ? TARGET_LONG_SIDE / longestSide : 1;
+  const renderScale = longestSide > 0 ? BASE_RASTER_LONG_SIDE / longestSide : 1;
   const pixelWidth = Math.round(svgWidth * renderScale);
   const pixelHeight = Math.round(svgHeight * renderScale);
 
-  // Inject explicit pixel dimensions into SVG
-  const sizedSvg = svgString.replace(
-    '<svg ',
-    `<svg width="${pixelWidth}" height="${pixelHeight}" `,
-  );
-
-  // Rasterize via Blob URL (avoids Safari's ~2MB data URL limit for <img>)
-  const blob = new Blob([sizedSvg], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
-
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Failed to render .omap SVG: ${file.name}`)); };
-    img.src = url;
-  });
+  // Base render via Blob URL (avoids Safari's ~2MB data-URL limit). The SVG string
+  // has a viewBox but no width/height, so the adaptive renderer can re-rasterize it
+  // at higher resolution when the user zooms in.
+  const image = await rasterizeSvgToImage(svgString, pixelWidth, pixelHeight, 'blob');
 
   // Compute DPI: viewBox is in 1/1000mm → convert to mm → compute DPI
   const svgWidthMm = svgWidth / 1000;
@@ -1007,5 +997,6 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
     georef,
     viewBox: { x: vbMinX, y: vbMinY, width: svgWidth, height: svgHeight },
     renderScale,
+    svg: svgString,
   };
 }

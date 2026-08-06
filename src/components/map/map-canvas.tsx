@@ -4,6 +4,7 @@ import type { Stage as StageType } from 'konva/lib/Stage';
 import type Konva from 'konva';
 import { useCanvasSize } from './use-canvas-size';
 import { useMapNavigation, fitToView } from './use-map-navigation';
+import { useAdaptiveMapRaster } from './use-adaptive-map-raster';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
@@ -58,7 +59,11 @@ export function MapCanvas() {
   const image = useMapImageStore((s) => s.image);
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
+  const mapVersion = useMapImageStore((s) => s.mapVersion);
   const activeTool = useToolStore((s) => s.activeTool);
+
+  // Re-rasterize vector maps at higher density when zoomed in (roadmap #1).
+  useAdaptiveMapRaster();
 
   // Narrow event store selectors — each subscribes only to its slice
   const courses = useEventStore((s) => s.event?.courses);
@@ -90,19 +95,21 @@ export function MapCanvas() {
     minX: number; minY: number; maxX: number; maxY: number;
   } | null>(null);
 
-  // Auto-fit when image first loads (or when container size first becomes available).
+  // Auto-fit when a map first loads (or when container size first becomes available).
   // Deliberately ignores subsequent size changes to prevent pinch-zoom bounce-back —
   // iOS triggers container resize during touch gestures.
-  const fittedImageRef = useRef<typeof image>(null);
+  // Keyed on mapVersion (not image identity) so the adaptive re-rasterizer's bitmap
+  // swaps — which change `image` but not `mapVersion` — never reset the viewport.
   const hasFittedRef = useRef(false);
+  const fittedVersionRef = useRef(-1);
 
-  // Reset the fit flag when the image changes (new map loaded).
+  // Reset the fit flag when a new map is loaded.
   // MUST be declared before the fit effect so it runs first in the same commit.
   useEffect(() => {
-    if (image !== fittedImageRef.current) {
+    if (mapVersion !== fittedVersionRef.current) {
       hasFittedRef.current = false;
     }
-  }, [image]);
+  }, [mapVersion]);
 
   useEffect(() => {
     if (!image || hasFittedRef.current) return;
@@ -118,9 +125,9 @@ export function MapCanvas() {
       stage.batchDraw();
     }
 
-    fittedImageRef.current = image;
+    fittedVersionRef.current = mapVersion;
     hasFittedRef.current = true;
-  }, [image, imageWidth, imageHeight, size.width, size.height]);
+  }, [image, imageWidth, imageHeight, size.width, size.height, mapVersion]);
 
   // Apply viewport store changes imperatively to the stage.
   // The Stage is intentionally NOT driven by controlled scaleX/scaleY/x/y props —
