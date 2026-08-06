@@ -110,18 +110,26 @@ XML format for exchanging course data between software systems (course setters, 
 - Additional urban/sprint-specific symbols
 - Different overprint specifications for sprint
 
-### Overprint Specifications (from IOF Printing Standards)
-- **Purple colour**: Pantone 814 (or closest process match)
-- **Screen colour approximation**: Various clubs use different RGB values. Common choices:
-  - `#CD59A4` (PurplePen default)
-  - `#B040B0`
-  - `#FF00FF` (pure magenta — too bright, not recommended)
-- **Line width**: 0.35mm at print scale
-- **Control circle diameter**: 5.0mm outer at print scale (ISOM 2017-2); 4.0mm (ISSprOM 2019-2)
-- **Start triangle**: 6.0mm side at print scale (ISOM 2017-2); 5.0mm (ISSprOM)
-- **Finish circles**: Outer 5.0mm, inner 3.5mm diameter (ISOM 2017-2); line width 0.35mm
-- **Control numbers**: 4.0mm height at print scale
-- **Gap in circle at leg junction**: ~0.3mm gap where legs enter/exit the circle
+### Overprint Specifications (from IOF Printing & Colour Definitions Rev 4, 2024; ISOM 2017-2 §3.7 / ISSprOM 2019-2 §4.7)
+
+> Corrected 2026-08 against the primary sources — earlier values here were wrong (sprint
+> circle/triangle, finish diameters, Pantone). Full cited table + colour order in
+> `docs/reference/standards-conformance.md`.
+
+- **Purple colour**: PMS **"Purple"** or **CMYK 35/85/0/0** (NOT Pantone 814). The IOF gives
+  **no official RGB** (print-only standard). Overprint uses `#BB29BB` (sRGB of Pantone Purple C).
+  Overprint is a **solid** colour — "map shows through" is by colour/draw **order** (black/brown/
+  blue 100% drawn over the purple), not blending. See ADR-016.
+- Dimensions are **mm at the reference scale** (ISOM 1:15000, ISSprOM 1:4000; scale up 150% @
+  1:10000, 300% @ 1:5000 for ISOM; 133% @ 1:3000 for sprint). Circle/finish ø are centre-to-centre.
+- **Line width**: 0.35mm
+- **Control circle diameter**: **5.0mm** (ISOM); **6.0mm** (ISSprOM)
+- **Start triangle side**: **6.0mm** (ISOM); **7.0mm** (ISSprOM)
+- **Finish circles (ø CC)**: **4.0 & 6.0mm** (ISOM); **5.0 & 7.0mm** (ISSprOM)
+- **Control numbers**: 4.0mm **digit height** (Arial, non-bold); lower purple (ISOM), upper
+  purple + optional 0.1–0.15mm white outline (sprint)
+- **Gaps**: sections of circles/lines omitted to reveal important detail; gap between the
+  connecting line and the control circle
 
 ## PurplePen File Format (.ppen)
 
