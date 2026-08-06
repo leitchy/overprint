@@ -199,12 +199,16 @@ export function MapCanvas() {
 
   // Set multiply blend mode on overprint layers so dark map features show through purple.
   // Uses Konva internal _canvas (underscore convention) — stable across Konva versions.
+  // Re-runs when the Stage first mounts (size becomes non-zero) and when a map loads:
+  // the Stage only renders once `size` is measured, so an empty-deps effect would fire
+  // before the layer canvases exist and never re-apply the blend.
   useEffect(() => {
+    if (size.width <= 0 || size.height <= 0) return;
     for (const ref of [courseLayerRef, rubberBandLayerRef]) {
       const canvas = (ref.current?.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
       if (canvas) canvas.style.mixBlendMode = 'multiply';
     }
-  }, []);
+  }, [size.width, size.height, image]);
 
   // Track print area drag for preview rectangle
   const handleMouseMoveForPreview = useCallback(() => {
