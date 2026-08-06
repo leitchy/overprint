@@ -108,7 +108,7 @@ overprint/
 - **IOF XML Data Standard v3** for course data interchange
 - **ISOM 2017-2**: Control circle 5.0mm, start triangle 6.0mm side, finish 5.0mm/3.5mm
 - **ISSprOM 2019-2**: Sprint map symbol set (smaller overprint dimensions)
-- **Purple overprint colour**: Pantone 814 approximation — `#CD59A4` / `rgb(205, 89, 164)`
+- **Purple overprint colour**: IOF spec = CMYK 35/85/0/0 or PMS "Purple" (ISOM 2017 Appendix 1 §4; no official RGB). We use `#BB29BB` (sRGB of Pantone Purple C). Overprint is a **solid** colour — the standard's "map shows through" is by colour/draw **order** (black/brown/blue 100% over the purple), not alpha blending. See docs/adrs and the standards-conformance notes.
 
 ## Current Status
 

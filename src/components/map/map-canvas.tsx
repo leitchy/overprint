@@ -208,16 +208,21 @@ export function MapCanvas() {
     };
   }, [containerRef]);
 
-  // Set multiply blend mode on overprint layers so dark map features show through purple.
-  // Uses Konva internal _canvas (underscore convention) — stable across Konva versions.
-  // Re-runs when the Stage first mounts (size becomes non-zero) and when a map loads:
-  // the Stage only renders once `size` is measured, so an empty-deps effect would fire
-  // before the layer canvases exist and never re-apply the blend.
+  // Render the overprint as a SOLID, consistent purple (normal blend) — the ISOM/PurplePen
+  // model. The course purple is a solid 100% colour; the standard's "map shows through" is
+  // achieved by colour/draw ORDER (black/brown/blue 100% drawn over the purple), NOT by an
+  // alpha blend. An RGB `multiply` (previously used here) is off-spec: it over-darkens and
+  // tints the purple over mid-tone map colours (muddy navy/brown). Solid also avoids the
+  // WebKit/Safari mix-blend-mode bug that blocks the DOM-SVG path (see ADR-015).
+  // Future: true colour-order layering (draw black/brown/blue map linework above the purple)
+  // for vector maps via the DOM-SVG layer. See docs/reference standards-conformance notes.
+  // Kept as an explicit 'normal' set (re-run on Stage mount / map load) to override any
+  // stale blend mode on a reused layer canvas.
   useEffect(() => {
     if (size.width <= 0 || size.height <= 0) return;
     for (const ref of [courseLayerRef, rubberBandLayerRef]) {
       const canvas = (ref.current?.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
-      if (canvas) canvas.style.mixBlendMode = 'multiply';
+      if (canvas) canvas.style.mixBlendMode = 'normal';
     }
   }, [size.width, size.height, image]);
 

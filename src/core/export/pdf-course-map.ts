@@ -11,6 +11,7 @@ import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { calculateCourseLength } from '@/core/geometry/course-length';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
+import { OVERPRINT_PURPLE } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -463,7 +464,7 @@ async function renderSpecialItems(
       continue; // All desc boxes skipped — auto-generation handles them
     }
 
-    const colorHex = item.color ?? '#C850A0';
+    const colorHex = item.color ?? OVERPRINT_PURPLE;
     const itemColor = hexToRgb(colorHex);
     const pos = toPdf(item.position);
 
