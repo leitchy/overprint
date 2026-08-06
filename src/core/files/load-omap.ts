@@ -65,6 +65,8 @@ interface OmapPatternDef {
   pointDistance?: number;
   /** Nested point symbol inner_radius (type 2 only) */
   dotRadius?: number;
+  /** Along-row stagger offset for point patterns (type 2) — non-zero → brick/hex layout */
+  offsetAlong?: number;
 }
 
 interface OmapSymbol {
@@ -79,6 +81,10 @@ interface OmapSymbol {
   fontSize: number;
   /** Whether this symbol is hidden */
   hidden: boolean;
+  /** Combined symbol (type 16): referenced part symbol IDs, resolved in a second pass */
+  partIds?: number[];
+  /** Line dash pattern as an SVG stroke-dasharray (OMAP units), if the line is dashed */
+  dashArray?: string;
   /** Area pattern definitions (hatching, dot patterns) */
   patterns: OmapPatternDef[];
   /** Text symbol: font family name (e.g., "Arial", "Calibri") */
@@ -162,6 +168,29 @@ function numAttr(el: Element, attr: string, fallback = 0): number {
   if (val === null) return fallback;
   const n = Number(val);
   return Number.isFinite(n) ? n : fallback;
+}
+
+/**
+ * Build an SVG `stroke-dasharray` (in OMAP units, matching path coordinates) from a
+ * `<line_symbol>`'s dash attributes. Returns undefined for solid lines.
+ *
+ * Grouped dashes (`dashes_in_group` > 1) produce `dash igb dash igb … dash break`,
+ * i.e. N dashes separated by in-group breaks, then the larger between-group break.
+ */
+function parseDashArray(lineSym: Element): string | undefined {
+  if (lineSym.getAttribute('dashed') !== 'true') return undefined;
+  const dashLen = numAttr(lineSym, 'dash_length', 0);
+  const breakLen = numAttr(lineSym, 'break_length', 0);
+  if (dashLen <= 0 || breakLen <= 0) return undefined;
+  const group = Math.max(1, numAttr(lineSym, 'dashes_in_group', 1));
+  if (group <= 1) return `${dashLen} ${breakLen}`;
+  const inGroupBreak = numAttr(lineSym, 'in_group_break_length', breakLen);
+  const arr: number[] = [];
+  for (let i = 0; i < group; i++) {
+    arr.push(dashLen);
+    arr.push(i < group - 1 ? inGroupBreak : breakLen);
+  }
+  return arr.join(' ');
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +303,8 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let lineWidth = 150; // reasonable default
     let fillColorIndex = -1;
     let fontSize = 4000;
+    let dashArray: string | undefined;
+    let partIds: number[] | undefined;
     const patterns: OmapPatternDef[] = [];
     let pointGlyph: OmapPointGlyph | undefined;
     let textFontFamily: string | undefined;
@@ -287,6 +318,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
       if (lineSym) {
         colorIndex = numAttr(lineSym, 'color', -1);
         lineWidth = numAttr(lineSym, 'line_width', 150);
+        dashArray = parseDashArray(lineSym);
       }
     } else if (type === 4) {
       // Area symbol — solid fill from inner_color, patterns from <pattern> elements
@@ -322,6 +354,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
               color: dotColor,
               pointDistance: numAttr(patEl, 'point_distance', 500),
               dotRadius,
+              offsetAlong: numAttr(patEl, 'offset_along_line', 0),
             });
           }
         }
@@ -438,28 +471,68 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         }
       }
     } else if (type === 16) {
-      // Combined symbol — extract first line and first area sub-symbol
-      for (const sub of qAll(el, 'symbol')) {
-        const subType = numAttr(sub, 'type', 0);
-        if (subType === 2 && colorIndex < 0) {
-          const lineSym = q(sub, 'line_symbol');
-          if (lineSym) {
-            colorIndex = numAttr(lineSym, 'color', -1);
-            lineWidth = numAttr(lineSym, 'line_width', 150);
-          }
+      // Combined symbol — parts reference other symbols by ID
+      // (<combined_symbol><part symbol="N"/>…</combined_symbol>). Referenced symbols
+      // may appear anywhere in the list, so resolve colours in a second pass below.
+      const combined = q(el, 'combined_symbol');
+      if (combined) {
+        const ids: number[] = [];
+        for (const part of qAll(combined, 'part')) {
+          const pid = numAttr(part, 'symbol', -1);
+          if (pid >= 0) ids.push(pid);
         }
-        if (subType === 4 && fillColorIndex < 0) {
-          const areaSym = q(sub, 'area_symbol');
-          if (areaSym) fillColorIndex = numAttr(areaSym, 'color', -1);
+        if (ids.length > 0) partIds = ids;
+      }
+      if (!partIds) {
+        // Legacy fallback: inline nested <symbol> children (older OOM exports)
+        for (const sub of qAll(el, 'symbol')) {
+          const subType = numAttr(sub, 'type', 0);
+          if (subType === 2 && colorIndex < 0) {
+            const lineSym = q(sub, 'line_symbol');
+            if (lineSym) {
+              colorIndex = numAttr(lineSym, 'color', -1);
+              lineWidth = numAttr(lineSym, 'line_width', 150);
+              dashArray = parseDashArray(lineSym);
+            }
+          }
+          if (subType === 4 && fillColorIndex < 0) {
+            const areaSym = q(sub, 'area_symbol');
+            if (areaSym) fillColorIndex = numAttr(areaSym, 'color', -1);
+          }
         }
       }
     }
 
     symbols.set(id, {
       id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patterns,
+      partIds, dashArray,
       fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
       lineSpacing: textLineSpacing, pointGlyph,
     });
+  }
+
+  // Second pass: resolve combined-symbol part references now that every symbol
+  // (including private helper symbols) is in the map. A combined symbol takes its
+  // fill (+ patterns) from the first referenced area part and its stroke (+ dash)
+  // from the first referenced line part, so the existing area/border emit works.
+  for (const sym of symbols.values()) {
+    if (sym.type !== 16 || !sym.partIds?.length) continue;
+    for (const pid of sym.partIds) {
+      const part = symbols.get(pid);
+      if (!part) continue;
+      if (part.type === 4 && sym.fillColorIndex < 0) {
+        sym.fillColorIndex = part.colorIndex;
+        if (part.patterns.length > 0 && sym.patterns.length === 0) {
+          sym.patterns = part.patterns;
+        }
+      } else if (part.type === 2 && sym.colorIndex < 0) {
+        sym.colorIndex = part.colorIndex;
+        sym.lineWidth = part.lineWidth;
+        sym.dashArray = part.dashArray;
+      } else if (part.type === 1 && sym.colorIndex < 0) {
+        sym.colorIndex = part.colorIndex;
+      }
+    }
   }
 
   return symbols;
@@ -636,13 +709,29 @@ function buildSvg(
         const rowSpacing = pat.lineSpacing;
         const r = pat.dotRadius ?? 90;
         const fill = colorStr(colors, pat.color);
-        defs.push(
-          `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
-          + `width="${colSpacing}" height="${rowSpacing}" `
-          + `patternTransform="rotate(${angleDeg}, 0, 0)">`
-          + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
-          + `</pattern>`,
-        );
+        // Staggered (brick) layout when the map offsets alternate rows — the tile
+        // spans two rows: row 0 centred, row 1 shifted half a column (drawn as two
+        // edge half-dots that tile into a full dot).
+        const staggered = (pat.offsetAlong ?? 0) !== 0 || pat.lineOffset !== 0;
+        if (staggered) {
+          defs.push(
+            `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
+            + `width="${colSpacing}" height="${rowSpacing * 2}" `
+            + `patternTransform="rotate(${angleDeg}, 0, 0)">`
+            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
+            + `<circle cx="0" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"/>`
+            + `<circle cx="${colSpacing}" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"/>`
+            + `</pattern>`,
+          );
+        } else {
+          defs.push(
+            `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
+            + `width="${colSpacing}" height="${rowSpacing}" `
+            + `patternTransform="rotate(${angleDeg}, 0, 0)">`
+            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
+            + `</pattern>`,
+          );
+        }
       }
     }
   }
@@ -655,62 +744,66 @@ function buildSvg(
   // White background
   parts.push(`<rect x="${vbX}" y="${vbY}" width="${vbW}" height="${vbH}" fill="white"/>`);
 
-  // Render objects — areas first (back), then lines, then points, then text (front)
-  const areas: OmapObject[] = [];
-  const lines: OmapObject[] = [];
+  // Render map features (areas + lines) ordered by COLOUR PRIORITY rather than a
+  // fixed area→line order. OMAP colours are listed top-to-bottom (index 0 = highest
+  // priority, drawn last / on top), so e.g. brown contours correctly pass beneath
+  // black buildings and paths, and white knock-out colours cover what they should.
+  // Points and text are drawn afterwards, always on top.
   const points: OmapObject[] = [];
   const texts: OmapObject[] = [];
+  const mapFrags: { pri: number; svg: string }[] = [];
+  // Lower colour index = higher priority = drawn later. Unset (-1) → near black.
+  const priOf = (i: number) => (i >= 0 ? i : 4);
 
   for (const obj of objects) {
     const sym = symbols.get(obj.symbolId);
     if (!sym || sym.hidden) continue;
 
-    if (obj.type === 0) points.push(obj);
-    else if (obj.type === 4) texts.push(obj);
-    else if (obj.type === 1) {
-      // Distinguish line vs area by symbol type
-      if (sym.type === 4 || sym.fillColorIndex >= 0) areas.push(obj);
-      else lines.push(obj);
+    if (obj.type === 0) { points.push(obj); continue; }
+    if (obj.type === 4) { texts.push(obj); continue; }
+    if (obj.type !== 1) continue;
+
+    const isArea = sym.type === 4 || sym.fillColorIndex >= 0;
+    if (isArea) {
+      const d = coordsToPath(obj.coords, true);
+
+      // Solid fill (if inner_color / combined fill is set)
+      const solidColor = sym.type === 4 ? sym.colorIndex : sym.fillColorIndex;
+      if (solidColor >= 0) {
+        mapFrags.push({ pri: priOf(solidColor), svg: `<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"/>` });
+      }
+
+      // Pattern fill layers
+      for (let pi = 0; pi < sym.patterns.length; pi++) {
+        const patId = `pat-${sym.id}-${pi}`;
+        mapFrags.push({ pri: priOf(sym.patterns[pi]!.color), svg: `<path d="${d}" fill="url(#${patId})" fill-rule="evenodd"/>` });
+      }
+
+      // Pattern-only symbols we couldn't fully parse: faint colour fallback
+      if (solidColor < 0 && sym.patterns.length === 0 && sym.colorIndex >= 0) {
+        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="${colorStr(colors, sym.colorIndex)}" fill-rule="evenodd" opacity="0.35"/>` });
+      }
+
+      // Combined symbols: border stroke on top of the fill (may be dashed)
+      if (sym.type === 16 && sym.colorIndex >= 0 && sym.lineWidth > 0) {
+        const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
+        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"/>` });
+      }
+    } else {
+      // Line — skip genuinely invisible helper lines (line_width 0) instead of
+      // inflating them to a visible minimum.
+      if (sym.lineWidth <= 0) continue;
+      const d = coordsToPath(obj.coords, false);
+      const sw = Math.max(sym.lineWidth, 30);
+      const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
+      const cap = sym.dashArray ? 'butt' : 'round';
+      mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
     }
   }
 
-  // Areas
-  for (const obj of areas) {
-    const sym = symbols.get(obj.symbolId)!;
-    const d = coordsToPath(obj.coords, true);
-
-    // Solid fill (if inner_color is set)
-    const solidColor = sym.type === 4 ? sym.colorIndex : sym.fillColorIndex;
-    if (solidColor >= 0) {
-      parts.push(`<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"/>`);
-    }
-
-    // Pattern fill layers
-    for (let pi = 0; pi < sym.patterns.length; pi++) {
-      const patId = `pat-${sym.id}-${pi}`;
-      parts.push(`<path d="${d}" fill="url(#${patId})" fill-rule="evenodd"/>`);
-    }
-
-    // If no solid fill and no patterns, use colorIndex as fallback (pattern-only symbols
-    // that we couldn't parse fall through here)
-    if (solidColor < 0 && sym.patterns.length === 0 && sym.colorIndex >= 0) {
-      parts.push(`<path d="${d}" fill="${colorStr(colors, sym.colorIndex)}" fill-rule="evenodd" opacity="0.35"/>`);
-    }
-
-    // Combined symbols: render border as separate path on top
-    if (sym.type === 16 && sym.colorIndex >= 0 && sym.lineWidth > 0) {
-      parts.push(`<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}" stroke-linejoin="round"/>`);
-    }
-  }
-
-  // Lines
-  for (const obj of lines) {
-    const sym = symbols.get(obj.symbolId)!;
-    const stroke = colorStr(colors, sym.colorIndex);
-    const sw = Math.max(sym.lineWidth, 50); // minimum visible width
-    const d = coordsToPath(obj.coords, false);
-    parts.push(`<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
-  }
+  // Draw bottom-to-top: highest priority NUMBER (lowest priority) first.
+  mapFrags.sort((a, b) => b.pri - a.pri);
+  for (const f of mapFrags) parts.push(f.svg);
 
   // Points — render using glyph definitions when available
   for (const obj of points) {
