@@ -37,6 +37,13 @@ export const COURSE_COLORS = [
  *  PurplePen also renders thicker on screen. PDF export does NOT use this. */
 export const SCREEN_LINE_MULTIPLIER = 2;
 
+/**
+ * Control-number sizing: the IOF spec (ISOM 2017-2 §3.7) gives 4.0mm as the DIGIT
+ * (cap) height, not the font Em size. A font's cap height is ≈0.72 of its Em, so
+ * fontSize = digitHeight / 0.72 ≈ digitHeight × 1.39 (matches PurplePen's 5.57mm Em
+ * for a 4.0mm digit). Numbers are non-bold per spec. */
+export const NUMBER_DIGIT_HEIGHT_TO_EM = 1.39;
+
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 

@@ -11,7 +11,7 @@ import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
-import { overprintDims, OVERPRINT_PURPLE } from '@/core/models/constants';
+import { overprintDims, OVERPRINT_PURPLE, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
 /**
@@ -203,7 +203,9 @@ export function renderOverprint(
       page.drawText(labelText, {
         x: pt.x + baseOffsetX + numOffsetX,
         y: pt.y + baseOffsetY + numOffsetY,
-        size: numberSize,
+        // numberSize is the digit (cap) height; convert to font Em. Helvetica here
+        // is already non-bold, per spec.
+        size: numberSize * NUMBER_DIGIT_HEIGHT_TO_EM,
         font,
         color: PURPLE,
       });

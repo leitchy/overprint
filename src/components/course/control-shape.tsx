@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { Circle, Rect, Text, Group } from 'react-konva';
 import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
 import { CrossingPoint } from './crossing-point';
@@ -203,9 +203,8 @@ export const ControlShape = memo(function ControlShape({
           text={labelText}
           x={numX}
           y={numY}
-          fontSize={numberSize}
+          fontSize={numberSize * NUMBER_DIGIT_HEIGHT_TO_EM}
           fill={color}
-          fontStyle="bold"
           stroke="#FFFFFF"
           strokeWidth={numberOutline ? 3 : 2}
           draggable={!!onNumberDragEnd}
