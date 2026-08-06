@@ -85,6 +85,8 @@ interface OmapSymbol {
   partIds?: number[];
   /** Line dash pattern as an SVG stroke-dasharray (OMAP units), if the line is dashed */
   dashArray?: string;
+  /** Line border (double-line edge): a stroke drawn on both sides of the core line */
+  border?: { color: number; width: number; shift: number };
   /** Area pattern definitions (hatching, dot patterns) */
   patterns: OmapPatternDef[];
   /** Text symbol: font family name (e.g., "Arial", "Calibri") */
@@ -191,6 +193,22 @@ function parseDashArray(lineSym: Element): string | undefined {
     arr.push(i < group - 1 ? inGroupBreak : breakLen);
   }
   return arr.join(' ');
+}
+
+/**
+ * Parse the first `<border>` of a `<line_symbol>` (double-line edge). Returns
+ * undefined when the line has no border. Rendered via the paint-order trick: a
+ * wide stroke in the border colour drawn UNDER the core stroke, so the border
+ * colour shows as an edge band on both sides.
+ */
+function parseBorder(lineSym: Element): { color: number; width: number; shift: number } | undefined {
+  const borders = q(lineSym, 'borders');
+  if (!borders) return undefined;
+  const b = q(borders, 'border');
+  if (!b) return undefined;
+  const width = numAttr(b, 'width', 0);
+  if (width <= 0) return undefined;
+  return { color: numAttr(b, 'color', -1), width, shift: numAttr(b, 'shift', 0) };
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +322,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
     let fillColorIndex = -1;
     let fontSize = 4000;
     let dashArray: string | undefined;
+    let border: { color: number; width: number; shift: number } | undefined;
     let partIds: number[] | undefined;
     const patterns: OmapPatternDef[] = [];
     let pointGlyph: OmapPointGlyph | undefined;
@@ -319,6 +338,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         colorIndex = numAttr(lineSym, 'color', -1);
         lineWidth = numAttr(lineSym, 'line_width', 150);
         dashArray = parseDashArray(lineSym);
+        border = parseBorder(lineSym);
       }
     } else if (type === 4) {
       // Area symbol — solid fill from inner_color, patterns from <pattern> elements
@@ -493,6 +513,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
               colorIndex = numAttr(lineSym, 'color', -1);
               lineWidth = numAttr(lineSym, 'line_width', 150);
               dashArray = parseDashArray(lineSym);
+              border = parseBorder(lineSym);
             }
           }
           if (subType === 4 && fillColorIndex < 0) {
@@ -505,7 +526,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
 
     symbols.set(id, {
       id, type, colorIndex, lineWidth, fillColorIndex, fontSize, hidden, patterns,
-      partIds, dashArray,
+      partIds, dashArray, border,
       fontFamily: textFontFamily, fontBold: textFontBold, fontItalic: textFontItalic,
       lineSpacing: textLineSpacing, pointGlyph,
     });
@@ -529,6 +550,7 @@ function extractSymbols(doc: Document): Map<number, OmapSymbol> {
         sym.colorIndex = part.colorIndex;
         sym.lineWidth = part.lineWidth;
         sym.dashArray = part.dashArray;
+        sym.border = part.border;
       } else if (part.type === 1 && sym.colorIndex < 0) {
         sym.colorIndex = part.colorIndex;
       }
@@ -797,7 +819,15 @@ function buildSvg(
       const sw = Math.max(sym.lineWidth, 30);
       const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
       const cap = sym.dashArray ? 'butt' : 'round';
-      mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
+      const pri = priOf(sym.colorIndex);
+      // Double-line border: a wide stroke in the border colour drawn UNDER the core
+      // (paint-order trick), so the border shows as an edge band on both sides.
+      // Emitted at the core's priority and BEFORE the core so it stays underneath.
+      if (sym.border) {
+        const outer = sw + 2 * sym.border.shift + sym.border.width;
+        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"/>` });
+      }
+      mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
     }
   }
 
