@@ -78,6 +78,27 @@ export function pointAtDistance(path: MapPoint[], dist: number): MapPoint {
  * Split a polyline at gap positions into visible sub-paths.
  * Gaps are defined by absolute distances along the polyline.
  */
+/**
+ * Merge overlapping/adjacent leg gaps into a sorted, non-overlapping list.
+ * Prevents `splitPathByGaps` from moving its cursor backwards when a gap is
+ * contained in a previous one (e.g. auto gaps overlapping a manual gap).
+ */
+export function mergeGaps(gaps: LegGap[]): LegGap[] {
+  if (gaps.length <= 1) return gaps.slice();
+  const sorted = [...gaps].sort((a, b) => a.startDist - b.startDist);
+  const merged: LegGap[] = [{ ...sorted[0]! }];
+  for (let i = 1; i < sorted.length; i++) {
+    const g = sorted[i]!;
+    const last = merged[merged.length - 1]!;
+    if (g.startDist <= last.endDist) {
+      last.endDist = Math.max(last.endDist, g.endDist);
+    } else {
+      merged.push({ ...g });
+    }
+  }
+  return merged;
+}
+
 export function splitPathByGaps(path: MapPoint[], gaps: LegGap[]): MapPoint[][] {
   if (gaps.length === 0) return [path];
 

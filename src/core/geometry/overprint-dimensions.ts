@@ -29,6 +29,10 @@ export interface OverprintPixelDimensions {
   circleGap: number;
   /** Half-length of each crossing-point arm (total arm = 6mm, half = 3mm). */
   crossingPointArm: number;
+  /** Auto leg-cut gap size (PurplePen 3.5mm) in map pixels. */
+  autoLegGap: number;
+  /** Minimum distance from a leg end within which an auto-cut is suppressed (0.5mm). */
+  autoLegGapMinEnd: number;
 }
 
 /**
@@ -50,5 +54,7 @@ export function overprintPixelDimensions(
     finishInnerRadius: mmToMapPixels(std.finishInnerDiameter / 2, dpi),
     circleGap: mmToMapPixels(std.circleGap, dpi),
     crossingPointArm: mmToMapPixels(std.crossingPointArm, dpi),
+    autoLegGap: mmToMapPixels(3.5, dpi),
+    autoLegGapMinEnd: mmToMapPixels(0.5, dpi),
   };
 }

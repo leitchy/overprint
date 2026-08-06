@@ -9,7 +9,8 @@ import type {
 } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
-import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
+import { buildLegPath, splitPathByGaps, mergeGaps } from '@/core/geometry/leg-path';
+import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { overprintDims, OVERPRINT_PURPLE, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
@@ -93,6 +94,25 @@ export function renderOverprint(
   // Draw legs first (behind shapes).
   // Score courses have no ordered legs — skip them entirely.
   if (course.courseType !== 'score') {
+    // Auto leg-cut gaps, computed in PDF-point space (same as the drawn paths).
+    const pdfRadius = (type: CourseControlType): number =>
+      type === 'start' || type === 'mapExchange' || type === 'mapFlip' ? startTriangleSide / Math.sqrt(3)
+        : type === 'finish' ? finishOuterRadius
+          : type === 'crossingPoint' ? crossingPointArm * Math.SQRT2
+            : circleRadius;
+    const autoGapsByLeg = computeCourseAutoLegGaps(
+      resolved.map((rc, idx): AutoGapControl => ({
+        position: ctx.toPdf(rc.control.position),
+        type: rc.type,
+        bendPoints: course.controls[idx]?.bendPoints?.map((bp) => ctx.toPdf(bp)),
+      })),
+      pdfRadius,
+      shapeOffset,
+      lineWidth,
+      mmToPdfPoints(3.5),
+      mmToPdfPoints(0.5),
+    );
+
     for (let i = 1; i < resolved.length; i++) {
       const prev = resolved[i - 1]!;
       const curr = resolved[i]!;
@@ -110,8 +130,14 @@ export function renderOverprint(
           })();
 
       if (path) {
-        const subPaths = cc?.legGaps && cc.legGaps.length > 0
-          ? splitPathByGaps(path, cc.legGaps)
+        // Manual gaps are stored in MAP PIXELS — scale to PDF points to match the path.
+        const manualGaps = (cc?.legGaps ?? []).map((g) => ({
+          startDist: g.startDist * ctx.effectivePPP,
+          endDist: g.endDist * ctx.effectivePPP,
+        }));
+        const allGaps = [...manualGaps, ...(autoGapsByLeg[i] ?? [])];
+        const subPaths = allGaps.length > 0
+          ? splitPathByGaps(path, mergeGaps(allGaps))
           : [path];
 
         for (const subPath of subPaths) {

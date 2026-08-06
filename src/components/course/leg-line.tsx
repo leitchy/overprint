@@ -4,7 +4,7 @@ import type Konva from 'konva';
 import type { MapPoint, LegGap } from '@/core/models/types';
 import { OVERPRINT_PURPLE } from '@/core/models/constants';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
-import { buildLegPath, splitPathByGaps, nearestSegmentIndex, pointAtDistance, polylineLength } from '@/core/geometry/leg-path';
+import { buildLegPath, splitPathByGaps, mergeGaps, nearestSegmentIndex, pointAtDistance, polylineLength } from '@/core/geometry/leg-path';
 
 
 interface LegLineProps {
@@ -16,6 +16,8 @@ interface LegLineProps {
   color?: string;
   bendPoints?: MapPoint[];
   legGaps?: LegGap[];
+  /** Render-time auto-cut gaps (leg crossings) — merged with manual gaps, no drag handles. */
+  autoGaps?: LegGap[];
   editable?: boolean;
   onInsert?: (position: MapPoint) => void;
   onAddBendPoint?: (position: MapPoint, insertIndex: number) => void;
@@ -36,7 +38,7 @@ function flattenPoints(points: MapPoint[]): number[] {
 export const LegLine = memo(function LegLine({
   from, to, fromOffset, toOffset, lineWidth,
   color = OVERPRINT_PURPLE,
-  bendPoints, legGaps, editable = false,
+  bendPoints, legGaps, autoGaps, editable = false,
   onInsert, onAddBendPoint, onBendPointDragEnd, onRemoveBendPoint, onGapDragEnd,
 }: LegLineProps) {
   const hasBends = bendPoints && bendPoints.length > 0;
@@ -67,9 +69,11 @@ export const LegLine = memo(function LegLine({
 
   if (!path) return null;
 
-  // Split by gaps if any
-  const subPaths = legGaps && legGaps.length > 0
-    ? splitPathByGaps(path, legGaps)
+  // Split by gaps if any — manual gaps get drag handles (below); auto gaps (leg
+  // crossings) are merged in for rendering only.
+  const allGaps = [...(legGaps ?? []), ...(autoGaps ?? [])];
+  const subPaths = allGaps.length > 0
+    ? splitPathByGaps(path, mergeGaps(allGaps))
     : [path];
 
   const handleClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
