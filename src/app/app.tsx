@@ -8,6 +8,8 @@ import { MobileFab } from '@/components/ui/mobile-fab';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useEventStore } from '@/stores/event-store';
 import { useKeyboardShortcuts } from './use-keyboard-shortcuts';
+import { useAutosave } from './use-autosave';
+import { RecoveryPrompt } from '@/components/ui/recovery-prompt';
 import { detectMapFileType } from '@/core/files/detect-file-type';
 import { loadMapFile, loadEventFile, importIofXmlFile, importPpenFile } from '@/core/files/load-map-file';
 import { useT } from '@/i18n/use-t';
@@ -26,6 +28,7 @@ function hasExtension(name: string, ext: string): boolean {
 
 export function App() {
   useKeyboardShortcuts();
+  useAutosave();
   const t = useT();
   const isMobile = useIsMobile();
   const hasImage = useMapImageStore((s) => s.image !== null);
@@ -264,6 +267,7 @@ export function App() {
       />
 
       <ToastContainer />
+      <RecoveryPrompt />
     </div>
   );
 }
