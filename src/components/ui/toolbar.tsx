@@ -588,6 +588,10 @@ export function Toolbar() {
       label: t('forbiddenRoute'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'forbiddenRoute' as SpecialItemType }),
     },
+    {
+      label: t('mapIssuePoint'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'mapIssue' as SpecialItemType }),
+    },
   ];
 
   const helpMenuItems: MenuEntry[] = [

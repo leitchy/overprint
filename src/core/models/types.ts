@@ -206,7 +206,8 @@ export type SpecialItemType =
   | 'dangerousArea'
   | 'waterLocation'
   | 'firstAid'
-  | 'forbiddenRoute';
+  | 'forbiddenRoute'
+  | 'mapIssue';
 
 interface SpecialItemBase {
   id: SpecialItemId;
@@ -278,7 +279,7 @@ export interface ImageItem extends SpecialItemBase {
 }
 
 export interface IofSymbolItem extends SpecialItemBase {
-  type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute';
+  type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute' | 'mapIssue';
 }
 
 export type SpecialItem = TextItem | LineItem | RectangleItem | WhiteOutItem | OutOfBoundsAreaItem | DescriptionBoxItem | ImageItem | IofSymbolItem;

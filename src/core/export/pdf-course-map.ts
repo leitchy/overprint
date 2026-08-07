@@ -624,6 +624,16 @@ async function renderSpecialItems(
         break;
       }
 
+      case 'mapIssue': {
+        // Horizontal bar (2.5mm, 0.6mm) + downward tail (1.5mm, 0.35mm) — mm on page.
+        const halfBar = mmToPdfPoints(2.5 / 2);
+        const tail = mmToPdfPoints(1.5);
+        page.drawLine({ start: { x: pos.x - halfBar, y: pos.y }, end: { x: pos.x + halfBar, y: pos.y }, thickness: mmToPdfPoints(0.6), color: itemColor });
+        // PDF y-up: the tail points downward (−y) to match the on-screen glyph.
+        page.drawLine({ start: { x: pos.x, y: pos.y }, end: { x: pos.x, y: pos.y - tail }, thickness: mmToPdfPoints(0.35), color: itemColor });
+        break;
+      }
+
       // descriptionBox: all filtered out above — auto-generation handles them
 
       case 'image': {

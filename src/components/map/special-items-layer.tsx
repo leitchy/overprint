@@ -126,6 +126,23 @@ function ForbiddenRouteShape({ color, lineWidth, size }: IofSymbolShapeProps) {
   );
 }
 
+/**
+ * Map-issue point (PurplePen MapIssueCourseObj): a 2.5 mm horizontal bar (0.6 mm)
+ * with a 1.5 mm downward tail (0.35 mm). Sized in mm via the map DPI.
+ */
+function MapIssueShape({ color, dpi }: { color: string; dpi: number }) {
+  const halfBar = mmToMapPixels(2.5 / 2, dpi);
+  const tail = mmToMapPixels(2.5 * 0.6, dpi); // 1.5 mm
+  const barW = mmToMapPixels(0.6, dpi) * SCREEN_LINE_MULTIPLIER;
+  const tailW = mmToMapPixels(0.35, dpi) * SCREEN_LINE_MULTIPLIER;
+  return (
+    <>
+      <Line points={[-halfBar, 0, halfBar, 0]} stroke={color} strokeWidth={barW} lineCap="butt" listening={false} />
+      <Line points={[0, 0, 0, tail]} stroke={color} strokeWidth={tailW} lineCap="butt" listening={false} />
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Individual item renderers
 // ---------------------------------------------------------------------------
@@ -939,6 +956,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
       case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} size={size} />;
       case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} size={size} />;
       case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'mapIssue': return <MapIssueShape color={color} dpi={dpi} />;
     }
   })();
 
