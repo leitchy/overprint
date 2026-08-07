@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
-import { renderDescriptionToCanvas, type DescriptionAppearance } from './canvas-description-renderer';
+import { renderDescriptionToCanvas, type DescriptionAppearance, type CanvasDescOptions } from './canvas-description-renderer';
 
 /**
  * React hook that produces an offscreen HTMLCanvasElement containing the
@@ -18,6 +18,7 @@ export function useDescriptionCanvas(
   widthPx: number,
   appearance: DescriptionAppearance,
   lang: string,
+  opts: CanvasDescOptions = {},
 ): HTMLCanvasElement | null {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const renderIdRef = useRef(0);
@@ -38,6 +39,7 @@ export function useDescriptionCanvas(
         widthPx: Math.round(widthPx),
         appearance,
         lang,
+        opts,
       })
     : null;
 
@@ -49,7 +51,7 @@ export function useDescriptionCanvas(
 
     const renderId = ++renderIdRef.current;
 
-    renderDescriptionToCanvas(course, controls, mapScale, mapDpi, widthPx, appearance, lang)
+    renderDescriptionToCanvas(course, controls, mapScale, mapDpi, widthPx, appearance, lang, opts)
       .then((result) => {
         // Only apply if this is still the latest render
         if (renderIdRef.current === renderId) {

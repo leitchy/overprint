@@ -483,6 +483,7 @@ const WhiteOutItemShape = memo(function WhiteOutItemShape({
 /** Sub-component to render a single description column using its own useDescriptionCanvas hook. */
 const DescriptionColumnImage = memo(function DescriptionColumnImage({
   course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang, x, y, canvasScale,
+  eventName, isAllControls, hideHeaders,
 }: {
   course: Course | undefined;
   controls: Record<import('@/utils/id').ControlId, import('@/core/models/types').Control>;
@@ -494,8 +495,11 @@ const DescriptionColumnImage = memo(function DescriptionColumnImage({
   x: number;
   y: number;
   canvasScale: number;
+  eventName?: string;
+  isAllControls?: boolean;
+  hideHeaders?: boolean;
 }) {
-  const canvas = useDescriptionCanvas(course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang);
+  const canvas = useDescriptionCanvas(course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang, { eventName, isAllControls, hideHeaders });
   if (!canvas) return null;
   const h = canvas.height * canvasScale;
   return (
@@ -598,6 +602,7 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
     gridWidthPx,
     appearance,
     lang,
+    { eventName: event?.name, isAllControls: item.allControls },
   );
 
   // Total block dimensions
@@ -685,6 +690,9 @@ const DescriptionBoxItemShape = memo(function DescriptionBoxItemShape({
           x={rectX + colIdx * (gridWidthPx + gapPx)}
           y={rectY}
           canvasScale={canvasScale}
+          eventName={event?.name}
+          isAllControls={item.allControls}
+          hideHeaders={colIdx > 0}
         />
       ))}
       {/* Natural height guide — toggled visible imperatively during drag */}

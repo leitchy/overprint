@@ -16,8 +16,7 @@
 
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
-import { calculateCourseLength } from '@/core/geometry/course-length';
-import { formatLengthKm, formatClimb } from '@/core/descriptions/desc-rows';
+import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
 
@@ -120,10 +119,14 @@ export function computeGridLayout(
   const textColWidth = hasTextColumn ? Math.floor(cellSize * textColMultiplier) : 0;
   const gridWidth = cellSize * 8 + textColWidth;
 
-  // Count rows
-  let numRows = 1; // header
+  // Count rows (mirrors buildDescRows: title, optional secondary, split-info,
+  // start/finish/exchange directives, and one row per control).
+  let numRows = 1; // primary header
   if (course.settings.secondaryTitle) numRows += 1;
-  numRows += 1; // info row
+  numRows += 1; // split-info row
+  if (course.controls.some((cc) => cc.type === 'start')) numRows += 1;
+  if (course.controls.some((cc) => cc.type === 'finish')) numRows += 1;
+  numRows += course.controls.filter((cc) => cc.type === 'mapExchange' || cc.type === 'mapFlip').length;
   numRows += Math.max(course.controls.length, 1); // control rows (min 1 for empty state)
 
   const gridHeight = numRows * cellSize;
@@ -368,6 +371,15 @@ function composeDescriptionText(
  * @returns An HTMLCanvasElement sized to the grid's natural dimensions at the given width.
  *          The height is determined by the content (not the full box height).
  */
+export interface CanvasDescOptions {
+  /** Title for the top header row (defaults to the course name). */
+  eventName?: string;
+  /** All-controls box: split-info shows a count, no per-course length. */
+  isAllControls?: boolean;
+  /** Multi-column: non-first columns omit the title / split-info / start rows. */
+  hideHeaders?: boolean;
+}
+
 export async function renderDescriptionToCanvas(
   course: Course,
   controls: Record<ControlId, Control>,
@@ -376,6 +388,7 @@ export async function renderDescriptionToCanvas(
   widthPx: number,
   appearance: DescriptionAppearance,
   lang = 'en',
+  opts: CanvasDescOptions = {},
 ): Promise<HTMLCanvasElement> {
   const hasTextColumn = appearance === 'symbolsAndText';
   const isTextMode = appearance === 'text';
@@ -395,46 +408,43 @@ export async function renderDescriptionToCanvas(
   tmpCanvas.height = 1;
   const tmpCtx = tmpCanvas.getContext('2d')!;
 
-  interface RowInfo {
-    type: 'header' | 'secondary' | 'info' | 'control' | 'empty';
-    height: number;
-    ccIndex?: number; // index into course.controls for control rows
-  }
-  const rows: RowInfo[] = [];
-
   const isScore = course.courseType === 'score';
 
-  // For score courses, sort controls by code number
-  const displayControls = isScore
-    ? sortControlsByCode(course.controls, controls)
-    : course.controls;
+  // Canonical rows shared with the PDF renderers. Score courses are code-sorted.
+  const orderedCourse: Course = isScore
+    ? { ...course, controls: sortControlsByCode(course.controls, controls) }
+    : course;
+  const { headerRows, bodyRows } = buildDescRows(orderedCourse, controls, {
+    eventName: opts.eventName ?? course.name,
+    scale: mapScale,
+    dpi: mapDpi,
+    isAllControls: opts.isAllControls,
+    isScore,
+    headerFontSize: Math.max(8, cellSize * 0.55),
+  });
+  // Non-first columns of a multi-column box omit the title / split-info / start rows.
+  const descRows: DescRow[] = opts.hideHeaders ? bodyRows : [...headerRows, ...bodyRows];
 
-  rows.push({ type: 'header', height: cellSize });
-  if (course.settings.secondaryTitle) {
-    rows.push({ type: 'secondary', height: cellSize });
-  }
-  if (!isScore) {
-    rows.push({ type: 'info', height: cellSize });
-  }
-
-  if (course.controls.length === 0) {
-    rows.push({ type: 'empty', height: cellSize });
-  } else {
-    for (let i = 0; i < displayControls.length; i++) {
-      const cc = displayControls[i]!;
-      const ctrl = controls[cc.controlId as ControlId];
-      let rowHeight = cellSize;
-
-      if (hasTextColumn && ctrl) {
-        const desc = ctrl.description;
-        const descCols = [desc.columnC, desc.columnD, desc.columnE, desc.columnF, desc.columnG, desc.columnH];
-        const composedText = composeDescriptionText(descCols, lang);
-        if (composedText) {
-          rowHeight = measureTextRowHeight(tmpCtx, composedText, textColWidth, cellSize);
-        }
+  // Render-row list with per-row heights (control rows grow in text mode).
+  // A null row is the empty-state placeholder.
+  const rows: { row: DescRow | null; height: number }[] = [];
+  for (const r of descRows) {
+    let rowHeight = cellSize;
+    if (r.kind === 'control' && hasTextColumn) {
+      const ctrl = controls[r.cc.controlId as ControlId];
+      if (ctrl) {
+        const d = ctrl.description;
+        const composedText = composeDescriptionText(
+          [d.columnC, d.columnD, d.columnE, d.columnF, d.columnG, d.columnH],
+          lang,
+        );
+        if (composedText) rowHeight = measureTextRowHeight(tmpCtx, composedText, textColWidth, cellSize);
       }
-      rows.push({ type: 'control', height: rowHeight, ccIndex: i });
     }
+    rows.push({ row: r, height: rowHeight });
+  }
+  if (course.controls.length === 0 && !opts.hideHeaders) {
+    rows.push({ row: null, height: cellSize });
   }
 
   const gridHeight = rows.reduce((sum, r) => sum + r.height, 0);
@@ -450,54 +460,82 @@ export async function renderDescriptionToCanvas(
   ctx.fillRect(0, 0, gridWidth, gridHeight);
 
   let currentY = 0;
-  let seqNumber = 0;
+  let headerCount = 0;
 
-  for (const row of rows) {
-    const rh = row.height;
+  // Directive symbol (start triangle / finish double-circle / map-exchange arrow).
+  function drawDirectiveSymbol(c: CanvasRenderingContext2D, symbolType: string, cx: number, cy: number, s: number): void {
+    c.strokeStyle = TEXT_COLOR;
+    c.lineWidth = Math.max(1, cellSize * 0.05);
+    if (symbolType === 'start') {
+      c.beginPath();
+      c.moveTo(cx - s * 0.866, cy - s);
+      c.lineTo(cx + s * 0.866, cy);
+      c.lineTo(cx - s * 0.866, cy + s);
+      c.closePath();
+      c.stroke();
+    } else if (symbolType === 'finish') {
+      c.beginPath(); c.arc(cx, cy, s, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(cx, cy, s * 0.7, 0, Math.PI * 2); c.stroke();
+    } else if (symbolType === 'exchange') {
+      c.beginPath();
+      c.moveTo(cx - s, cy); c.lineTo(cx + s, cy);
+      c.moveTo(cx + s * 0.5, cy - s * 0.5); c.lineTo(cx + s, cy);
+      c.moveTo(cx + s * 0.5, cy + s * 0.5); c.lineTo(cx + s, cy);
+      c.stroke();
+    }
+  }
 
-    switch (row.type) {
+  for (const { row, height: rh } of rows) {
+    // Empty-state placeholder row.
+    if (row === null) {
+      drawCell(ctx, 0, currentY, totalWidth, rh);
+      drawCenteredText(ctx, 'No controls yet', 0, currentY, totalWidth, rh, Math.max(7, cellSize * 0.35), { color: GRAY_400 });
+      currentY += rh;
+      continue;
+    }
+
+    switch (row.kind) {
       case 'header': {
-        drawCell(ctx, 0, currentY, totalWidth, rh, { bg: HEADER_BG });
-        const idealSize = Math.max(8, cellSize * 0.55);
-        const minSize = Math.max(6, cellSize * 0.3);
-        const headerSize = fitFontSize(ctx, course.name, totalWidth * 0.9, idealSize, minSize, true);
-        drawCenteredText(ctx, course.name, 0, currentY, totalWidth, rh, headerSize, { bold: true });
+        const isPrimary = headerCount === 0;
+        headerCount += 1;
+        drawCell(ctx, 0, currentY, totalWidth, rh, isPrimary ? { bg: HEADER_BG } : {});
+        const ideal = isPrimary ? Math.max(8, cellSize * 0.55) : Math.max(7, cellSize * 0.45);
+        const size = fitFontSize(ctx, row.text, totalWidth * 0.9, ideal, Math.max(6, cellSize * 0.3), isPrimary);
+        drawCenteredText(ctx, row.text, 0, currentY, totalWidth, rh, size, { bold: isPrimary });
         break;
       }
 
-      case 'secondary': {
-        drawCell(ctx, 0, currentY, totalWidth, rh);
-        const subFontSize = Math.max(7, cellSize * 0.45);
-        drawCenteredText(ctx, course.settings.secondaryTitle!, 0, currentY, totalWidth, rh, subFontSize);
+      case 'splitInfo': {
+        const n = row.sections.length;
+        const widths = n === 3
+          ? [totalWidth * 3 / 8, totalWidth * 3 / 8, totalWidth * 2 / 8]
+          : [totalWidth / 2, totalWidth / 2];
+        let x = 0;
+        const fs = Math.max(7, cellSize * 0.42);
+        for (let i = 0; i < n; i++) {
+          const w = widths[i] ?? totalWidth / n;
+          drawCell(ctx, x, currentY, w, rh);
+          drawCenteredText(ctx, row.sections[i]!, x, currentY, w, rh, fs);
+          x += w;
+        }
         break;
       }
 
-      case 'info': {
-        const lengthM = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
-        const climbText = formatClimb(course.climb ?? course.settings.climb);
-        const infoText = climbText
-          ? `${formatLengthKm(lengthM)}   ${climbText}`
-          : formatLengthKm(lengthM);
-        drawCell(ctx, 0, currentY, totalWidth, rh);
-        const infoFontSize = Math.max(7, cellSize * 0.45);
-        drawCenteredText(ctx, infoText, 0, currentY, totalWidth, rh, infoFontSize);
-        break;
-      }
-
-      case 'empty': {
-        drawCell(ctx, 0, currentY, totalWidth, rh);
-        const emptyFontSize = Math.max(7, cellSize * 0.35);
-        drawCenteredText(ctx, 'No controls yet', 0, currentY, totalWidth, rh, emptyFontSize, {
-          color: GRAY_400,
-        });
+      case 'directive': {
+        const leftW = cellSize * 3;
+        drawCell(ctx, 0, currentY, leftW, rh);
+        drawCell(ctx, leftW, currentY, totalWidth - leftW, rh);
+        drawDirectiveSymbol(ctx, row.leftSymbol, leftW / 2, currentY + rh / 2, cellSize * 0.3);
+        if (row.distanceText) {
+          drawCenteredText(ctx, row.distanceText, leftW, currentY, totalWidth - leftW, rh, Math.max(7, cellSize * 0.4));
+        }
         break;
       }
 
       case 'control': {
-        const cc = displayControls[row.ccIndex!]!;
+        const cc = row.cc;
         const ctrl: Control | undefined = controls[cc.controlId as ControlId];
         if (!ctrl) {
-          // Draw empty cells for missing control
           for (let col = 0; col < 8; col++) drawCell(ctx, col * cellSize, currentY, cellSize, rh);
           if (hasTextColumn) drawCell(ctx, 8 * cellSize, currentY, textColWidth, rh);
           break;
@@ -506,28 +544,19 @@ export async function renderDescriptionToCanvas(
         const isStart = cc.type === 'start';
         const isFinish = cc.type === 'finish';
 
-        // Column A: point value (score courses) or sequence number (normal)
+        // Column A: score (score courses) or sequence number (from the shared builder)
         drawCell(ctx, 0, currentY, cellSize, rh);
-        if (isScore) {
-          if (cc.score != null) {
-            const scoreFontSize = Math.max(6, cellSize * 0.4);
-            drawCenteredText(ctx, String(cc.score), 0, currentY, cellSize, rh, scoreFontSize, {
-              color: GRAY_400,
-            });
-          }
-        } else if (!isStart && !isFinish) {
-          seqNumber += 1;
-          const seqFontSize = Math.max(6, cellSize * 0.4);
-          drawCenteredText(ctx, String(seqNumber), 0, currentY, cellSize, rh, seqFontSize, {
-            color: GRAY_400,
-          });
+        const colAText = isScore
+          ? (cc.score != null ? String(cc.score) : null)
+          : (row.seqNumber != null ? String(row.seqNumber) : null);
+        if (colAText) {
+          drawCenteredText(ctx, colAText, 0, currentY, cellSize, rh, Math.max(6, cellSize * 0.4), { color: GRAY_400 });
         }
 
         // Column B: control code
         drawCell(ctx, cellSize, currentY, cellSize, rh);
         if (!isStart && !isFinish) {
-          const codeFontSize = Math.max(6, cellSize * 0.4);
-          drawCenteredText(ctx, String(ctrl.code), cellSize, currentY, cellSize, rh, codeFontSize);
+          drawCenteredText(ctx, String(ctrl.code), cellSize, currentY, cellSize, rh, Math.max(6, cellSize * 0.4));
         }
 
         // Columns C-H: description symbols (vertically centered when row is taller)
@@ -538,7 +567,6 @@ export async function renderDescriptionToCanvas(
         for (let i = 0; i < 6; i++) {
           const colX = (i + 2) * cellSize;
           drawCell(ctx, colX, currentY, cellSize, rh);
-          // Column F (index 3): free-text dimensions take precedence over the symbol.
           if (i === 3 && desc.columnFText) {
             drawCenteredText(ctx, desc.columnFText, colX, currentY, cellSize, rh, Math.max(6, cellSize * 0.34));
           } else {
@@ -546,15 +574,14 @@ export async function renderDescriptionToCanvas(
           }
         }
 
-        // Text column (symbolsAndText mode) — word-wraps, substitutes {0} placeholders
+        // Text column (symbolsAndText mode)
         if (hasTextColumn) {
           const textColX = 8 * cellSize;
           drawCell(ctx, textColX, currentY, textColWidth, rh);
           const composedText = composeDescriptionText(descCols, lang);
           if (composedText) {
-            const descFontSize = Math.max(7, cellSize * 0.35);
             drawWrappedText(
-              ctx, composedText, textColX, currentY, textColWidth, rh, descFontSize,
+              ctx, composedText, textColX, currentY, textColWidth, rh, Math.max(7, cellSize * 0.35),
               { align: 'left', color: TEXT_COLOR },
             );
           }
