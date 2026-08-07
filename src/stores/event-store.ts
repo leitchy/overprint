@@ -16,7 +16,10 @@ import type {
   OverprintEvent,
   SpecialItem,
   LegGap,
+  CircleGap,
 } from '@/core/models/types';
+import { addGap, simplifyGaps } from '@/core/geometry/circle-gaps';
+import { DEFAULT_CIRCLE_GAP_DEG } from '@/core/models/constants';
 import type { ControlId, CourseId, SpecialItemId } from '@/utils/id';
 import { generateCourseId } from '@/utils/id';
 import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
@@ -110,6 +113,14 @@ interface EventActions {
   updateControlDescription: (id: ControlId, column: string, value: string | undefined) => void;
   /** Set free-text dimensions for description column F (takes precedence over the F symbol). */
   setColumnFText: (id: ControlId, text: string | undefined) => void;
+
+  // Control-circle gaps (stored on the shared Control; keyed by ControlId)
+  /** Add a default-width gap centred on `angleDeg` (y-up, CCW degrees). */
+  addCircleGap: (controlId: ControlId, angleDeg: number) => void;
+  /** Replace a single gap (e.g. after dragging one of its endpoints). */
+  updateCircleGap: (controlId: ControlId, gapIndex: number, gap: CircleGap) => void;
+  /** Remove the gap at `gapIndex`. */
+  removeCircleGap: (controlId: ControlId, gapIndex: number) => void;
 
   // File operations
   loadEvent: (event: OverprintEvent) => void;
@@ -573,6 +584,33 @@ export const useEventStore = create<EventState & EventActions>()(
           const control = state.event?.controls[id];
           if (!control) return;
           control.description.columnFText = text && text.trim() !== '' ? text : undefined;
+        });
+      },
+
+      addCircleGap: (controlId: ControlId, angleDeg: number) => {
+        set((state) => {
+          const control = state.event?.controls[controlId];
+          if (!control) return;
+          control.circleGaps = addGap(control.circleGaps, angleDeg, DEFAULT_CIRCLE_GAP_DEG);
+        });
+      },
+
+      updateCircleGap: (controlId: ControlId, gapIndex: number, gap: CircleGap) => {
+        set((state) => {
+          const control = state.event?.controls[controlId];
+          if (!control?.circleGaps || gapIndex < 0 || gapIndex >= control.circleGaps.length) return;
+          const next = control.circleGaps.map((g, i) => (i === gapIndex ? gap : g));
+          const simplified = simplifyGaps(next);
+          control.circleGaps = simplified.length ? simplified : undefined;
+        });
+      },
+
+      removeCircleGap: (controlId: ControlId, gapIndex: number) => {
+        set((state) => {
+          const control = state.event?.controls[controlId];
+          if (!control?.circleGaps) return;
+          const next = control.circleGaps.filter((_, i) => i !== gapIndex);
+          control.circleGaps = next.length ? next : undefined;
         });
       },
 

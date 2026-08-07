@@ -553,6 +553,15 @@ export function MapCanvas() {
                         useEventStore.getState().updateLegGap(activeCourseId, controlIndex, gapIndex, gap);
                       }
                     }}
+                    onAddCircleGap={(controlId, angleDeg) => {
+                      useEventStore.getState().addCircleGap(controlId, angleDeg);
+                    }}
+                    onUpdateCircleGap={(controlId, gapIndex, gap) => {
+                      useEventStore.getState().updateCircleGap(controlId, gapIndex, gap);
+                    }}
+                    onRemoveCircleGap={(controlId, gapIndex) => {
+                      useEventStore.getState().removeCircleGap(controlId, gapIndex);
+                    }}
                   />
                 )}
 

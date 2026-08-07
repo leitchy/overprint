@@ -12,6 +12,7 @@ import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 import { buildLegPath, splitPathByGaps, mergeGaps } from '@/core/geometry/leg-path';
 import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
+import { visibleArcs } from '@/core/geometry/circle-gaps';
 import { overprintDims, OVERPRINT_PURPLE, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
@@ -192,6 +193,8 @@ export function renderOverprint(
     } else if (type === 'mapExchange' || type === 'mapFlip') {
       // Inverted triangle — rotated π from start direction
       drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
+    } else if (control.circleGaps && control.circleGaps.length > 0) {
+      drawGappedCircle(page, pt, circleRadius, lineWidth, control.circleGaps);
     } else {
       page.drawCircle({
         x: pt.x,
@@ -304,6 +307,32 @@ function drawCrossingPoint(
     thickness: lineWidth,
     color: PURPLE,
   });
+}
+
+/**
+ * Draw a control circle with gaps as sampled-arc polylines. PDF space is y-up, the
+ * same convention as stored gap angles (CCW from +X), so points map directly. Uses
+ * the same drawSvgPath polyline path as legs, guaranteeing matching orientation.
+ */
+function drawGappedCircle(
+  page: PDFPage,
+  center: MapPoint,
+  radius: number,
+  lineWidth: number,
+  gaps: import('@/core/models/types').CircleGap[],
+): void {
+  const STEP_DEG = 2;
+  for (const arc of visibleArcs(gaps)) {
+    const steps = Math.max(1, Math.ceil(arc.sweepDeg / STEP_DEG));
+    const pts: MapPoint[] = [];
+    for (let s = 0; s <= steps; s++) {
+      const deg = arc.startDeg + (arc.sweepDeg * s) / steps;
+      const r = (deg * Math.PI) / 180;
+      pts.push({ x: center.x + radius * Math.cos(r), y: center.y + radius * Math.sin(r) });
+    }
+    const svgPath = pts.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    page.drawSvgPath(svgPath, { borderColor: PURPLE, borderWidth: lineWidth });
+  }
 }
 
 /**
