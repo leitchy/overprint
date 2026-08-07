@@ -6,7 +6,7 @@
  * Handles selection, dragging, and placement of new items in addSpecialItem mode.
  */
 import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { Layer, Line, Rect, Text, Group, Circle, Image as KonvaImage } from 'react-konva';
+import { Layer, Line, Rect, Text, Group, Circle, Shape, Image as KonvaImage } from 'react-konva';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { useEventStore } from '@/stores/event-store';
@@ -18,16 +18,18 @@ import type {
   LineItem,
   RectangleItem,
   WhiteOutItem,
+  OutOfBoundsAreaItem,
   DescriptionBoxItem,
   ImageItem,
   IofSymbolItem,
   MapPoint,
 } from '@/core/models/types';
+import { crossHatchSegments } from '@/core/geometry/hatch';
 import { useDescriptionCanvas } from '@/core/descriptions/use-description-canvas';
 import { computeGridLayout } from '@/core/descriptions/canvas-description-renderer';
 import { generateSpecialItemId } from '@/utils/id';
 import { isEditableTarget } from '@/utils/dom';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
 import { mmToMapPixels } from '@/core/geometry/overprint-dimensions';
 
 const SELECTION_DASH = [6, 4];
@@ -480,6 +482,100 @@ const WhiteOutItemShape = memo(function WhiteOutItemShape({
   );
 });
 
+/**
+ * Out-of-bounds area (IOF 709): a polygon filled with a purple 45°+135°
+ * cross-hatch (PurplePen appearance). Vertices are relative to item.position.
+ * Whole-item drag moves the group; per-vertex handles reshape it; double-click a
+ * handle removes that vertex (min 3).
+ */
+const OutOfBoundsAreaShape = memo(function OutOfBoundsAreaShape({
+  item,
+  isSelected,
+  draggable,
+  onSelect,
+  onDragEnd,
+  onUpdate,
+}: ItemProps<OutOfBoundsAreaItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+  const dpi = useEventStore((s) => s.event?.mapFile?.dpi ?? 150);
+  const color = item.color ?? OVERPRINT_PURPLE;
+  const verts = item.vertices;
+  const spacing = mmToMapPixels(OOB_HATCH_SPACING_MM, dpi);
+  const hatchW = mmToMapPixels(OOB_HATCH_WIDTH_MM, dpi) * SCREEN_LINE_MULTIPLIER;
+
+  return (
+    <Group
+      x={item.position.x}
+      y={item.position.y}
+      draggable={draggable}
+      onClick={(e: KonvaEventObject<MouseEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onTap={(e: KonvaEventObject<TouchEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+        if (e.target !== e.currentTarget) return;
+        onDragEnd({ x: e.target.x(), y: e.target.y() });
+      }}
+    >
+      <Shape
+        stroke={color}
+        strokeWidth={hatchW}
+        listening={true}
+        sceneFunc={(ctx, shape) => {
+          ctx.beginPath();
+          for (const s of crossHatchSegments(verts, spacing)) {
+            ctx.moveTo(s.x1, s.y1);
+            ctx.lineTo(s.x2, s.y2);
+          }
+          ctx.strokeShape(shape);
+        }}
+        hitFunc={(ctx, shape) => {
+          // Whole polygon interior is the hit region (for select/drag).
+          ctx.beginPath();
+          verts.forEach((v, i) => (i === 0 ? ctx.moveTo(v.x, v.y) : ctx.lineTo(v.x, v.y)));
+          ctx.closePath();
+          ctx.fillStrokeShape(shape);
+        }}
+      />
+      {/* Boundary outline (dashed while selected, faint otherwise) for editability */}
+      <Line
+        points={verts.flatMap((v) => [v.x, v.y])}
+        closed
+        stroke={isSelected ? SELECTION_COLOR : color}
+        strokeWidth={isSelected ? 1.5 : 1}
+        opacity={isSelected ? 1 : 0.4}
+        dash={isSelected ? SELECTION_DASH : undefined}
+        listening={false}
+      />
+      {isSelected && verts.map((v, i) => (
+        <Circle
+          key={i}
+          x={v.x}
+          y={v.y}
+          radius={6}
+          fill={SELECTION_COLOR}
+          stroke={color}
+          strokeWidth={1}
+          draggable={!!onUpdate}
+          onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+          onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+            e.cancelBubble = true;
+            const next = verts.map((vv, j) => (j === i ? { x: e.target.x(), y: e.target.y() } : vv));
+            onUpdate?.({ vertices: next } as Partial<SpecialItem>);
+          }}
+          onDblClick={(e: KonvaEventObject<MouseEvent>) => {
+            e.cancelBubble = true;
+            if (verts.length > 3) onUpdate?.({ vertices: verts.filter((_, j) => j !== i) } as Partial<SpecialItem>);
+          }}
+          onDblTap={(e: KonvaEventObject<TouchEvent>) => {
+            e.cancelBubble = true;
+            if (verts.length > 3) onUpdate?.({ vertices: verts.filter((_, j) => j !== i) } as Partial<SpecialItem>);
+          }}
+          onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'move'; }}
+          onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+        />
+      ))}
+    </Group>
+  );
+});
+
 /** Sub-component to render a single description column using its own useDescriptionCanvas hook. */
 const DescriptionColumnImage = memo(function DescriptionColumnImage({
   course, controls, mapScale, mapDpi, gridWidthPx, appearance, lang, x, y, canvasScale,
@@ -886,7 +982,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
 // ---------------------------------------------------------------------------
 
 interface DrawPreviewProps {
-  itemType: 'line' | 'rectangle' | 'whiteOut' | 'descriptionBox';
+  itemType: 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'descriptionBox';
   start: MapPoint;
   end: MapPoint;
   naturalHeight?: number;
@@ -920,6 +1016,22 @@ function DrawPreview({ itemType, start, end, naturalHeight }: DrawPreviewProps) 
         fill="rgba(255,255,255,0.85)"
         stroke="#999999"
         strokeWidth={1}
+        dash={[6, 4]}
+        listening={false}
+      />
+    );
+  }
+
+  if (itemType === 'outOfBoundsArea') {
+    return (
+      <Rect
+        x={minX}
+        y={minY}
+        width={absW}
+        height={absH}
+        fill="rgba(187,41,187,0.18)"
+        stroke={OVERPRINT_PURPLE}
+        strokeWidth={DEFAULT_LINE_WIDTH}
         dash={[6, 4]}
         listening={false}
       />
@@ -1055,7 +1167,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     const pos = stagePointerPosition(e);
     if (!pos) return;
 
-    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') {
+    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'descriptionBox') {
       setDrawState({ start: pos, current: pos });
     }
   };
@@ -1099,6 +1211,16 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
           type: 'whiteOut',
           position: drawState.start,
           endPosition: end,
+        });
+      } else if (addItemType === 'outOfBoundsArea') {
+        // Drag defines a quad; vertices are relative to the start (position).
+        const w = end.x - drawState.start.x;
+        const h = end.y - drawState.start.y;
+        addSpecialItem({
+          id: generateSpecialItemId(),
+          type: 'outOfBoundsArea',
+          position: drawState.start,
+          vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }],
         });
       } else if (addItemType === 'descriptionBox') {
         addSpecialItem({
@@ -1227,6 +1349,16 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                 onUpdate={(updates) => updateSpecialItem(item.id, updates)}
               />
             );
+          case 'outOfBoundsArea':
+            return (
+              <OutOfBoundsAreaShape
+                key={item.id}
+                item={item}
+                {...commonProps}
+                onDragEnd={(pos) => updateSpecialItem(item.id, { position: pos } as Partial<SpecialItem>)}
+                onUpdate={(updates) => updateSpecialItem(item.id, updates)}
+              />
+            );
           case 'descriptionBox':
             return (
               <DescriptionBoxItemShape
@@ -1273,7 +1405,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       })}
 
       {/* Draw preview for line/rectangle while dragging */}
-      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') && (
+      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'descriptionBox') && (
         <DrawPreview
           itemType={addItemType}
           start={drawState.start}

@@ -206,6 +206,15 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
               position: { x: pos.x, y: pos.y },
               endPosition: { x: pos.x + mmToPixels(20), y: pos.y + mmToPixels(10) },
             });
+          } else if (itemType === 'outOfBoundsArea') {
+            // Place a default 20x20mm square out-of-bounds area (vertices relative).
+            const s = mmToPixels(20);
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: 'outOfBoundsArea',
+              position: { x: pos.x, y: pos.y },
+              vertices: [{ x: 0, y: 0 }, { x: s, y: 0 }, { x: s, y: s }, { x: 0, y: s }],
+            });
           } else if (itemType === 'descriptionBox') {
             // Place a default-sized description box (60x40mm in map coords)
             // Auto-bind to the active course
@@ -219,7 +228,7 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
             });
           } else {
             // IOF symbols — click to place
-            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'whiteOut' | 'descriptionBox' | 'image'>;
+            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'descriptionBox' | 'image'>;
             store.addSpecialItem({
               id: generateSpecialItemId(),
               type: symType,

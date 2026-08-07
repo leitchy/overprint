@@ -10,8 +10,9 @@ import { renderOverprint } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
+import { crossHatchSegments } from '@/core/geometry/hatch';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -548,6 +549,24 @@ async function renderSpecialItems(
           borderColor: itemColor,
           borderWidth: borderThickness,
         });
+        break;
+      }
+
+      case 'outOfBoundsArea': {
+        // Cross-hatch (45°+135°) fill, no boundary — vertices are relative to position.
+        const poly = item.vertices.map((v) =>
+          toPdf({ x: item.position.x + v.x, y: item.position.y + v.y }),
+        );
+        const spacingPt = mmToPdfPoints(OOB_HATCH_SPACING_MM);
+        const hatchPt = mmToPdfPoints(OOB_HATCH_WIDTH_MM);
+        for (const s of crossHatchSegments(poly, spacingPt)) {
+          page.drawLine({
+            start: { x: s.x1, y: s.y1 },
+            end: { x: s.x2, y: s.y2 },
+            thickness: hatchPt,
+            color: itemColor,
+          });
+        }
         break;
       }
 

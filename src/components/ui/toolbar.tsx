@@ -563,6 +563,10 @@ export function Toolbar() {
       label: t('addWhiteOut'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'whiteOut' as SpecialItemType }),
     },
+    {
+      label: t('addOutOfBoundsArea'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'outOfBoundsArea' as SpecialItemType }),
+    },
     { separator: true },
     {
       label: t('outOfBounds'),
