@@ -754,6 +754,7 @@ async function renderAutoDescriptionBox(
     scale: eventSettings.printScale,
     dpi: 96,
     isAllControls,
+    isScore: course.courseType === 'score',
     partLabel,
     headerFontSize: DESC_HEADER_FONT_SIZE,
   });
