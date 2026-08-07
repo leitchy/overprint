@@ -48,6 +48,13 @@ export const NUMBER_DIGIT_HEIGHT_TO_EM = 1.39;
  *  (matches PurplePen's 30° default). */
 export const DEFAULT_CIRCLE_GAP_DEG = 30;
 
+/** Nominal full size (mm) of special-item IOF symbols (out-of-bounds, first aid,
+ *  etc.) on the printed map. Sized in mm — not fixed pixels — so a symbol is the
+ *  same physical size regardless of the map's DPI or print scale. */
+export const IOF_SPECIAL_SYMBOL_MM = 6.0;
+/** Stroke width (mm) for special-item IOF symbols (IOF overprint line ≈ 0.35 mm). */
+export const IOF_SPECIAL_SYMBOL_LINE_MM = 0.35;
+
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 

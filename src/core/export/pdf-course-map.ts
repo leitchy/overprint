@@ -11,7 +11,7 @@ import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { calculateCourseLength } from '@/core/geometry/course-length';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { OVERPRINT_PURPLE } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -481,7 +481,9 @@ async function renderSpecialItems(
   font: PDFFont,
   effectivePPP: number,
 ): Promise<void> {
-  const IOF_SYMBOL_PT = 12; // pt half-size for IOF symbols in PDF
+  // Scale-aware: symbols are a fixed physical size (mm) on the printed page.
+  const IOF_SYMBOL_PT = mmToPdfPoints(IOF_SPECIAL_SYMBOL_MM) / 2; // half-size in pt
+  const symLine = mmToPdfPoints(IOF_SPECIAL_SYMBOL_LINE_MM); // stroke width in pt
 
   for (const item of specialItems) {
     // Filter by course
@@ -550,14 +552,14 @@ async function renderSpecialItems(
         page.drawRectangle({
           x: pos.x - s, y: pos.y - s,
           width: s * 2, height: s * 2,
-          borderColor: itemColor, borderWidth: 1,
+          borderColor: itemColor, borderWidth: symLine,
         });
         for (let i = -2; i <= 2; i++) {
           const ox = i * (s / 2);
           page.drawLine({
             start: { x: pos.x + ox - s, y: pos.y - s },
             end: { x: pos.x + ox + s, y: pos.y + s },
-            thickness: 0.7,
+            thickness: symLine * 0.7,
             color: itemColor,
           });
         }
@@ -566,35 +568,35 @@ async function renderSpecialItems(
 
       case 'dangerousArea': {
         const s = IOF_SYMBOL_PT;
-        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
-        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: 1, color: itemColor });
+        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: symLine, color: itemColor });
         break;
       }
 
       case 'waterLocation': {
         // Circle with wave inside
         const s = IOF_SYMBOL_PT;
-        page.drawCircle({ x: pos.x, y: pos.y, size: s, borderColor: itemColor, borderWidth: 1 });
+        page.drawCircle({ x: pos.x, y: pos.y, size: s, borderColor: itemColor, borderWidth: symLine });
         page.drawLine({
           start: { x: pos.x - s * 0.5, y: pos.y },
           end: { x: pos.x + s * 0.5, y: pos.y },
-          thickness: 1, color: itemColor,
+          thickness: symLine, color: itemColor,
         });
         break;
       }
 
       case 'firstAid': {
         const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x, y: pos.y - s }, end: { x: pos.x, y: pos.y + s }, thickness: 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x - s, y: pos.y }, end: { x: pos.x + s, y: pos.y }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x, y: pos.y - s }, end: { x: pos.x, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s, y: pos.y }, end: { x: pos.x + s, y: pos.y }, thickness: symLine * 2, color: itemColor });
         break;
       }
 
       case 'forbiddenRoute': {
         const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
         break;
       }
 

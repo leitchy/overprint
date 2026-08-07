@@ -27,14 +27,14 @@ import { useDescriptionCanvas } from '@/core/descriptions/use-description-canvas
 import { computeGridLayout } from '@/core/descriptions/canvas-description-renderer';
 import { generateSpecialItemId } from '@/utils/id';
 import { isEditableTarget } from '@/utils/dom';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
+import { mmToMapPixels } from '@/core/geometry/overprint-dimensions';
 
 const SELECTION_DASH = [6, 4];
 const SELECTION_COLOR = '#FFD700';
 const NATURAL_HEIGHT_COLOR = '#4CAF50';
 const NATURAL_HEIGHT_SNAP = 8;
 const DEFAULT_LINE_WIDTH = 2;
-const IOF_SYMBOL_SIZE = 20; // px radius / half-size for IOF symbols
 
 // ---------------------------------------------------------------------------
 // IOF symbol renderers (inline Konva shapes)
@@ -43,11 +43,13 @@ const IOF_SYMBOL_SIZE = 20; // px radius / half-size for IOF symbols
 interface IofSymbolShapeProps {
   color: string;
   lineWidth: number;
+  /** Half-size of the symbol in map pixels (scale-aware, derived from mm + DPI). */
+  size: number;
 }
 
 /** Out of bounds: hatched square */
-function OutOfBoundsShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function OutOfBoundsShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Rect x={-s} y={-s} width={s * 2} height={s * 2} stroke={color} strokeWidth={lineWidth} fill="transparent" listening={false} />
@@ -66,8 +68,8 @@ function OutOfBoundsShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Dangerous area: triangle with ! */
-function DangerousAreaShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function DangerousAreaShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Line
@@ -84,8 +86,8 @@ function DangerousAreaShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Water location: circle with wave */
-function WaterLocationShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function WaterLocationShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Circle radius={s} stroke={color} strokeWidth={lineWidth} fill="transparent" listening={false} />
@@ -101,8 +103,8 @@ function WaterLocationShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** First aid: cross (+) shape */
-function FirstAidShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE * 0.7;
+function FirstAidShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size * 0.7;
   return (
     <>
       <Line points={[0, -s, 0, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
@@ -112,8 +114,8 @@ function FirstAidShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Forbidden route: X shape */
-function ForbiddenRouteShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE * 0.7;
+function ForbiddenRouteShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size * 0.7;
   return (
     <>
       <Line points={[-s, -s, s, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
@@ -814,16 +816,19 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
   onSelect,
   onDragEnd,
 }: ItemProps<IofSymbolItem>) {
+  const dpi = useEventStore((s) => s.event?.mapFile?.dpi ?? 150);
   const color = item.color ?? OVERPRINT_PURPLE;
-  const lineWidth = DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER;
+  // Scale-aware: symbol size and stroke are fixed mm, converted to map pixels.
+  const size = mmToMapPixels(IOF_SPECIAL_SYMBOL_MM, dpi) / 2;
+  const lineWidth = mmToMapPixels(IOF_SPECIAL_SYMBOL_LINE_MM, dpi) * SCREEN_LINE_MULTIPLIER;
 
   const symbolShape = (() => {
     switch (item.type) {
-      case 'outOfBounds': return <OutOfBoundsShape color={color} lineWidth={lineWidth} />;
-      case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} />;
-      case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} />;
-      case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} />;
-      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} />;
+      case 'outOfBounds': return <OutOfBoundsShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} size={size} />;
     }
   })();
 
@@ -840,7 +845,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
     >
       {isSelected && (
         <Circle
-          radius={IOF_SYMBOL_SIZE + 6}
+          radius={size + lineWidth * 2}
           stroke={SELECTION_COLOR}
           strokeWidth={1.5}
           dash={SELECTION_DASH}
@@ -851,10 +856,10 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
       {symbolShape}
       {/* Hit target */}
       <Rect
-        x={-IOF_SYMBOL_SIZE}
-        y={-IOF_SYMBOL_SIZE}
-        width={IOF_SYMBOL_SIZE * 2}
-        height={IOF_SYMBOL_SIZE * 2}
+        x={-size}
+        y={-size}
+        width={size * 2}
+        height={size * 2}
         fill="#000"
         opacity={0.001}
       />
