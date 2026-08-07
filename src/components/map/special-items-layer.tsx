@@ -115,13 +115,15 @@ function FirstAidShape({ color, lineWidth, size }: IofSymbolShapeProps) {
   );
 }
 
-/** Forbidden route: X shape */
-function ForbiddenRouteShape({ color, lineWidth, size }: IofSymbolShapeProps) {
-  const s = size * 0.7;
+/** Forbidden route / crossing: an X (PurplePen ForbiddenCourseObj — ±1.06 mm
+ *  arms, 0.35 mm line). Sized in mm via DPI. */
+function ForbiddenRouteShape({ color, dpi }: { color: string; dpi: number }) {
+  const arm = mmToMapPixels(1.06, dpi);
+  const w = mmToMapPixels(0.35, dpi) * SCREEN_LINE_MULTIPLIER;
   return (
     <>
-      <Line points={[-s, -s, s, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
-      <Line points={[s, -s, -s, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
+      <Line points={[-arm, -arm, arm, arm]} stroke={color} strokeWidth={w} lineCap="butt" listening={false} />
+      <Line points={[arm, -arm, -arm, arm]} stroke={color} strokeWidth={w} lineCap="butt" listening={false} />
     </>
   );
 }
@@ -955,7 +957,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
       case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} size={size} />;
       case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} size={size} />;
       case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} size={size} />;
-      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} dpi={dpi} />;
       case 'mapIssue': return <MapIssueShape color={color} dpi={dpi} />;
     }
   })();

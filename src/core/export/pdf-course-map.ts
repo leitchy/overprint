@@ -618,9 +618,11 @@ async function renderSpecialItems(
       }
 
       case 'forbiddenRoute': {
-        const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        // PurplePen: ±1.06 mm arms, 0.35 mm line (a point cross).
+        const s = mmToPdfPoints(1.06);
+        const w = mmToPdfPoints(0.35);
+        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: w, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: w, color: itemColor });
         break;
       }
 
