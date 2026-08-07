@@ -549,6 +549,10 @@ export function Toolbar() {
       label: t('addRectangle'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'rectangle' as SpecialItemType }),
     },
+    {
+      label: t('addWhiteOut'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'whiteOut' as SpecialItemType }),
+    },
     { separator: true },
     {
       label: t('outOfBounds'),

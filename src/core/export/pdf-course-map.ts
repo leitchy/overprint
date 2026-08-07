@@ -169,6 +169,9 @@ export async function generateCoursePdf(
           drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
         }
 
+        // White-out masks — below the overprint
+        drawWhiteOuts(page, event.specialItems, 'all-controls' as CourseId, toPdf);
+
         // Render all controls as circles with codes (score course = no legs)
         renderOverprint(
           { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
@@ -270,6 +273,9 @@ export async function generateCoursePdf(
         } else if (embeddedMap) {
           drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
         }
+
+        // White-out masks — below the overprint
+        drawWhiteOuts(page, event.specialItems, course.id, toPdf);
 
         // Draw vector overprint (filtered to part if multi-part)
         renderOverprint(
@@ -437,6 +443,31 @@ function drawEmbeddedPdfPage(
  * Items with no courseIds restriction are always rendered.
  * Items with courseIds are only rendered if courseId is in the list.
  */
+/**
+ * Draw white-out masks as opaque rectangles. Called AFTER the base map and
+ * BEFORE the overprint so masks hide map detail but not course symbols.
+ */
+function drawWhiteOuts(
+  page: PDFPage,
+  specialItems: SpecialItem[],
+  courseId: CourseId,
+  toPdf: (point: MapPoint) => MapPoint,
+): void {
+  for (const item of specialItems) {
+    if (item.type !== 'whiteOut') continue;
+    if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) continue;
+    const p0 = toPdf(item.position);
+    const p1 = toPdf(item.endPosition);
+    page.drawRectangle({
+      x: Math.min(p0.x, p1.x),
+      y: Math.min(p0.y, p1.y),
+      width: Math.abs(p1.x - p0.x),
+      height: Math.abs(p1.y - p0.y),
+      color: hexToRgb(item.color ?? '#FFFFFF'),
+    });
+  }
+}
+
 async function renderSpecialItems(
   page: PDFPage,
   pdfDoc: PDFDocument,
@@ -463,6 +494,9 @@ async function renderSpecialItems(
     if (item.type === 'descriptionBox') {
       continue; // All desc boxes skipped — auto-generation handles them
     }
+
+    // White-outs are drawn below the overprint by drawWhiteOuts(), not here.
+    if (item.type === 'whiteOut') continue;
 
     const colorHex = item.color ?? OVERPRINT_PURPLE;
     const itemColor = hexToRgb(colorHex);

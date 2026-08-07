@@ -17,6 +17,7 @@ import type {
   TextItem,
   LineItem,
   RectangleItem,
+  WhiteOutItem,
   DescriptionBoxItem,
   ImageItem,
   IofSymbolItem,
@@ -353,6 +354,101 @@ const RectangleItemShape = memo(function RectangleItemShape({
             onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
           />
           {/* EndPosition corner */}
+          <Circle
+            x={w} y={h} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(0, 0, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: w, y: h });
+              onUpdate?.({ endPosition: newEnd } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
+        </>
+      )}
+    </Group>
+  );
+});
+
+/**
+ * White-out interaction shape (top layer). The opaque white fill is drawn below
+ * the course by WhiteOutFillLayer; here we render a transparent hit area with a
+ * faint dashed border (so the extent is discoverable) plus resize handles.
+ */
+const WhiteOutItemShape = memo(function WhiteOutItemShape({
+  item,
+  isSelected,
+  draggable,
+  onSelect,
+  onDragEnd,
+  onUpdate,
+}: ItemProps<WhiteOutItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+  const w = item.endPosition.x - item.position.x;
+  const h = item.endPosition.y - item.position.y;
+  const minX = Math.min(0, w);
+  const minY = Math.min(0, h);
+  const absW = Math.abs(w);
+  const absH = Math.abs(h);
+
+  const rectRef = useRef<Konva.Rect>(null);
+  const updateRectVisuals = useCallback((tlX: number, tlY: number, brX: number, brY: number) => {
+    rectRef.current?.setAttrs({
+      x: Math.min(tlX, brX), y: Math.min(tlY, brY),
+      width: Math.abs(brX - tlX), height: Math.abs(brY - tlY),
+    });
+    rectRef.current?.getLayer()?.batchDraw();
+  }, []);
+
+  return (
+    <Group
+      x={item.position.x}
+      y={item.position.y}
+      draggable={draggable}
+      onClick={(e: KonvaEventObject<MouseEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onTap={(e: KonvaEventObject<TouchEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+        onDragEnd({ x: e.target.x(), y: e.target.y() });
+      }}
+    >
+      {/* Transparent hit area with a faint dashed outline so the mask is selectable. */}
+      <Rect
+        ref={rectRef}
+        x={minX}
+        y={minY}
+        width={absW}
+        height={absH}
+        fill="transparent"
+        stroke={isSelected ? SELECTION_COLOR : '#999999'}
+        strokeWidth={1}
+        dash={SELECTION_DASH}
+        listening={true}
+      />
+      {isSelected && (
+        <>
+          <Circle
+            x={0} y={0} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(e.target.x(), e.target.y(), w, h);
+            }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: 0, y: 0 });
+              onUpdate?.({ position: newPos } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
           <Circle
             x={w} y={h} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
@@ -771,7 +867,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
 // ---------------------------------------------------------------------------
 
 interface DrawPreviewProps {
-  itemType: 'line' | 'rectangle' | 'descriptionBox';
+  itemType: 'line' | 'rectangle' | 'whiteOut' | 'descriptionBox';
   start: MapPoint;
   end: MapPoint;
   naturalHeight?: number;
@@ -794,6 +890,22 @@ function DrawPreview({ itemType, start, end, naturalHeight }: DrawPreviewProps) 
   const minY = Math.min(start.y, end.y);
   const absW = Math.abs(end.x - start.x);
   const absH = Math.abs(end.y - start.y);
+
+  if (itemType === 'whiteOut') {
+    return (
+      <Rect
+        x={minX}
+        y={minY}
+        width={absW}
+        height={absH}
+        fill="rgba(255,255,255,0.85)"
+        stroke="#999999"
+        strokeWidth={1}
+        dash={[6, 4]}
+        listening={false}
+      />
+    );
+  }
 
   if (itemType === 'descriptionBox') {
     const isNearNatural = naturalHeight != null && Math.abs(absH - naturalHeight) < NATURAL_HEIGHT_SNAP;
@@ -923,7 +1035,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     const pos = stagePointerPosition(e);
     if (!pos) return;
 
-    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'descriptionBox') {
+    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') {
       setDrawState({ start: pos, current: pos });
     }
   };
@@ -957,6 +1069,13 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
         addSpecialItem({
           id: generateSpecialItemId(),
           type: 'rectangle',
+          position: drawState.start,
+          endPosition: end,
+        });
+      } else if (addItemType === 'whiteOut') {
+        addSpecialItem({
+          id: generateSpecialItemId(),
+          type: 'whiteOut',
           position: drawState.start,
           endPosition: end,
         });
@@ -1070,6 +1189,23 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                 onUpdate={(updates) => updateSpecialItem(item.id, updates)}
               />
             );
+          case 'whiteOut':
+            return (
+              <WhiteOutItemShape
+                key={item.id}
+                item={item}
+                {...commonProps}
+                onDragEnd={(pos) => {
+                  const ww = item.endPosition.x - item.position.x;
+                  const wh = item.endPosition.y - item.position.y;
+                  updateSpecialItem(item.id, {
+                    position: pos,
+                    endPosition: { x: pos.x + ww, y: pos.y + wh },
+                  } as Partial<SpecialItem>);
+                }}
+                onUpdate={(updates) => updateSpecialItem(item.id, updates)}
+              />
+            );
           case 'descriptionBox':
             return (
               <DescriptionBoxItemShape
@@ -1116,7 +1252,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       })}
 
       {/* Draw preview for line/rectangle while dragging */}
-      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'descriptionBox') && (
+      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') && (
         <DrawPreview
           itemType={addItemType}
           start={drawState.start}
