@@ -149,7 +149,7 @@ export async function generateDescriptionSheetPdf(
   // ---------------------------------------------------------------------------
 
   const layout = computePageLayout(event.settings.pageSetup);
-  const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+  let page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
 
   const cellPt = mmToPdfPoints(CELL_SIZE_MM);
   const gridWidth = cellPt * NUM_COLS;
@@ -256,32 +256,30 @@ export async function generateDescriptionSheetPdf(
     currentY = rowY;
   }
 
-  // ---------------------------------------------------------------------------
-  // Header row: course name
-  // ---------------------------------------------------------------------------
-
-  await drawRow([course.name], { headerSpan: true, bold: true, fontSize: HEADER_FONT_SIZE });
-
-  // ---------------------------------------------------------------------------
-  // Secondary title row (e.g. class list)
-  // ---------------------------------------------------------------------------
-
-  if (course.settings.secondaryTitle) {
-    await drawRow([course.settings.secondaryTitle], { headerSpan: true, fontSize: HEADER_FONT_SIZE - 1 });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Info row: length + climb (hidden for score courses — no meaningful length)
-  // ---------------------------------------------------------------------------
-
   const isScore = course.courseType === 'score';
 
-  if (!isScore) {
-    const climbValue = course.climb ?? course.settings.climb;
-    const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
-    const infoText = `${Math.round(lengthM)} m${climbText}`;
-    await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
+  // ---------------------------------------------------------------------------
+  // Header rows (course name, optional secondary title, length/climb).
+  // Repeated at the top of every page when the sheet paginates.
+  // ---------------------------------------------------------------------------
+
+  // Narrowed alias so the closure sees a defined Course (flow narrowing of the
+  // guarded `course` is not carried into nested functions).
+  const hdrCourse: Course = course;
+  async function drawHeaders(): Promise<void> {
+    await drawRow([hdrCourse.name], { headerSpan: true, bold: true, fontSize: HEADER_FONT_SIZE });
+    if (hdrCourse.settings.secondaryTitle) {
+      await drawRow([hdrCourse.settings.secondaryTitle], { headerSpan: true, fontSize: HEADER_FONT_SIZE - 1 });
+    }
+    if (!isScore) {
+      const climbValue = hdrCourse.climb ?? hdrCourse.settings.climb;
+      const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
+      const infoText = `${Math.round(lengthM)} m${climbText}`;
+      await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
+    }
   }
+
+  await drawHeaders();
 
   // ---------------------------------------------------------------------------
   // Control rows (score courses sorted by code number)
@@ -292,12 +290,38 @@ export async function generateDescriptionSheetPdf(
     : course.controls;
 
   let seqNumber = 0;
-  const gridTopY = currentY; // top of the control-row block (for the outer frame)
+  let gridTopY = currentY; // top of the current page's control-row block (outer frame)
   let controlRowIndex = 0;
+  let rowsOnPage = 0;
+
+  // Draw the heavy outer frame around the control rows on the current page.
+  const closeFrame = (): void => {
+    if (rowsOnPage > 0) {
+      page.drawRectangle({
+        x: startX,
+        y: currentY,
+        width: gridWidth,
+        height: gridTopY - currentY,
+        borderColor: BORDER_COLOR,
+        borderWidth: BORDER_WIDTH * 3,
+      });
+    }
+  };
 
   for (const cc of displayControls) {
     const ctrl: Control | undefined = event.controls[cc.controlId as ControlId];
     if (!ctrl) continue;
+
+    // Paginate: if the next row would fall below the bottom margin, close the
+    // current page's frame, start a new page, and repeat the header rows.
+    if (currentY - cellPt < layout.marginBottom) {
+      closeFrame();
+      page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+      currentY = startY;
+      await drawHeaders();
+      gridTopY = currentY;
+      rowsOnPage = 0;
+    }
 
     const isStart = cc.type === 'start';
     const isFinish = cc.type === 'finish';
@@ -337,6 +361,7 @@ export async function generateDescriptionSheetPdf(
     ];
 
     await drawRow(cells);
+    rowsOnPage += 1;
 
     // IOF convention: a heavier horizontal line after every 3rd control row.
     controlRowIndex += 1;
@@ -350,17 +375,8 @@ export async function generateDescriptionSheetPdf(
     }
   }
 
-  // Thicker outer frame around the whole control-row block.
-  if (controlRowIndex > 0) {
-    page.drawRectangle({
-      x: startX,
-      y: currentY,
-      width: gridWidth,
-      height: gridTopY - currentY,
-      borderColor: BORDER_COLOR,
-      borderWidth: BORDER_WIDTH * 3,
-    });
-  }
+  // Thicker outer frame around the control-row block on the final page.
+  closeFrame();
 
   // ---------------------------------------------------------------------------
   // Serialise
