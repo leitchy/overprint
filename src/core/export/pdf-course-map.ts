@@ -9,7 +9,7 @@ import { computePageLayout, computeCourseBounds, computeMultiPageViewports, mmTo
 import { renderOverprint } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
-import { calculateCourseLength } from '@/core/geometry/course-length';
+import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
 import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
 
@@ -743,98 +743,15 @@ async function renderAutoDescriptionBox(
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
   const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
-  // --- Step 1: Build explicit row list ---
-  type DescRow =
-    | { kind: 'header'; text: string; fontSize: number }
-    | { kind: 'splitInfo'; sections: string[] }
-    | { kind: 'directive'; leftSymbol: string; distanceText: string }
-    | { kind: 'control'; cc: CourseControl; seqNumber: number | null };
-
-  const secondaryTitle = course.settings.secondaryTitle;
-  const dpi = 96;
-  const scale = eventSettings.printScale;
-  const courseLabel = partLabel ? `${course.name} ${partLabel}` : course.name;
-
-  // Distance helper (straight-line, map pixels → metres → round to 10m)
-  function distBetween(idx1: number, idx2: number): number {
-    const c1 = controls[course.controls[idx1]?.controlId as ControlId];
-    const c2 = controls[course.controls[idx2]?.controlId as ControlId];
-    if (!c1 || !c2) return 0;
-    const dx = c2.position.x - c1.position.x;
-    const dy = c2.position.y - c1.position.y;
-    const distPx = Math.sqrt(dx * dx + dy * dy);
-    const metres = (distPx / dpi) * 25.4 * (scale / 1000);
-    return Math.round(metres / 10) * 10; // round to nearest 10m
-  }
-
-  // Build header rows
-  const headerRowList: DescRow[] = [];
-  headerRowList.push({ kind: 'header', text: eventName, fontSize: DESC_HEADER_FONT_SIZE });
-
-  if (secondaryTitle && !isAllControls) {
-    headerRowList.push({ kind: 'header', text: secondaryTitle, fontSize: DESC_HEADER_FONT_SIZE - 1 });
-  }
-
-  if (isAllControls) {
-    const numNormal = course.controls.filter((cc) =>
-      cc.type !== 'start' && cc.type !== 'finish',
-    ).length;
-    headerRowList.push({ kind: 'splitInfo', sections: ['All controls', `${numNormal} controls`] });
-  } else {
-    const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
-    const lengthKm = (lengthM / 1000).toFixed(1) + ' km';
-    const climbValue = course.climb ?? course.settings.climb;
-    const climbText = climbValue !== undefined && climbValue >= 0
-      ? `${Math.round(climbValue / 5) * 5} m` : '';
-    const sections = climbText ? [courseLabel, lengthKm, climbText] : [courseLabel, lengthKm];
-    headerRowList.push({ kind: 'splitInfo', sections });
-  }
-
-  // Start directive
-  const hasStart = course.controls.some((cc) => cc.type === 'start');
-  if (hasStart) {
-    const startIdx = course.controls.findIndex((cc) => cc.type === 'start');
-    const firstCtrlIdx = course.controls.findIndex((cc, i) =>
-      i > startIdx && cc.type !== 'start' && cc.type !== 'crossingPoint',
-    );
-    const startDist = (startIdx >= 0 && firstCtrlIdx > startIdx)
-      ? distBetween(startIdx, firstCtrlIdx) : 0;
-    headerRowList.push({ kind: 'directive', leftSymbol: 'start', distanceText: startDist > 0 ? `${startDist} m` : '' });
-  }
-
-  // Build body rows (controls + exchange directives + finish)
-  const bodyRowList: DescRow[] = [];
-  let seqNumber = 0;
-  for (const cc of course.controls) {
-    const isStart = cc.type === 'start';
-    const isFinish = cc.type === 'finish';
-    const isExchange = cc.type === 'mapExchange' || cc.type === 'mapFlip';
-
-    let seq: number | null = null;
-    if (!isStart && !isFinish && !isAllControls) {
-      seqNumber++;
-      seq = seqNumber;
-    }
-
-    bodyRowList.push({ kind: 'control', cc, seqNumber: seq });
-
-    if (isExchange) {
-      bodyRowList.push({ kind: 'directive', leftSymbol: 'exchange', distanceText: '' });
-    }
-  }
-
-  // Finish directive
-  const hasFinish = course.controls.some((cc) => cc.type === 'finish');
-  if (hasFinish) {
-    const finishIdx = course.controls.findIndex((cc) => cc.type === 'finish');
-    const lastCtrlIdx = course.controls.length - 1 -
-      [...course.controls].reverse().findIndex((cc) =>
-        cc.type !== 'finish' && cc.type !== 'crossingPoint',
-      );
-    const finishDist = (lastCtrlIdx >= 0 && finishIdx > lastCtrlIdx)
-      ? distBetween(lastCtrlIdx, finishIdx) : 0;
-    bodyRowList.push({ kind: 'directive', leftSymbol: 'finish', distanceText: finishDist > 0 ? `${finishDist} m` : '' });
-  }
+  // --- Step 1: Build explicit row list (shared builder — see desc-rows.ts) ---
+  const { headerRows: headerRowList, bodyRows: bodyRowList } = buildDescRows(course, controls, {
+    eventName,
+    scale: eventSettings.printScale,
+    dpi: 96,
+    isAllControls,
+    partLabel,
+    headerFontSize: DESC_HEADER_FONT_SIZE,
+  });
 
   // --- Step 2: Sizing (uses row counts, not control counts) ---
   const headerCount = headerRowList.length;

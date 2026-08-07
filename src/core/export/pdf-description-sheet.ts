@@ -15,6 +15,7 @@ import type { Control, Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { formatLengthKm, formatClimb } from '@/core/descriptions/desc-rows';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
@@ -272,9 +273,12 @@ export async function generateDescriptionSheetPdf(
       await drawRow([hdrCourse.settings.secondaryTitle], { headerSpan: true, fontSize: HEADER_FONT_SIZE - 1 });
     }
     if (!isScore) {
-      const climbValue = hdrCourse.climb ?? hdrCourse.settings.climb;
-      const climbText = climbValue !== undefined ? ` / ${climbValue}m climb` : '';
-      const infoText = `${Math.round(lengthM)} m${climbText}`;
+      // Shared formatting (km + 5 m-rounded climb) so the sheet matches the
+      // course-map description box instead of showing raw metres.
+      const climbText = formatClimb(hdrCourse.climb ?? hdrCourse.settings.climb);
+      const infoText = climbText
+        ? `${formatLengthKm(lengthM)}   ${climbText}`
+        : formatLengthKm(lengthM);
       await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
     }
   }
