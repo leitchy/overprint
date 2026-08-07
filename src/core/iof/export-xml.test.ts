@@ -179,3 +179,115 @@ describe('exportIofXml', () => {
     expect(idOccurrences).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// IOF v3 schema conformance (D3)
+// ---------------------------------------------------------------------------
+
+const NS = 'http://www.orienteering.org/datastandard/3.0';
+
+function parse(xml: string): Document {
+  return new DOMParser().parseFromString(xml, 'application/xml');
+}
+
+describe('exportIofXml — IOF v3 conformance', () => {
+  it('gives map-control definitions a `type` attribute, not a <Type> child', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    const rcd = doc.getElementsByTagNameNS(NS, 'RaceCourseData')[0]!;
+    const controlDefs = Array.from(rcd.childNodes).filter(
+      (n): n is Element => n.nodeType === 1 && (n as Element).localName === 'Control',
+    );
+    expect(controlDefs.length).toBe(4);
+    for (const c of controlDefs) {
+      expect(c.getAttribute('type')).toBeTruthy();
+      expect(c.getElementsByTagNameNS(NS, 'Type').length).toBe(0);
+    }
+    const types = controlDefs.map((c) => c.getAttribute('type'));
+    expect(types).toContain('Start');
+    expect(types).toContain('Finish');
+    expect(types).toContain('Control');
+  });
+
+  it('references controls via <CourseControl type><Control>id</Control>', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    const course = doc.getElementsByTagNameNS(NS, 'Course')[0]!;
+    const ccs = Array.from(course.childNodes).filter(
+      (n): n is Element => n.nodeType === 1 && (n as Element).localName === 'CourseControl',
+    );
+    expect(ccs.length).toBe(4);
+    expect(ccs[0]!.getAttribute('type')).toBe('Start');
+    expect(ccs[3]!.getAttribute('type')).toBe('Finish');
+    // nested <Control> holds the id; no legacy <ControlId>
+    expect(ccs[0]!.getElementsByTagNameNS(NS, 'Control')[0]?.textContent).toBe('S1');
+    expect(course.getElementsByTagNameNS(NS, 'ControlId').length).toBe(0);
+  });
+
+  it('emits <Map><Scale> and <Course><Length>', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    expect(doc.getElementsByTagNameNS(NS, 'Scale')[0]?.textContent).toBe('10000');
+    const len = doc.getElementsByTagNameNS(NS, 'Length')[0]?.textContent;
+    expect(len && parseInt(len, 10)).toBeGreaterThan(0);
+  });
+
+  it('attaches LegLength to the leg INTO each control (start carries none)', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    const ccs = Array.from(
+      doc.getElementsByTagNameNS(NS, 'Course')[0]!.getElementsByTagNameNS(NS, 'CourseControl'),
+    );
+    // 4 controls → 3 legs; the first (start) has no LegLength.
+    expect(ccs[0]!.getElementsByTagNameNS(NS, 'LegLength').length).toBe(0);
+    expect(ccs[1]!.getElementsByTagNameNS(NS, 'LegLength').length).toBe(1);
+    expect(ccs[3]!.getElementsByTagNameNS(NS, 'LegLength').length).toBe(1);
+    const total = doc.getElementsByTagNameNS(NS, 'LegLength').length;
+    expect(total).toBe(3);
+  });
+
+  it('respects xs:sequence ordering (RaceCourseData, Course, CourseControl)', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    const childNames = (el: Element) =>
+      Array.from(el.childNodes)
+        .filter((n): n is Element => n.nodeType === 1)
+        .map((n) => n.localName);
+
+    // RaceCourseData: Map → Control(s) → Course(s)
+    const rcd = doc.getElementsByTagNameNS(NS, 'RaceCourseData')[0]!;
+    const rcdNames = childNames(rcd);
+    expect(rcdNames.indexOf('Map')).toBeLessThan(rcdNames.indexOf('Control'));
+    expect(rcdNames.lastIndexOf('Control')).toBeLessThan(rcdNames.indexOf('Course'));
+
+    // Course: Name → Length → CourseControl(s)
+    const course = doc.getElementsByTagNameNS(NS, 'Course')[0]!;
+    const cNames = childNames(course);
+    expect(cNames.indexOf('Name')).toBeLessThan(cNames.indexOf('Length'));
+    expect(cNames.indexOf('Length')).toBeLessThan(cNames.indexOf('CourseControl'));
+
+    // CourseControl: Control before LegLength
+    const cc = course.getElementsByTagNameNS(NS, 'CourseControl')[1]!; // has a LegLength
+    const ccNames = childNames(cc);
+    expect(ccNames.indexOf('Control')).toBeLessThan(ccNames.indexOf('LegLength'));
+  });
+
+  it('does not emit the illegal MapExchange control type', () => {
+    const event = makeEvent();
+    event.courses[0]!.controls[2]!.type = 'mapExchange';
+    const xml = exportIofXml(event);
+    expect(xml).not.toContain('MapExchange');
+    // mapExchange falls back to a plain Control type
+    expect(xml).toContain('type="Control"');
+  });
+
+  it('places Score after Control in a score course', () => {
+    const event = makeEvent();
+    const course = event.courses[0]!;
+    course.courseType = 'score';
+    course.controls = course.controls.map((cc) => ({ ...cc, type: 'control', score: 30 }));
+    const doc = parse(exportIofXml(event));
+    const cc = doc.getElementsByTagNameNS(NS, 'CourseControl')[0]!;
+    const names = Array.from(cc.childNodes)
+      .filter((n): n is Element => n.nodeType === 1)
+      .map((n) => n.localName);
+    expect(names.indexOf('Control')).toBeLessThan(names.indexOf('Score'));
+    // score courses have no ordered legs
+    expect(doc.getElementsByTagNameNS(NS, 'LegLength').length).toBe(0);
+  });
+});

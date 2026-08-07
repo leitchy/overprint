@@ -1,12 +1,22 @@
 /**
  * IOF XML Data Standard v3.0 export.
  *
- * Produces a CourseData XML document from an OverprintEvent.
+ * Produces a schema-valid `CourseData` document (namespace
+ * http://www.orienteering.org/datastandard/3.0) from an OverprintEvent.
  * Returns a raw XML string — the caller is responsible for saving.
+ *
+ * Conformance notes (vs. the IOF v3 schema):
+ * - A map-control definition is `<Control type="Control|Start|Finish|CrossingPoint">`
+ *   with the type as an ATTRIBUTE and `<Id>` + `<MapPosition>` children.
+ * - A course references controls via `<CourseControl type="..."><Control>id</Control>…`.
+ * - `LegLength` is the length of the leg leading INTO a control (from the previous
+ *   one), so it sits on the destination CourseControl; the start carries none.
+ * - `RaceCourseData` child order is Map, then all Controls, then all Courses.
  */
 import type { Control, Course, CourseControl, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { mapDistanceMetres } from '@/core/geometry/distance';
+import { calculateCourseLength } from '@/core/geometry/course-length';
 import { IOF_XML_NS, IOF_XML_VERSION } from './xml-constants';
 
 // ---------------------------------------------------------------------------
@@ -31,22 +41,20 @@ function escapeXml(raw: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a map-image pixel X coordinate to mm in IOF ground space.
+ * Convert a map-image pixel coordinate to mm.
  *
- * IOF MapPosition uses mm measured from the bottom-left corner of the map
- * (Y increases upward). We store positions as pixels from the top-left
- * (Y increases downward), so the Y axis must be flipped.
+ * IOF `MapPosition` documents x as units right of, and y as units below, the
+ * reference — i.e. a top-left origin with Y increasing downward. Our internal
+ * storage is already top-left / Y-down pixels, so both axes convert directly
+ * with no flip (this also matches PurplePen, keeping interop lossless). The
+ * importer applies the exact inverse.
  */
 function pxToMm(pixels: number, dpi: number): number {
   return (pixels / dpi) * 25.4;
 }
 
-function yFlipMm(yPx: number, mapHeightPx: number, dpi: number): number {
-  return pxToMm(mapHeightPx - yPx, dpi);
-}
-
 // ---------------------------------------------------------------------------
-// Control-ID helpers
+// Control-ID / type helpers
 // ---------------------------------------------------------------------------
 
 type ControlType = CourseControl['type'];
@@ -62,7 +70,12 @@ function controlIofId(ctrl: Control, type: ControlType): string {
   }
 }
 
-function controlTypeString(type: ControlType): string {
+/**
+ * IOF `ControlType` enum value for the `type` attribute. The enum is
+ * {Control, Start, Finish, CrossingPoint, EndOfMarkedRoute}; map exchange/flip
+ * have no schema representation, so they fall back to Control.
+ */
+function controlTypeAttr(type: ControlType): string {
   switch (type) {
     case 'start':
       return 'Start';
@@ -70,9 +83,6 @@ function controlTypeString(type: ControlType): string {
       return 'Finish';
     case 'crossingPoint':
       return 'CrossingPoint';
-    case 'mapExchange':
-    case 'mapFlip':
-      return 'MapExchange';
     default:
       return 'Control';
   }
@@ -85,18 +95,16 @@ function controlTypeString(type: ControlType): string {
 function buildControlElement(
   ctrl: Control,
   type: ControlType,
-  mapHeightPx: number,
   dpi: number,
 ): string {
   const iofId = escapeXml(controlIofId(ctrl, type));
-  const typeStr = controlTypeString(type);
+  const typeAttr = controlTypeAttr(type);
   const xMm = pxToMm(ctrl.position.x, dpi).toFixed(3);
-  const yMm = yFlipMm(ctrl.position.y, mapHeightPx, dpi).toFixed(3);
+  const yMm = pxToMm(ctrl.position.y, dpi).toFixed(3);
 
   return [
-    `    <Control>`,
+    `    <Control type="${typeAttr}">`,
     `      <Id>${iofId}</Id>`,
-    `      <Type>${typeStr}</Type>`,
     `      <MapPosition x="${xMm}" y="${yMm}" unit="mm"/>`,
     `    </Control>`,
   ].join('\n');
@@ -108,45 +116,47 @@ function buildCourseElement(
   dpi: number,
   scale: number,
 ): string {
+  const isScore = course.courseType === 'score';
+
   const lines: string[] = [
     `    <Course>`,
     `      <Name>${escapeXml(course.name)}</Name>`,
   ];
+  // Length is the sum of ordered legs — meaningless for score courses, so omit it there.
+  if (!isScore) {
+    const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
+    lines.push(`      <Length>${lengthM.toFixed(0)}</Length>`);
+  }
+  if (course.climb != null) {
+    lines.push(`      <Climb>${course.climb.toFixed(0)}</Climb>`);
+  }
 
-  // CourseControl sequence
   for (let i = 0; i < course.controls.length; i++) {
     const cc = course.controls[i]!;
     const ctrl = controls[cc.controlId];
     if (!ctrl) continue;
 
     const iofId = escapeXml(controlIofId(ctrl, cc.type));
-    const seqTag = `        <Control>`;
-    const refTag = `          <ControlId>${iofId}</ControlId>`;
+    lines.push(`      <CourseControl type="${controlTypeAttr(cc.type)}">`);
+    lines.push(`        <Control>${iofId}</Control>`);
 
-    // Score value (score courses only)
-    let scoreLine = '';
-    if (cc.score != null) {
-      scoreLine = `          <Score>${cc.score}</Score>`;
-    }
-
-    // Leg length to next control (skip for score courses — no ordered legs)
-    let legLine = '';
-    if (course.courseType !== 'score') {
-      const next = course.controls[i + 1];
-      if (next) {
-        const nextCtrl = controls[next.controlId];
-        if (nextCtrl) {
-          const legM = mapDistanceMetres(ctrl.position, nextCtrl.position, scale, dpi);
-          legLine = `          <LegLength>${legM.toFixed(0)}</LegLength>`;
-        }
+    // LegLength: the leg leading INTO this control from the previous one.
+    // Ordered courses only; the first control (no predecessor) carries none.
+    if (!isScore && i > 0) {
+      const prev = course.controls[i - 1];
+      const prevCtrl = prev ? controls[prev.controlId] : undefined;
+      if (prevCtrl) {
+        const legM = mapDistanceMetres(prevCtrl.position, ctrl.position, scale, dpi);
+        lines.push(`        <LegLength>${legM.toFixed(0)}</LegLength>`);
       }
     }
 
-    lines.push(seqTag);
-    lines.push(refTag);
-    if (scoreLine) lines.push(scoreLine);
-    if (legLine) lines.push(legLine);
-    lines.push(`        </Control>`);
+    // Score value (score courses only)
+    if (cc.score != null) {
+      lines.push(`        <Score>${cc.score}</Score>`);
+    }
+
+    lines.push(`      </CourseControl>`);
   }
 
   lines.push(`    </Course>`);
@@ -158,43 +168,41 @@ function buildCourseElement(
 // ---------------------------------------------------------------------------
 
 /**
- * Serialise an OverprintEvent to an IOF XML v3 string.
- *
- * mapHeightPx is required only for the Y-axis flip; if the event has no
- * mapFile the caller must still supply it (pass 0 if unknown — positions
- * will be wrong but the document will still be valid XML).
+ * Serialise an OverprintEvent to an IOF XML v3 `CourseData` string.
  */
 export function exportIofXml(event: OverprintEvent): string {
   const dpi = event.mapFile?.dpi ?? 96;
   const scale = event.mapFile?.scale ?? 15000;
 
-  // We need the map height to flip the Y axis.  We derive an approximate
-  // value from the control positions when no image height is known.
-  let mapHeightPx = 0;
-  for (const ctrl of Object.values(event.controls)) {
-    if (ctrl.position.y > mapHeightPx) mapHeightPx = ctrl.position.y;
-  }
-
   const createTime = new Date().toISOString();
+
+  // Map extent (mm) from the control bounding box — the <Map> corners are
+  // required by the schema when a <Map> is emitted. Top-left origin, Y-down.
+  let maxXpx = 0;
+  let maxYpx = 0;
+  for (const ctrl of Object.values(event.controls)) {
+    if (ctrl.position.x > maxXpx) maxXpx = ctrl.position.x;
+    if (ctrl.position.y > maxYpx) maxYpx = ctrl.position.y;
+  }
+  const brXmm = pxToMm(maxXpx, dpi).toFixed(3);
+  const brYmm = pxToMm(maxYpx, dpi).toFixed(3);
 
   // --- Collect unique (control, type) pairs across all courses ---
   // IOF requires one <Control> element per unique ID in RaceCourseData.
   // Start/Finish get synthetic IDs (S1/F1) so we key on the iofId string.
   const seen = new Map<string, string>(); // iofId → element string
-
   for (const course of event.courses) {
     for (const cc of course.controls) {
       const ctrl = event.controls[cc.controlId];
       if (!ctrl) continue;
       const iofId = controlIofId(ctrl, cc.type);
       if (!seen.has(iofId)) {
-        seen.set(iofId, buildControlElement(ctrl, cc.type, mapHeightPx, dpi));
+        seen.set(iofId, buildControlElement(ctrl, cc.type, dpi));
       }
     }
   }
 
   const controlElements = Array.from(seen.values()).join('\n');
-
   const courseElements = event.courses
     .map((c) => buildCourseElement(c, event.controls, dpi, scale))
     .join('\n');
@@ -206,6 +214,11 @@ export function exportIofXml(event: OverprintEvent): string {
     `    <Name>${escapeXml(event.name)}</Name>`,
     `  </Event>`,
     `  <RaceCourseData>`,
+    `    <Map>`,
+    `      <Scale>${scale}</Scale>`,
+    `      <MapPositionTopLeft x="0" y="0" unit="mm"/>`,
+    `      <MapPositionBottomRight x="${brXmm}" y="${brYmm}" unit="mm"/>`,
+    `    </Map>`,
     controlElements,
     courseElements,
     `  </RaceCourseData>`,
