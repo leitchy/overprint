@@ -139,15 +139,29 @@ Top-value gaps for a practising setter (full table in the vault brief `standards
 
 ## 7. Consolidated priority order (recommended)
 
-**Tier 1 — correctness bugs, cheap, high-confidence (do first, with visual check + file migration):**
+> **Progress (2026-08):** Tiers 1 & 2 complete and deployed. Tier 3 substantially
+> done — see status tags below. Remaining Tier 3 items (B2/B3/B4/B6/B7) need a
+> per-symbol appearance decision or are large (B3 polygon tool).
+
+**Tier 1 — correctness bugs (DONE, deployed):**
 A1 line width, A2 finish diameters, A3 per-standard `mapStandard` table, A4 number size/weight,
 D2 PDF overprint colour behaviour, C4 3rd-row lines. Fix docs (`iof-standards.md`).
 
-**Tier 2 — high daily value:** E1 auto-save, E2 auto number placement, A6/A7 circle gaps + auto
-leg-cut, E4 audit upgrades, C1 Column-F text, C2 crossing-point rows, A5 crossing-point glyph.
+**Tier 2 — high daily value (DONE, deployed):** E1 auto-save, E2 auto number placement,
+A6/A7 circle gaps + auto leg-cut, E4 audit upgrades, C1 Column-F text, C2 crossing-point rows,
+A5 crossing-point glyph.
 
-**Tier 3 — interchange & coverage:** D3/D4 IOF XML v3 conformance + fixtures, D7 GPX/geo,
-B1–B6 symbol coverage, C5/C6 renderer unification + pagination, E5 move-all-controls, E7 white-out.
+**Tier 3 — interchange & coverage:**
+- **DONE, deployed:** D3/D4 IOF XML v3 conformance, D7 GPX/geo, E5 move-all-controls,
+  E7 white-out, B1 marked-route (dashed) line, B-core scale-aware (mm) special symbols,
+  C6 sheet pagination, C5 renderer unification (course-map box + standalone sheet +
+  on-canvas box all share `buildDescRows`; the React DOM editor panel deliberately stays
+  a per-control editing grid).
+- **Remaining (need a per-symbol appearance decision):** B2 out-of-bounds boundary line
+  (≈ the existing solid line — low marginal value), B4 forbidden-route as a decorated line
+  (point→line model change), B6 map-issue point (needs the glyph), B7 dangerous-area glyph
+  cleanup (removes/remaps an existing symbol — judgement call), **B3 out-of-bounds polygon
+  tool (large — new drawing tool + hatch fill).**
 
 **Tier 4 — big/structural:** D2-true colour-order + D5/D6 vector-PDF & OOM export, A8 item-scaling
 model, C7/C8 text mode + fonts, E10 course variations/relays, [ADR-015](../adrs/ADR-015-live-dom-svg-map-layer.md) DOM-SVG display.

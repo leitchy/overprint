@@ -2,6 +2,7 @@ import type { Course, Control } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { DescriptionCell, NumberCell } from './description-cell';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { formatLengthKm, formatClimb } from '@/core/descriptions/desc-rows';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 
 interface DescriptionSheetProps {
@@ -38,7 +39,9 @@ export function DescriptionSheet({
   textOnly = false,
 }: DescriptionSheetProps) {
   const lengthMetres = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
-  const lengthKm = (lengthMetres / 1000).toFixed(1);
+  // Shared formatting so the panel matches the PDF/canvas renderers.
+  const lengthText = formatLengthKm(lengthMetres); // "4.3 km"
+  const climbText = formatClimb(course.climb ?? course.settings.climb); // "75 m" (5 m rounded) or ''
 
   const isAllControls = mode === 'allControls';
   const isScore = course.courseType === 'score';
@@ -70,10 +73,10 @@ export function DescriptionSheet({
       {!isAllControls && !isScore && (
         <div className={`grid ${GRID_COLS}`}>
           <div className="col-span-2 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
-            {lengthKm} km
+            {lengthText}
           </div>
           <div className="col-span-6 border border-gray-800 px-1 py-0.5 text-center text-[10px] text-gray-600">
-            {course.climb ? `↑ ${course.climb}m` : ''}
+            {climbText ? `↑ ${climbText}` : ''}
           </div>
         </div>
       )}

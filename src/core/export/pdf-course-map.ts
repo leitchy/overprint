@@ -10,8 +10,9 @@ import { renderOverprint } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
+import { crossHatchSegments } from '@/core/geometry/hatch';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -551,6 +552,24 @@ async function renderSpecialItems(
         break;
       }
 
+      case 'outOfBoundsArea': {
+        // Cross-hatch (45°+135°) fill, no boundary — vertices are relative to position.
+        const poly = item.vertices.map((v) =>
+          toPdf({ x: item.position.x + v.x, y: item.position.y + v.y }),
+        );
+        const spacingPt = mmToPdfPoints(OOB_HATCH_SPACING_MM);
+        const hatchPt = mmToPdfPoints(OOB_HATCH_WIDTH_MM);
+        for (const s of crossHatchSegments(poly, spacingPt)) {
+          page.drawLine({
+            start: { x: s.x1, y: s.y1 },
+            end: { x: s.x2, y: s.y2 },
+            thickness: hatchPt,
+            color: itemColor,
+          });
+        }
+        break;
+      }
+
       case 'outOfBounds': {
         // Hatched square
         const s = IOF_SYMBOL_PT;
@@ -599,9 +618,21 @@ async function renderSpecialItems(
       }
 
       case 'forbiddenRoute': {
-        const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        // PurplePen: ±1.06 mm arms, 0.35 mm line (a point cross).
+        const s = mmToPdfPoints(1.06);
+        const w = mmToPdfPoints(0.35);
+        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: w, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: w, color: itemColor });
+        break;
+      }
+
+      case 'mapIssue': {
+        // Horizontal bar (2.5mm, 0.6mm) + downward tail (1.5mm, 0.35mm) — mm on page.
+        const halfBar = mmToPdfPoints(2.5 / 2);
+        const tail = mmToPdfPoints(1.5);
+        page.drawLine({ start: { x: pos.x - halfBar, y: pos.y }, end: { x: pos.x + halfBar, y: pos.y }, thickness: mmToPdfPoints(0.6), color: itemColor });
+        // PDF y-up: the tail points downward (−y) to match the on-screen glyph.
+        page.drawLine({ start: { x: pos.x, y: pos.y }, end: { x: pos.x, y: pos.y - tail }, thickness: mmToPdfPoints(0.35), color: itemColor });
         break;
       }
 

@@ -563,6 +563,10 @@ export function Toolbar() {
       label: t('addWhiteOut'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'whiteOut' as SpecialItemType }),
     },
+    {
+      label: t('addOutOfBoundsArea'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'outOfBoundsArea' as SpecialItemType }),
+    },
     { separator: true },
     {
       label: t('outOfBounds'),
@@ -583,6 +587,10 @@ export function Toolbar() {
     {
       label: t('forbiddenRoute'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'forbiddenRoute' as SpecialItemType }),
+    },
+    {
+      label: t('mapIssuePoint'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'mapIssue' as SpecialItemType }),
     },
   ];
 

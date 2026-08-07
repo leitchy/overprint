@@ -59,6 +59,10 @@ export const IOF_SPECIAL_SYMBOL_LINE_MM = 0.35;
 export const MARKED_ROUTE_DASH_MM = 2.0;
 export const MARKED_ROUTE_GAP_MM = 0.5;
 
+/** Out-of-bounds area (IOF 709) cross-hatch (PurplePen: 45° + 135°). */
+export const OOB_HATCH_WIDTH_MM = 0.2;   // hatch line width
+export const OOB_HATCH_SPACING_MM = 1.2; // gap between hatch lines
+
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 

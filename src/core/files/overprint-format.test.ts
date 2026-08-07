@@ -154,3 +154,37 @@ describe('deserializeEvent', () => {
     expect(embeddedMapImage).toBeUndefined();
   });
 });
+
+describe('serializeEvent — round-trips newer fields', () => {
+  it('preserves control-circle gaps, marked-route line style, white-out items and column-F text', () => {
+    const event = createEvent('Round Trip');
+    const start = createControl(31, { x: 10, y: 20 });
+    const finish = createControl(32, { x: 300, y: 400 });
+    // control-circle gaps + free-text column F
+    finish.circleGaps = [{ startDeg: 75, endDeg: 105 }];
+    finish.description.columnFText = '2.5';
+    event.controls[start.id] = start;
+    event.controls[finish.id] = finish;
+    const course = createCourse('Long');
+    course.controls.push(
+      { controlId: start.id, type: 'start' },
+      { controlId: finish.id, type: 'finish' },
+    );
+    event.courses.push(course);
+    // marked-route (dashed) line + white-out mask as special items
+    event.specialItems.push(
+      { id: 'l1' as never, type: 'line', position: { x: 0, y: 0 }, endPosition: { x: 50, y: 0 }, lineStyle: 'dashed' },
+      { id: 'w1' as never, type: 'whiteOut', position: { x: 5, y: 5 }, endPosition: { x: 40, y: 30 } },
+    );
+
+    const { event: r } = deserializeEvent(serializeEvent(event));
+
+    const restoredFinish = Object.values(r.controls).find((c) => c.code === 32)!;
+    expect(restoredFinish.circleGaps).toEqual([{ startDeg: 75, endDeg: 105 }]);
+    expect(restoredFinish.description.columnFText).toBe('2.5');
+
+    const line = r.specialItems.find((s) => s.type === 'line');
+    expect(line && line.type === 'line' && line.lineStyle).toBe('dashed');
+    expect(r.specialItems.some((s) => s.type === 'whiteOut')).toBe(true);
+  });
+});
