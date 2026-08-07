@@ -9,6 +9,10 @@ interface SymbolPickerProps {
   column: SymbolColumn;
   anchorRect: DOMRect;
   currentValue?: string;
+  /** Free-text value for a text-capable column (F dimensions). */
+  textValue?: string;
+  /** Called when the free-text value changes (column F only). */
+  onTextChange?: (text: string | undefined) => void;
   /** BCP 47 language tag for symbol names and search. Default: 'en'. */
   lang?: string;
   onSelect: (symbolId: string | undefined) => void;
@@ -19,6 +23,8 @@ export function SymbolPicker({
   column,
   anchorRect,
   currentValue,
+  textValue,
+  onTextChange,
   lang = 'en',
   onSelect,
   onClose,
@@ -92,6 +98,20 @@ export function SymbolPicker({
           className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-violet-400"
         />
       </div>
+
+      {/* Column F free-text dimensions (e.g. "2.5" or "8 x 4") */}
+      {column === 'F' && onTextChange && (
+        <div className="border-b border-gray-100 px-3 py-2">
+          <label className="mb-1 block text-xs font-medium text-gray-500">Dimensions (text)</label>
+          <input
+            type="text"
+            placeholder="e.g. 2.5 or 8 x 4"
+            value={textValue ?? ''}
+            onChange={(e) => onTextChange(e.target.value || undefined)}
+            className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-violet-400"
+          />
+        </div>
+      )}
 
       {/* Clear button */}
       {currentValue && (

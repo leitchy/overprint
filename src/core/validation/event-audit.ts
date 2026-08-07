@@ -20,6 +20,7 @@ export interface AuditContext {
 
 const SHORT_LEG_THRESHOLD = 30; // metres
 const LONG_LEG_THRESHOLD = 3000; // metres
+const CLOSE_CONTROL_THRESHOLD = 100; // metres — controls of the same feature closer than this
 
 /**
  * Audit an event for common course setting errors and warnings.
@@ -131,11 +132,76 @@ export function auditEvent(
     }
   }
 
+  // --- Controls too close with the same feature (may confuse competitors) ---
+
+  if (mapFile) {
+    const list = Object.values(controls);
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        const fa = a.description.columnD;
+        if (!fa || fa !== b.description.columnD) continue;
+        const dist = mapDistanceMetres(a.position, b.position, mapFile.scale, mapFile.dpi);
+        if (dist < CLOSE_CONTROL_THRESHOLD) {
+          items.push({
+            severity: 'warning',
+            messageKey: 'auditCloseControlsSameFeature',
+            messageParams: { codeA: a.code, codeB: b.code, dist: Math.round(dist) },
+            controlId: a.id,
+          });
+        }
+      }
+    }
+  }
+
+  // --- Legs run in opposite directions across courses (head-on risk) ---
+
+  const directedLegs = new Set<string>(); // "aId->bId"
+  for (const course of courses) {
+    for (let i = 1; i < course.controls.length; i++) {
+      const a = course.controls[i - 1]!.controlId;
+      const b = course.controls[i]!.controlId;
+      if (a !== b) directedLegs.add(`${a}->${b}`);
+    }
+  }
+  const reportedOpposite = new Set<string>();
+  for (const leg of directedLegs) {
+    const [a, b] = leg.split('->') as [ControlId, ControlId];
+    if (!directedLegs.has(`${b}->${a}`)) continue;
+    const key = [a, b].sort().join('|');
+    if (reportedOpposite.has(key)) continue;
+    reportedOpposite.add(key);
+    const ca = controls[a];
+    const cb = controls[b];
+    if (ca && cb) {
+      items.push({
+        severity: 'warning',
+        messageKey: 'auditOppositeLegs',
+        messageParams: { codeA: ca.code, codeB: cb.code },
+      });
+    }
+  }
+
   // --- Per-course checks ---
 
   for (const course of courses) {
     const courseId = course.id;
     const courseName = course.name;
+
+    // Consecutive duplicate controls (zero-length leg — a planning error)
+    for (let i = 1; i < course.controls.length; i++) {
+      if (course.controls[i]!.controlId === course.controls[i - 1]!.controlId) {
+        const c = controls[course.controls[i]!.controlId];
+        items.push({
+          severity: 'error',
+          messageKey: 'auditConsecutiveDuplicate',
+          messageParams: { name: courseName, code: c ? c.code : 0 },
+          courseId,
+          controlId: course.controls[i]!.controlId,
+        });
+      }
+    }
 
     // Empty course
     if (course.controls.length === 0) {

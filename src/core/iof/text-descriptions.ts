@@ -36,8 +36,10 @@ export function generateTextDescription(
     parts.push(getSymbolText(description.columnE, lang));
   }
 
-  // Column F — dimensions/combinations
-  if (description.columnF) {
+  // Column F — dimensions/combinations (free text takes precedence over the symbol)
+  if (description.columnFText) {
+    parts.push(description.columnFText);
+  } else if (description.columnF) {
     parts.push(getSymbolText(description.columnF, lang));
   }
 

@@ -898,7 +898,7 @@ async function renderAutoDescriptionBox(
     const cells: Array<string | null> = [
       colA, colB,
       symOrText(desc.columnC), symOrText(desc.columnD),
-      symOrText(desc.columnE), symOrText(desc.columnF),
+      symOrText(desc.columnE), desc.columnFText ?? symOrText(desc.columnF),
       symOrText(desc.columnG), symOrText(desc.columnH),
     ];
     if (appearance === 'symbolsAndText') {

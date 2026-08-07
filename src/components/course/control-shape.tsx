@@ -1,8 +1,15 @@
 import { memo } from 'react';
-import { Circle, Rect, Text, Group } from 'react-konva';
-import type { Control, CourseControlType, MapPoint } from '@/core/models/types';
+import type { KonvaEventObject } from 'konva/lib/Node';
+import { Circle, Rect, Text, Group, Shape } from 'react-konva';
+import type { Control, CourseControlType, MapPoint, CircleGap } from '@/core/models/types';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
+import {
+  visibleArcs,
+  gapHandles,
+  storedDegToCanvasRad,
+  canvasPointToStoredDeg,
+} from '@/core/geometry/circle-gaps';
 import { StartTriangle } from './start-triangle';
 import { FinishCircles } from './finish-circles';
 import { CrossingPoint } from './crossing-point';
@@ -31,6 +38,12 @@ interface ControlShapeProps {
   onDragEnd?: (x: number, y: number) => void;
   onNumberDragEnd?: (offset: MapPoint) => void; // Called when the number label is dragged
   onLongPress?: (screenX: number, screenY: number) => void;
+  /** Add a circle gap at a click angle (y-up CCW degrees). Enables gap editing. */
+  onAddCircleGap?: (angleDeg: number) => void;
+  /** Replace one circle gap after dragging an endpoint. */
+  onUpdateCircleGap?: (gapIndex: number, gap: CircleGap) => void;
+  /** Remove a circle gap (e.g. double-click its handle). */
+  onRemoveCircleGap?: (gapIndex: number) => void;
 }
 
 export const ControlShape = memo(function ControlShape({
@@ -51,6 +64,9 @@ export const ControlShape = memo(function ControlShape({
   onDragEnd,
   onNumberDragEnd,
   onLongPress,
+  onAddCircleGap,
+  onUpdateCircleGap,
+  onRemoveCircleGap,
 }: ControlShapeProps) {
   const { x, y } = control.position;
 
@@ -78,6 +94,17 @@ export const ControlShape = memo(function ControlShape({
   // Apply stored offset
   const numX = defaultNumX + (numberOffset?.x ?? 0);
   const numY = defaultNumY + (numberOffset?.y ?? 0);
+
+  // Add a circle gap when a selected control's ring is clicked/tapped (not deep inside).
+  const handleRingClick = (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (!isSelected || !onAddCircleGap) return;
+    const p = e.target.getRelativePointerPosition();
+    if (!p) return;
+    const dist = Math.hypot(p.x, p.y);
+    if (Math.abs(dist - circleRadius) > circleRadius * 0.5) return;
+    e.cancelBubble = true;
+    onAddCircleGap(canvasPointToStoredDeg(p.x, p.y));
+  };
 
   return (
     <Group
@@ -174,14 +201,86 @@ export const ControlShape = memo(function ControlShape({
           extraRotation={Math.PI}
           color={color}
         />
+      ) : (control.circleGaps && control.circleGaps.length > 0) ? (
+        <Shape
+          stroke={color}
+          strokeWidth={screenLineWidth}
+          hitStrokeWidth={Math.max(screenLineWidth * 3, 12)}
+          sceneFunc={(ctx, shape) => {
+            ctx.beginPath();
+            for (const arc of visibleArcs(control.circleGaps)) {
+              const a0 = storedDegToCanvasRad(arc.startDeg);
+              const a1 = storedDegToCanvasRad(arc.startDeg + arc.sweepDeg);
+              // stored CCW (increasing angle) → canvas anticlockwise (y-down)
+              ctx.moveTo(circleRadius * Math.cos(a0), circleRadius * Math.sin(a0));
+              ctx.arc(0, 0, circleRadius, a0, a1, true);
+            }
+            ctx.strokeShape(shape);
+          }}
+          onClick={handleRingClick}
+          onTap={handleRingClick}
+        />
       ) : (
         <Circle
           radius={circleRadius}
           stroke={color}
           strokeWidth={screenLineWidth}
           fill="transparent"
+          hitStrokeWidth={isSelected && onAddCircleGap ? Math.max(screenLineWidth * 3, 12) : undefined}
+          onClick={handleRingClick}
+          onTap={handleRingClick}
         />
       )}
+
+      {/* Circle-gap endpoint handles (selected regular controls only) */}
+      {isSelected && onUpdateCircleGap && type !== 'start' && type !== 'finish' &&
+        type !== 'crossingPoint' && type !== 'mapExchange' && type !== 'mapFlip' &&
+        control.circleGaps && control.circleGaps.length > 0 &&
+        gapHandles(control.circleGaps, circleRadius).map((h) => (
+          <Circle
+            key={`${h.gapIndex}-${h.end}`}
+            x={h.x}
+            y={h.y}
+            radius={Math.max(screenLineWidth * 1.5, 5)}
+            fill={SELECTION_COLOR}
+            stroke={color}
+            strokeWidth={1}
+            draggable
+            onDragStart={(e) => { e.cancelBubble = true; }}
+            onDragMove={(e) => {
+              // keep the handle on the circumference
+              const ang = Math.atan2(e.target.y(), e.target.x());
+              e.target.x(circleRadius * Math.cos(ang));
+              e.target.y(circleRadius * Math.sin(ang));
+            }}
+            onDragEnd={(e) => {
+              e.cancelBubble = true;
+              const g = control.circleGaps?.[h.gapIndex];
+              if (!g) return;
+              const angleDeg = canvasPointToStoredDeg(e.target.x(), e.target.y());
+              const next: CircleGap = h.end === 'start'
+                ? { startDeg: angleDeg, endDeg: g.endDeg }
+                : { startDeg: g.startDeg, endDeg: angleDeg };
+              onUpdateCircleGap(h.gapIndex, next);
+            }}
+            onDblClick={(e) => {
+              e.cancelBubble = true;
+              onRemoveCircleGap?.(h.gapIndex);
+            }}
+            onDblTap={(e) => {
+              e.cancelBubble = true;
+              onRemoveCircleGap?.(h.gapIndex);
+            }}
+            onMouseEnter={(e) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = 'move';
+            }}
+            onMouseLeave={(e) => {
+              const c = e.target.getStage()?.container();
+              if (c) c.style.cursor = '';
+            }}
+          />
+        ))}
 
       {/* Score value (score courses only) — shown below the sequence number */}
       {score !== undefined && (

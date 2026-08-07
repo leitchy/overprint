@@ -121,6 +121,7 @@ export function DescriptionSheet({
                 <DescriptionCell
                   key={col}
                   value={control.description[col]}
+                  text={col === 'columnF' ? control.description.columnFText : undefined}
                   lang={lang}
                   isEditable={!isAllControls}
                   isSelected={isSelected}

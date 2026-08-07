@@ -555,7 +555,12 @@ export async function renderDescriptionToCanvas(
         for (let i = 0; i < 6; i++) {
           const colX = (i + 2) * cellSize;
           drawCell(ctx, colX, currentY, cellSize, rh);
-          await drawSymbolCell(ctx, descCols[i], colX, currentY + symbolYOffset, cellSize, lang, symbolMode);
+          // Column F (index 3): free-text dimensions take precedence over the symbol.
+          if (i === 3 && desc.columnFText) {
+            drawCenteredText(ctx, desc.columnFText, colX, currentY, cellSize, rh, Math.max(6, cellSize * 0.34));
+          } else {
+            await drawSymbolCell(ctx, descCols[i], colX, currentY + symbolYOffset, cellSize, lang, symbolMode);
+          }
         }
 
         // Text column (symbolsAndText mode) — word-wraps, substitutes {0} placeholders

@@ -44,6 +44,10 @@ export const SCREEN_LINE_MULTIPLIER = 2;
  * for a 4.0mm digit). Numbers are non-bold per spec. */
 export const NUMBER_DIGIT_HEIGHT_TO_EM = 1.39;
 
+/** Default width (degrees) of a control-circle gap created by clicking the circle
+ *  (matches PurplePen's 30° default). */
+export const DEFAULT_CIRCLE_GAP_DEG = 30;
+
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 

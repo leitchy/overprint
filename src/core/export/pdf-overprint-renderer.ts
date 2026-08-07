@@ -9,8 +9,10 @@ import type {
 } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
-import { buildLegPath, splitPathByGaps } from '@/core/geometry/leg-path';
+import { buildLegPath, splitPathByGaps, mergeGaps } from '@/core/geometry/leg-path';
+import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
+import { visibleArcs } from '@/core/geometry/circle-gaps';
 import { overprintDims, OVERPRINT_PURPLE, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
@@ -93,6 +95,25 @@ export function renderOverprint(
   // Draw legs first (behind shapes).
   // Score courses have no ordered legs — skip them entirely.
   if (course.courseType !== 'score') {
+    // Auto leg-cut gaps, computed in PDF-point space (same as the drawn paths).
+    const pdfRadius = (type: CourseControlType): number =>
+      type === 'start' || type === 'mapExchange' || type === 'mapFlip' ? startTriangleSide / Math.sqrt(3)
+        : type === 'finish' ? finishOuterRadius
+          : type === 'crossingPoint' ? crossingPointArm * Math.SQRT2
+            : circleRadius;
+    const autoGapsByLeg = computeCourseAutoLegGaps(
+      resolved.map((rc, idx): AutoGapControl => ({
+        position: ctx.toPdf(rc.control.position),
+        type: rc.type,
+        bendPoints: course.controls[idx]?.bendPoints?.map((bp) => ctx.toPdf(bp)),
+      })),
+      pdfRadius,
+      shapeOffset,
+      lineWidth,
+      mmToPdfPoints(3.5),
+      mmToPdfPoints(0.5),
+    );
+
     for (let i = 1; i < resolved.length; i++) {
       const prev = resolved[i - 1]!;
       const curr = resolved[i]!;
@@ -110,8 +131,14 @@ export function renderOverprint(
           })();
 
       if (path) {
-        const subPaths = cc?.legGaps && cc.legGaps.length > 0
-          ? splitPathByGaps(path, cc.legGaps)
+        // Manual gaps are stored in MAP PIXELS — scale to PDF points to match the path.
+        const manualGaps = (cc?.legGaps ?? []).map((g) => ({
+          startDist: g.startDist * ctx.effectivePPP,
+          endDist: g.endDist * ctx.effectivePPP,
+        }));
+        const allGaps = [...manualGaps, ...(autoGapsByLeg[i] ?? [])];
+        const subPaths = allGaps.length > 0
+          ? splitPathByGaps(path, mergeGaps(allGaps))
           : [path];
 
         for (const subPath of subPaths) {
@@ -166,6 +193,8 @@ export function renderOverprint(
     } else if (type === 'mapExchange' || type === 'mapFlip') {
       // Inverted triangle — rotated π from start direction
       drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
+    } else if (control.circleGaps && control.circleGaps.length > 0) {
+      drawGappedCircle(page, pt, circleRadius, lineWidth, control.circleGaps);
     } else {
       page.drawCircle({
         x: pt.x,
@@ -278,6 +307,32 @@ function drawCrossingPoint(
     thickness: lineWidth,
     color: PURPLE,
   });
+}
+
+/**
+ * Draw a control circle with gaps as sampled-arc polylines. PDF space is y-up, the
+ * same convention as stored gap angles (CCW from +X), so points map directly. Uses
+ * the same drawSvgPath polyline path as legs, guaranteeing matching orientation.
+ */
+function drawGappedCircle(
+  page: PDFPage,
+  center: MapPoint,
+  radius: number,
+  lineWidth: number,
+  gaps: import('@/core/models/types').CircleGap[],
+): void {
+  const STEP_DEG = 2;
+  for (const arc of visibleArcs(gaps)) {
+    const steps = Math.max(1, Math.ceil(arc.sweepDeg / STEP_DEG));
+    const pts: MapPoint[] = [];
+    for (let s = 0; s <= steps; s++) {
+      const deg = arc.startDeg + (arc.sweepDeg * s) / steps;
+      const r = (deg * Math.PI) / 180;
+      pts.push({ x: center.x + radius * Math.cos(r), y: center.y + radius * Math.sin(r) });
+    }
+    const svgPath = pts.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    page.drawSvgPath(svgPath, { borderColor: PURPLE, borderWidth: lineWidth });
+  }
 }
 
 /**

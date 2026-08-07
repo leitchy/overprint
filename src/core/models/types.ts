@@ -64,9 +64,18 @@ export interface ControlDescription {
   columnC?: string; // Which of similar features
   columnD: string;  // Feature (the control feature symbol) — required
   columnE?: string; // Appearance / detail
-  columnF?: string; // Dimensions / combinations
+  columnF?: string; // Dimensions / combinations (symbol, e.g. crossing/junction)
+  columnFText?: string; // Free-text dimensions, e.g. "2.5" or "8 x 4" — takes precedence over columnF when set
   columnG?: string; // Location of flag
   columnH?: string; // Other information
+}
+
+/** A gap in a control circle so an underlying map feature shows through (ISOM §3.7).
+ *  Angles in degrees, CCW from the +X axis, y-up (PurplePen convention). The gapped
+ *  arc runs CCW from startDeg to endDeg. */
+export interface CircleGap {
+  startDeg: number;
+  endDeg: number;
 }
 
 export interface Control {
@@ -74,6 +83,9 @@ export interface Control {
   code: number; // IOF code, >30
   position: MapPoint;
   description: ControlDescription;
+  /** Gaps in this control's circle. Stored on the shared Control so a gap opened
+   *  over a map feature applies in every course. Absent/empty = full circle. */
+  circleGaps?: CircleGap[];
 }
 
 export type CourseControlType =

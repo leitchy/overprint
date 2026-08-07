@@ -1,11 +1,28 @@
 import { memo } from 'react';
-import type { Course, Control, CourseControlType, MapPoint, LegGap } from '@/core/models/types';
+import type { Course, Control, CourseControlType, MapPoint, LegGap, CircleGap } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
+import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
 import { ControlShape } from './control-shape';
 import { LegLine } from './leg-line';
+
+/** Outer radius of a control's overprint shape by type (map pixels). */
+function controlRadius(type: CourseControlType, dims: OverprintPixelDimensions): number {
+  switch (type) {
+    case 'start':
+    case 'mapExchange':
+    case 'mapFlip':
+      return dims.startTriangleSide / Math.sqrt(3);
+    case 'finish':
+      return dims.finishOuterRadius;
+    case 'crossingPoint':
+      return dims.crossingPointArm * Math.SQRT2;
+    default:
+      return dims.circleRadius;
+  }
+}
 
 interface CourseRendererProps {
   course: Course;
@@ -36,6 +53,9 @@ interface CourseRendererProps {
   onBendPointDragEnd?: (controlIndex: number, bendIndex: number, position: MapPoint) => void;
   onRemoveBendPoint?: (controlIndex: number, bendIndex: number) => void;
   onGapDragEnd?: (controlIndex: number, gapIndex: number, gap: LegGap) => void;
+  onAddCircleGap?: (controlId: ControlId, angleDeg: number) => void;
+  onUpdateCircleGap?: (controlId: ControlId, gapIndex: number, gap: CircleGap) => void;
+  onRemoveCircleGap?: (controlId: ControlId, gapIndex: number) => void;
 }
 
 /**
@@ -83,6 +103,9 @@ export const CourseRenderer = memo(function CourseRenderer({
   onBendPointDragEnd,
   onRemoveBendPoint,
   onGapDragEnd,
+  onAddCircleGap,
+  onUpdateCircleGap,
+  onRemoveCircleGap,
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
@@ -108,6 +131,23 @@ export const CourseRenderer = memo(function CourseRenderer({
       });
     }
   }
+
+  // Auto leg-cut gaps (render-time, non-stored): cut where a leg passes through
+  // another control's circle or crosses an earlier leg. Skipped for score courses.
+  const autoGapsByLeg = course.courseType === 'score'
+    ? ([] as (LegGap[] | undefined)[])
+    : computeCourseAutoLegGaps(
+        resolvedControls.map((rc, idx): AutoGapControl => ({
+          position: rc.control.position,
+          type: rc.type,
+          bendPoints: course.controls[idx]?.bendPoints,
+        })),
+        (type) => controlRadius(type, dimensions),
+        (type) => shapeOffset(type, dimensions),
+        screenLineWidth,
+        dimensions.autoLegGap,
+        dimensions.autoLegGapMinEnd,
+      );
 
   // Compute target point for start triangle (direction toward next point on leg)
   // If the first leg has bends, point toward the first bend point instead of the second control
@@ -141,6 +181,7 @@ export const CourseRenderer = memo(function CourseRenderer({
             color={color}
             bendPoints={course.controls[i - 1]?.bendPoints}
             legGaps={course.controls[i - 1]?.legGaps}
+            autoGaps={autoGapsByLeg[i]}
             editable={editLegs}
             onInsert={
               allowLegInsert && onInsertOnLeg
@@ -210,6 +251,21 @@ export const CourseRenderer = memo(function CourseRenderer({
           onNumberDragEnd={
             courseId && onNumberDragEnd
               ? (offset) => onNumberDragEnd(index, offset)
+              : undefined
+          }
+          onAddCircleGap={
+            courseId && onAddCircleGap
+              ? (angleDeg) => onAddCircleGap(control.id, angleDeg)
+              : undefined
+          }
+          onUpdateCircleGap={
+            courseId && onUpdateCircleGap
+              ? (gapIndex, gap) => onUpdateCircleGap(control.id, gapIndex, gap)
+              : undefined
+          }
+          onRemoveCircleGap={
+            courseId && onRemoveCircleGap
+              ? (gapIndex) => onRemoveCircleGap(control.id, gapIndex)
               : undefined
           }
           onLongPress={

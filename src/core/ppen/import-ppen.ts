@@ -325,8 +325,15 @@ export function importPpen(
     const descEls = getChildren(el, 'description');
     for (const descEl of descEls) {
       const box = getAttr(descEl, 'box');
+      if (!box) continue;
       const ref = getAttr(descEl, 'iof-2004-ref') ?? '';
-      if (!box || !ref) continue;
+      const text = (getAttr(descEl, 'text') ?? '').trim();
+
+      if (!ref) {
+        // No symbol ref — PurplePen stores free-text dimensions (column F) as text.
+        if (box.toUpperCase() === 'F' && text) description.columnFText = text;
+        continue;
+      }
 
       if (box === 'all') {
         // Full-row symbols (e.g. finish symbol 14.3) → columnH
