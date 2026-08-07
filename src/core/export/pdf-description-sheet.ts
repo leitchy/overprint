@@ -11,11 +11,10 @@
  * Control rows: one row per CourseControl in sequence.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { Control, Course, OverprintEvent } from '@/core/models/types';
+import type { Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
-import { calculateCourseLength } from '@/core/geometry/course-length';
-import { formatLengthKm, formatClimb } from '@/core/descriptions/desc-rows';
+import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
@@ -109,9 +108,6 @@ export async function generateDescriptionSheetPdf(
   const lang = event.settings.language ?? 'en';
   const dpi = event.mapFile?.dpi ?? 96;
   const scale = event.mapFile?.scale ?? event.settings.printScale;
-
-  // Calculate total course length
-  const lengthM = calculateCourseLength(course.controls, event.controls, scale, dpi);
 
   // ---------------------------------------------------------------------------
   // SVG embedding with de-duplication
@@ -260,62 +256,126 @@ export async function generateDescriptionSheetPdf(
   const isScore = course.courseType === 'score';
 
   // ---------------------------------------------------------------------------
-  // Header rows (course name, optional secondary title, length/climb).
-  // Repeated at the top of every page when the sheet paginates.
+  // Build the canonical rows (shared with the course-map description box).
+  // Score courses are code-sorted for display.
   // ---------------------------------------------------------------------------
 
-  // Narrowed alias so the closure sees a defined Course (flow narrowing of the
-  // guarded `course` is not carried into nested functions).
-  const hdrCourse: Course = course;
-  async function drawHeaders(): Promise<void> {
-    await drawRow([hdrCourse.name], { headerSpan: true, bold: true, fontSize: HEADER_FONT_SIZE });
-    if (hdrCourse.settings.secondaryTitle) {
-      await drawRow([hdrCourse.settings.secondaryTitle], { headerSpan: true, fontSize: HEADER_FONT_SIZE - 1 });
-    }
-    if (!isScore) {
-      // Shared formatting (km + 5 m-rounded climb) so the sheet matches the
-      // course-map description box instead of showing raw metres.
-      const climbText = formatClimb(hdrCourse.climb ?? hdrCourse.settings.climb);
-      const infoText = climbText
-        ? `${formatLengthKm(lengthM)}   ${climbText}`
-        : formatLengthKm(lengthM);
-      await drawRow([infoText], { headerSpan: true, fontSize: HEADER_FONT_SIZE });
-    }
-  }
-
-  await drawHeaders();
-
-  // ---------------------------------------------------------------------------
-  // Control rows (score courses sorted by code number)
-  // ---------------------------------------------------------------------------
-
-  const displayControls = isScore
+  const sheetControls = isScore
     ? sortControlsByCode(course.controls, event.controls)
     : course.controls;
+  const sheetCourse: Course = { ...course, controls: sheetControls };
+  const { headerRows, bodyRows } = buildDescRows(sheetCourse, event.controls, {
+    eventName: event.name,
+    scale,
+    dpi,
+    isScore,
+    headerFontSize: HEADER_FONT_SIZE,
+  });
+  // Title + split-info repeat at the top of every page; directives + controls flow.
+  const repeatHeaderRows = headerRows.filter((r) => r.kind === 'header' || r.kind === 'splitInfo');
+  const flowRows: DescRow[] = [...headerRows.filter((r) => r.kind === 'directive'), ...bodyRows];
 
-  let seqNumber = 0;
-  let gridTopY = currentY; // top of the current page's control-row block (outer frame)
+  // --- Row painters (each advances currentY down by one cell) ---
+
+  // Split-info row: name / length / climb (or count), divided proportionally.
+  function drawSplitInfoRow(sections: string[]): void {
+    const rowY = currentY - cellPt;
+    const n = sections.length;
+    const widths = n === 3
+      ? [gridWidth * 3 / 8, gridWidth * 3 / 8, gridWidth * 2 / 8]
+      : [gridWidth / 2, gridWidth / 2];
+    let x = startX;
+    for (let i = 0; i < n; i++) {
+      const w = widths[i] ?? gridWidth / n;
+      page.drawRectangle({ x, y: rowY, width: w, height: cellPt, borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH });
+      let text = sections[i]!;
+      const maxW = w - cellPt * 0.16;
+      while (font.widthOfTextAtSize(text, HEADER_FONT_SIZE) > maxW && text.length > 1) text = text.slice(0, -1);
+      const tw = font.widthOfTextAtSize(text, HEADER_FONT_SIZE);
+      page.drawText(text, { x: x + (w - tw) / 2, y: rowY + (cellPt - HEADER_FONT_SIZE) / 2, size: HEADER_FONT_SIZE, font, color: TEXT_COLOR });
+      x += w;
+    }
+    currentY = rowY;
+  }
+
+  // Directive row: a start/finish/exchange symbol on the left, distance on the right.
+  function drawDirectiveRow(symbolType: string, distanceText: string): void {
+    const rowY = currentY - cellPt;
+    const leftW = cellPt * 3;
+    const rightW = gridWidth - leftW;
+    page.drawRectangle({ x: startX, y: rowY, width: leftW, height: cellPt, borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH });
+    page.drawRectangle({ x: startX + leftW, y: rowY, width: rightW, height: cellPt, borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH });
+    const cx = startX + leftW / 2;
+    const cy = rowY + cellPt / 2;
+    const s = cellPt * 0.3;
+    if (symbolType === 'start') {
+      const triH = s * 0.866;
+      page.drawLine({ start: { x: cx - triH, y: cy - s }, end: { x: cx + triH, y: cy }, thickness: BORDER_WIDTH * 2, color: TEXT_COLOR });
+      page.drawLine({ start: { x: cx + triH, y: cy }, end: { x: cx - triH, y: cy + s }, thickness: BORDER_WIDTH * 2, color: TEXT_COLOR });
+      page.drawLine({ start: { x: cx - triH, y: cy + s }, end: { x: cx - triH, y: cy - s }, thickness: BORDER_WIDTH * 2, color: TEXT_COLOR });
+    } else if (symbolType === 'finish') {
+      page.drawCircle({ x: cx, y: cy, size: s, borderColor: TEXT_COLOR, borderWidth: BORDER_WIDTH * 2 });
+      page.drawCircle({ x: cx, y: cy, size: s * 0.7, borderColor: TEXT_COLOR, borderWidth: BORDER_WIDTH * 2 });
+    } else if (symbolType === 'exchange') {
+      page.drawLine({ start: { x: cx - s, y: cy }, end: { x: cx + s, y: cy }, thickness: BORDER_WIDTH * 2.5, color: TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy + s * 0.5 }, end: { x: cx + s, y: cy }, thickness: BORDER_WIDTH * 2.5, color: TEXT_COLOR });
+      page.drawLine({ start: { x: cx + s * 0.5, y: cy - s * 0.5 }, end: { x: cx + s, y: cy }, thickness: BORDER_WIDTH * 2.5, color: TEXT_COLOR });
+    }
+    if (distanceText) {
+      const fs = HEADER_FONT_SIZE - 1;
+      const tw = font.widthOfTextAtSize(distanceText, fs);
+      page.drawText(distanceText, { x: startX + leftW + (rightW - tw) / 2, y: rowY + (cellPt - fs) / 2, size: fs, font, color: TEXT_COLOR });
+    }
+    currentY = rowY;
+  }
+
+  // Control row: the 8-column A–H cells (shares the existing drawRow painter).
+  async function drawControlRow(cc: typeof sheetControls[number], seqNumber: number | null): Promise<void> {
+    const ctrl = event.controls[cc.controlId as ControlId];
+    if (!ctrl) return;
+    const isStart = cc.type === 'start';
+    const isFinish = cc.type === 'finish';
+    const colA = isScore
+      ? (cc.score != null ? String(cc.score) : null)
+      : (seqNumber != null ? String(seqNumber) : null);
+    const colB: string | null = isStart || isFinish ? null : String(ctrl.code);
+    const desc = ctrl.description;
+    const symOrText = (v: string | undefined): string | null =>
+      !v ? null : getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
+    await drawRow([
+      colA, colB,
+      symOrText(desc.columnC), symOrText(desc.columnD), symOrText(desc.columnE),
+      desc.columnFText ?? symOrText(desc.columnF), symOrText(desc.columnG), symOrText(desc.columnH),
+    ]);
+  }
+
+  let gridTopY = currentY; // top of the current page's body block (outer frame)
   let controlRowIndex = 0;
   let rowsOnPage = 0;
 
-  // Draw the heavy outer frame around the control rows on the current page.
   const closeFrame = (): void => {
     if (rowsOnPage > 0) {
       page.drawRectangle({
-        x: startX,
-        y: currentY,
-        width: gridWidth,
-        height: gridTopY - currentY,
-        borderColor: BORDER_COLOR,
-        borderWidth: BORDER_WIDTH * 3,
+        x: startX, y: currentY, width: gridWidth, height: gridTopY - currentY,
+        borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH * 3,
       });
     }
   };
 
-  for (const cc of displayControls) {
-    const ctrl: Control | undefined = event.controls[cc.controlId as ControlId];
-    if (!ctrl) continue;
+  async function drawHeaders(): Promise<void> {
+    for (const row of repeatHeaderRows) {
+      if (row.kind === 'header') {
+        await drawRow([row.text], { headerSpan: true, bold: row === repeatHeaderRows[0], fontSize: row.fontSize });
+      } else if (row.kind === 'splitInfo') {
+        drawSplitInfoRow(row.sections);
+      }
+    }
+  }
 
+  await drawHeaders();
+  gridTopY = currentY;
+
+  for (const row of flowRows) {
     // Paginate: if the next row would fall below the bottom margin, close the
     // current page's frame, start a new page, and repeat the header rows.
     if (currentY - cellPt < layout.marginBottom) {
@@ -327,59 +387,27 @@ export async function generateDescriptionSheetPdf(
       rowsOnPage = 0;
     }
 
-    const isStart = cc.type === 'start';
-    const isFinish = cc.type === 'finish';
-
-    // Column A: point value for score courses, sequence number for normal
-    let colA: string | null = null;
-    if (isScore) {
-      colA = cc.score != null ? String(cc.score) : null;
-    } else if (isStart) {
-      colA = null;
-    } else if (isFinish) {
-      colA = null;
-    } else {
-      seqNumber += 1;
-      colA = String(seqNumber);
+    if (row.kind === 'splitInfo') {
+      drawSplitInfoRow(row.sections);
+    } else if (row.kind === 'directive') {
+      drawDirectiveRow(row.leftSymbol, row.distanceText);
+    } else if (row.kind === 'control') {
+      await drawControlRow(row.cc, row.seqNumber);
+      // IOF convention: a heavier horizontal line after every 3rd control row.
+      controlRowIndex += 1;
+      if (controlRowIndex % 3 === 0) {
+        page.drawLine({
+          start: { x: startX, y: currentY },
+          end: { x: startX + gridWidth, y: currentY },
+          thickness: BORDER_WIDTH * 3,
+          color: BORDER_COLOR,
+        });
+      }
     }
-
-    // Column B: control code (blank for start/finish)
-    const colB: string | null = isStart || isFinish ? null : String(ctrl.code);
-
-    // Columns C-H: description symbols (SVG preferred) or localised text fallback
-    const desc = ctrl.description;
-    const symOrText = (v: string | undefined): string | null => {
-      if (!v) return null;
-      return getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
-    };
-
-    const cells: Array<string | null> = [
-      colA,
-      colB,
-      symOrText(desc.columnC),
-      symOrText(desc.columnD),
-      symOrText(desc.columnE),
-      desc.columnFText ?? symOrText(desc.columnF),
-      symOrText(desc.columnG),
-      symOrText(desc.columnH),
-    ];
-
-    await drawRow(cells);
     rowsOnPage += 1;
-
-    // IOF convention: a heavier horizontal line after every 3rd control row.
-    controlRowIndex += 1;
-    if (controlRowIndex % 3 === 0) {
-      page.drawLine({
-        start: { x: startX, y: currentY },
-        end: { x: startX + gridWidth, y: currentY },
-        thickness: BORDER_WIDTH * 3,
-        color: BORDER_COLOR,
-      });
-    }
   }
 
-  // Thicker outer frame around the control-row block on the final page.
+  // Thicker outer frame around the body block on the final page.
   closeFrame();
 
   // ---------------------------------------------------------------------------

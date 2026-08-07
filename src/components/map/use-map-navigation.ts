@@ -188,6 +188,7 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
               type: 'line',
               position: { x: pos.x, y: pos.y },
               endPosition: { x: pos.x + mmToPixels(30), y: pos.y },
+              lineStyle: activeTool.lineStyle,
             });
           } else if (itemType === 'rectangle') {
             // Place a default-sized rectangle (30x20mm in map coords)

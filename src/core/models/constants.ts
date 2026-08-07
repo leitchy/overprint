@@ -55,6 +55,10 @@ export const IOF_SPECIAL_SYMBOL_MM = 6.0;
 /** Stroke width (mm) for special-item IOF symbols (IOF overprint line ≈ 0.35 mm). */
 export const IOF_SPECIAL_SYMBOL_LINE_MM = 0.35;
 
+/** Marked-route (IOF 707/711) dash pattern in mm: 2.0 mm dash, 0.5 mm gap. */
+export const MARKED_ROUTE_DASH_MM = 2.0;
+export const MARKED_ROUTE_GAP_MM = 0.5;
+
 /** Common map scale presets (denominator of the ratio, e.g. 10000 = 1:10000) */
 export const SCALE_PRESETS = [4000, 5000, 7500, 10000, 15000] as const;
 

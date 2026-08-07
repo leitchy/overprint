@@ -11,7 +11,7 @@ import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -521,11 +521,16 @@ async function renderSpecialItems(
       case 'line': {
         const endPos = toPdf(item.endPosition);
         const lineThickness = (item.lineWidth ?? 2) * effectivePPP;
+        // Marked-route lines dash at a fixed physical size (mm → pt).
+        const dashArray = item.lineStyle === 'dashed'
+          ? [mmToPdfPoints(MARKED_ROUTE_DASH_MM), mmToPdfPoints(MARKED_ROUTE_GAP_MM)]
+          : undefined;
         page.drawLine({
           start: { x: pos.x, y: pos.y },
           end: { x: endPos.x, y: endPos.y },
           thickness: lineThickness,
           color: itemColor,
+          dashArray,
         });
         break;
       }
@@ -749,6 +754,7 @@ async function renderAutoDescriptionBox(
     scale: eventSettings.printScale,
     dpi: 96,
     isAllControls,
+    isScore: course.courseType === 'score',
     partLabel,
     headerFontSize: DESC_HEADER_FONT_SIZE,
   });

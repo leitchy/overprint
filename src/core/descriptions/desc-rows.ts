@@ -26,6 +26,8 @@ export interface BuildDescRowsOptions {
   dpi?: number;
   /** All-controls sheet: no per-course length, sequence numbers suppressed. */
   isAllControls?: boolean;
+  /** Score course: the split-info row shows a control count, not a length. */
+  isScore?: boolean;
   /** Multi-part label appended to the course name in the split-info row. */
   partLabel?: string;
   /** Font size for the top header row (secondary title is one smaller). */
@@ -55,7 +57,7 @@ export function buildDescRows(
   controls: Record<ControlId, Control>,
   opts: BuildDescRowsOptions,
 ): { headerRows: DescRow[]; bodyRows: DescRow[] } {
-  const { eventName, scale, isAllControls = false, partLabel, headerFontSize } = opts;
+  const { eventName, scale, isAllControls = false, isScore = false, partLabel, headerFontSize } = opts;
   const dpi = opts.dpi ?? 96;
   const courseLabel = partLabel ? `${course.name} ${partLabel}` : course.name;
 
@@ -79,11 +81,14 @@ export function buildDescRows(
     headerRows.push({ kind: 'header', text: secondaryTitle, fontSize: headerFontSize - 1 });
   }
 
+  const numNormal = course.controls.filter(
+    (cc) => cc.type !== 'start' && cc.type !== 'finish',
+  ).length;
   if (isAllControls) {
-    const numNormal = course.controls.filter(
-      (cc) => cc.type !== 'start' && cc.type !== 'finish',
-    ).length;
     headerRows.push({ kind: 'splitInfo', sections: ['All controls', `${numNormal} controls`] });
+  } else if (isScore) {
+    // Score courses have no meaningful ordered length — show a control count.
+    headerRows.push({ kind: 'splitInfo', sections: [courseLabel, `${numNormal} controls`] });
   } else {
     const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
     const climbText = formatClimb(course.climb ?? course.settings.climb);
