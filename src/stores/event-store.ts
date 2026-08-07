@@ -155,6 +155,9 @@ interface EventActions {
 
   // Low-level control operations (internal — prefer course-aware actions)
   updateControlPosition: (id: ControlId, position: MapPoint) => void;
+  /** Translate every control, leg bend point, print area and special item by
+   *  (dx, dy) map pixels — used to re-anchor the event onto a revised base map. */
+  moveAllControls: (dx: number, dy: number) => void;
 
   // Course settings
   updateCourseSettings: (courseId: CourseId, updates: Partial<CourseSettings>) => void;
@@ -786,6 +789,42 @@ export const useEventStore = create<EventState & EventActions>()(
           const control = state.event?.controls[id];
           if (control) {
             control.position = position;
+          }
+        });
+      },
+
+      moveAllControls: (dx: number, dy: number) => {
+        if (dx === 0 && dy === 0) return;
+        set((state) => {
+          if (!state.event) return;
+          for (const ctrl of Object.values(state.event.controls)) {
+            ctrl.position.x += dx;
+            ctrl.position.y += dy;
+          }
+          for (const course of state.event.courses) {
+            for (const cc of course.controls) {
+              if (cc.bendPoints) {
+                for (const bp of cc.bendPoints) {
+                  bp.x += dx;
+                  bp.y += dy;
+                }
+              }
+            }
+            const pa = course.settings.printArea;
+            if (pa) {
+              pa.minX += dx;
+              pa.maxX += dx;
+              pa.minY += dy;
+              pa.maxY += dy;
+            }
+          }
+          for (const item of state.event.specialItems) {
+            item.position.x += dx;
+            item.position.y += dy;
+            if ('endPosition' in item && item.endPosition) {
+              item.endPosition.x += dx;
+              item.endPosition.y += dy;
+            }
           }
         });
       },

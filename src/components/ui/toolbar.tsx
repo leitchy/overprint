@@ -470,6 +470,12 @@ export function Toolbar() {
       shortcut: '⇧⌘Z',
       onClick: () => useEventStore.temporal.getState().redo(),
     },
+    { separator: true },
+    {
+      label: t('moveAllControls'),
+      onClick: () => setTool({ type: 'moveAll' }),
+      disabled: !hasEvent || !hasImage,
+    },
   ];
 
   const viewMenuItems: MenuEntry[] = [
