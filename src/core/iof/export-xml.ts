@@ -13,10 +13,11 @@
  *   one), so it sits on the destination CourseControl; the start carries none.
  * - `RaceCourseData` child order is Map, then all Controls, then all Courses.
  */
-import type { Control, Course, CourseControl, OverprintEvent } from '@/core/models/types';
+import type { Control, Course, CourseControl, GeoReference, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { mapDistanceMetres } from '@/core/geometry/distance';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { mapPixelsToGps } from '@/core/geometry/geo-transform';
 import { IOF_XML_NS, IOF_XML_VERSION } from './xml-constants';
 
 // ---------------------------------------------------------------------------
@@ -96,18 +97,25 @@ function buildControlElement(
   ctrl: Control,
   type: ControlType,
   dpi: number,
+  georef: GeoReference | undefined,
 ): string {
   const iofId = escapeXml(controlIofId(ctrl, type));
   const typeAttr = controlTypeAttr(type);
   const xMm = pxToMm(ctrl.position.x, dpi).toFixed(3);
   const yMm = pxToMm(ctrl.position.y, dpi).toFixed(3);
 
-  return [
-    `    <Control type="${typeAttr}">`,
-    `      <Id>${iofId}</Id>`,
-    `      <MapPosition x="${xMm}" y="${yMm}" unit="mm"/>`,
-    `    </Control>`,
-  ].join('\n');
+  const lines = [`    <Control type="${typeAttr}">`, `      <Id>${iofId}</Id>`];
+  // Geographic Position (WGS84) when the map is georeferenced — comes before
+  // MapPosition per the schema's Control sequence.
+  if (georef) {
+    const gps = mapPixelsToGps(ctrl.position, georef);
+    if (gps) {
+      lines.push(`      <Position lng="${gps.lon.toFixed(6)}" lat="${gps.lat.toFixed(6)}"/>`);
+    }
+  }
+  lines.push(`      <MapPosition x="${xMm}" y="${yMm}" unit="mm"/>`);
+  lines.push(`    </Control>`);
+  return lines.join('\n');
 }
 
 function buildCourseElement(
@@ -173,6 +181,7 @@ function buildCourseElement(
 export function exportIofXml(event: OverprintEvent): string {
   const dpi = event.mapFile?.dpi ?? 96;
   const scale = event.mapFile?.scale ?? 15000;
+  const georef = event.mapFile?.georef;
 
   const createTime = new Date().toISOString();
 
@@ -197,7 +206,7 @@ export function exportIofXml(event: OverprintEvent): string {
       if (!ctrl) continue;
       const iofId = controlIofId(ctrl, cc.type);
       if (!seen.has(iofId)) {
-        seen.set(iofId, buildControlElement(ctrl, cc.type, dpi));
+        seen.set(iofId, buildControlElement(ctrl, cc.type, dpi, georef));
       }
     }
   }
