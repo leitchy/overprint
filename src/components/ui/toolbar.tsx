@@ -213,6 +213,7 @@ export function Toolbar() {
   const hasEvent = !!event;
   const hasCourses = (event?.courses.length ?? 0) > 0;
   const canExport = hasEvent && hasImage && hasCourses;
+  const canExportGpx = canExport && !!event?.mapFile?.georef;
 
   const handleExportPdf = async () => {
     const currentEvent = useEventStore.getState().event;
@@ -397,6 +398,24 @@ export function Toolbar() {
     }
   };
 
+  const handleExportGpx = async () => {
+    const currentEvent = useEventStore.getState().event;
+    if (!currentEvent) return;
+
+    try {
+      const { exportGpx } = await import('@/core/export/export-gpx');
+      const gpx = exportGpx(currentEvent);
+      if (!gpx) return; // not georeferenced
+      const baseName = currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '');
+      await saveString(gpx, `${baseName}.gpx`, 'application/gpx+xml', [
+        { description: 'GPX', accept: { 'application/gpx+xml': ['.gpx'] } },
+      ]);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('GPX export failed:', err);
+    }
+  };
+
   const handleImportIofXml = () => {
     iofXmlInputRef.current?.click();
   };
@@ -433,6 +452,7 @@ export function Toolbar() {
       ],
     },
     { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
+    { label: t('exportGpx'), onClick: handleExportGpx, disabled: !canExportGpx },
     { label: t('exportPng'), onClick: () => handleExportImage('png'), disabled: !hasImage },
     { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
     { separator: true },
@@ -449,6 +469,12 @@ export function Toolbar() {
       label: t('redo'),
       shortcut: '⇧⌘Z',
       onClick: () => useEventStore.temporal.getState().redo(),
+    },
+    { separator: true },
+    {
+      label: t('moveAllControls'),
+      onClick: () => setTool({ type: 'moveAll' }),
+      disabled: !hasEvent || !hasImage,
     },
   ];
 
@@ -528,6 +554,10 @@ export function Toolbar() {
     {
       label: t('addRectangle'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'rectangle' as SpecialItemType }),
+    },
+    {
+      label: t('addWhiteOut'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'whiteOut' as SpecialItemType }),
     },
     { separator: true },
     {

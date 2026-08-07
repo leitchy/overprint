@@ -1,8 +1,11 @@
 /**
  * IOF XML Data Standard v3.0 import.
  *
- * Parses a CourseData XML string and returns Control[] and Course[] suitable
- * for loading into the OverprintEvent model.
+ * Parses a `CourseData` document and returns Control[] and Course[] ready to load
+ * into the OverprintEvent model. Accepts real-world IOF v3 files (PurplePen,
+ * Condes, etc.) — `<Control type="…">` with a nested `<CourseControl type="…">
+ * <Control>id</Control>` — and stays back-compatible with the legacy dialect
+ * Overprint used to emit (`<Type>` child; `<Control><ControlId>` course refs).
  */
 import type { Control, Course, CourseControl, CourseControlType } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
@@ -30,14 +33,34 @@ function mmToPx(mmValue: number, dpi: number): number {
   return (mmValue / 25.4) * dpi;
 }
 
-function yFlipPx(yMm: number, mapHeightPx: number, dpi: number): number {
-  // IOF Y increases upward from bottom-left; our Y increases downward from top-left
-  const yFromBottom = mmToPx(yMm, dpi);
-  return mapHeightPx - yFromBottom;
-}
-
 function getTextNS(parent: Element, ns: string, tag: string): string {
   return parent.getElementsByTagNameNS(ns, tag)[0]?.textContent?.trim() ?? '';
+}
+
+/** Direct element children of `parent` with the given local name and namespace. */
+function directChildren(parent: Element, ns: string, localName: string): Element[] {
+  return Array.from(parent.childNodes).filter(
+    (n): n is Element =>
+      n.nodeType === Node.ELEMENT_NODE &&
+      (n as Element).localName === localName &&
+      (n as Element).namespaceURI === ns,
+  ) as Element[];
+}
+
+/** Map an IOF control-type token (attribute or legacy child) to our type. */
+function mapControlType(iofType: string): CourseControlType {
+  switch (iofType) {
+    case 'Start':
+      return 'start';
+    case 'Finish':
+      return 'finish';
+    case 'CrossingPoint':
+      return 'crossingPoint';
+    case 'MapExchange':
+      return 'mapExchange';
+    default:
+      return 'control';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,17 +72,18 @@ function getTextNS(parent: Element, ns: string, tag: string): string {
  *
  * @param xmlString  - The raw XML document string
  * @param dpi        - Map image DPI (used to convert mm positions to pixels)
- * @param mapHeightPx - Map image height in pixels (needed for Y-axis flip)
+ * @param _mapHeightPx - Deprecated/unused. Positions are top-left / Y-down mm
+ *   (the exact inverse of the exporter), so no map height is needed. Kept for
+ *   call-site compatibility.
  */
 export function importIofXml(
   xmlString: string,
   dpi: number,
-  mapHeightPx: number,
+  _mapHeightPx?: number,
 ): IofImportResult {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, 'application/xml');
 
-  // Check for parse errors
   const parseErrors = doc.getElementsByTagName('parsererror');
   if (parseErrors.length > 0) {
     throw new Error(
@@ -69,40 +93,30 @@ export function importIofXml(
 
   const ns = IOF_XML_NS;
 
-  // ---------------------------------------------------------------------------
-  // Parse global Control definitions
-  // ---------------------------------------------------------------------------
-
-  // Map from IOF control ID string → Control (to share across courses)
-  const controlByIofId = new Map<string, Control>();
-  const controlTypeByIofId = new Map<string, string>();
-
-  const raceCourseDataEls = doc.getElementsByTagNameNS(ns, 'RaceCourseData');
-  const raceCourseData = raceCourseDataEls[0];
+  const raceCourseData = doc.getElementsByTagNameNS(ns, 'RaceCourseData')[0];
   if (!raceCourseData) {
     return { controls: [], courses: [] };
   }
 
-  // Global <Control> elements are direct children of <RaceCourseData>
-  const controlEls = Array.from(raceCourseData.childNodes).filter(
-    (n): n is Element =>
-      n.nodeType === Node.ELEMENT_NODE &&
-      (n as Element).localName === 'Control' &&
-      (n as Element).namespaceURI === ns,
-  ) as Element[];
+  // ---------------------------------------------------------------------------
+  // Global <Control> definitions (direct children of <RaceCourseData>)
+  // ---------------------------------------------------------------------------
+  const controlByIofId = new Map<string, Control>();
+  const controlTypeByIofId = new Map<string, string>();
 
-  for (const el of controlEls) {
+  for (const el of directChildren(raceCourseData, ns, 'Control')) {
     const iofId = getTextNS(el, ns, 'Id');
-    const typeStr = getTextNS(el, ns, 'Type');
+    if (!iofId) continue;
+    // Real v3: type is an attribute; legacy Overprint: a <Type> child element.
+    const typeStr = el.getAttribute('type') || getTextNS(el, ns, 'Type');
     const mapPosEl = el.getElementsByTagNameNS(ns, 'MapPosition')[0];
 
     const xMm = mm(mapPosEl?.getAttribute('x') ?? null);
     const yMm = mm(mapPosEl?.getAttribute('y') ?? null);
-
     const xPx = mmToPx(xMm, dpi);
-    const yPx = yFlipPx(yMm, mapHeightPx, dpi);
+    const yPx = mmToPx(yMm, dpi);
 
-    // Derive a numeric code: synthesise codes for Start/Finish
+    // Derive a numeric code; synthesise codes for Start/Finish.
     let code: number;
     if (typeStr === 'Start') {
       code = 1;
@@ -113,73 +127,65 @@ export function importIofXml(
       code = isNaN(parsed) ? 0 : parsed;
     }
 
-    const control: Control = {
+    controlByIofId.set(iofId, {
       id: generateControlId(),
       code,
       position: { x: xPx, y: yPx },
       description: { columnD: '' },
-    };
-
-    controlByIofId.set(iofId, control);
+    });
     controlTypeByIofId.set(iofId, typeStr);
   }
 
   // ---------------------------------------------------------------------------
-  // Parse Course elements
+  // Courses
   // ---------------------------------------------------------------------------
-
-  const courseEls = Array.from(raceCourseData.childNodes).filter(
-    (n): n is Element =>
-      n.nodeType === Node.ELEMENT_NODE &&
-      (n as Element).localName === 'Course' &&
-      (n as Element).namespaceURI === ns,
-  ) as Element[];
-
   const courses: Course[] = [];
 
-  for (const courseEl of courseEls) {
+  for (const courseEl of directChildren(raceCourseData, ns, 'Course')) {
     const name = getTextNS(courseEl, ns, 'Name');
 
-    // Course-level <Control> elements (sequence references)
-    const courseControlEls = Array.from(courseEl.childNodes).filter(
-      (n): n is Element =>
-        n.nodeType === Node.ELEMENT_NODE &&
-        (n as Element).localName === 'Control' &&
-        (n as Element).namespaceURI === ns,
-    ) as Element[];
+    // Real v3 uses <CourseControl>; the legacy dialect used bare <Control>.
+    let ccEls = directChildren(courseEl, ns, 'CourseControl');
+    const legacy = ccEls.length === 0;
+    if (legacy) ccEls = directChildren(courseEl, ns, 'Control');
 
     const courseControls: CourseControl[] = [];
-    let seqIndex = 0;
     let hasScore = false;
 
-    for (const ccEl of courseControlEls) {
-      const refId = getTextNS(ccEl, ns, 'ControlId');
+    for (let i = 0; i < ccEls.length; i++) {
+      const ccEl = ccEls[i]!;
+
+      // Control reference: real v3 nests <Control>id</Control> (first wins for
+      // fork variations); legacy used a <ControlId> child.
+      const refId = legacy
+        ? getTextNS(ccEl, ns, 'ControlId')
+        : (directChildren(ccEl, ns, 'Control')[0]?.textContent?.trim() ?? '');
       const ctrl = controlByIofId.get(refId);
       if (!ctrl) continue;
 
-      // Determine control type from IOF XML Type element
-      const iofType = controlTypeByIofId.get(refId) ?? '';
+      // Type: prefer the CourseControl @type, then the control definition's type,
+      // then fall back to sequence position (first = start, last = finish).
+      const ccTypeAttr = ccEl.getAttribute('type') ?? '';
+      const defType = controlTypeByIofId.get(refId) ?? '';
       let type: CourseControlType;
-      if (seqIndex === 0 || iofType === 'Start') {
+      if (ccTypeAttr) {
+        type = mapControlType(ccTypeAttr);
+      } else if (defType) {
+        type = mapControlType(defType);
+      } else if (i === 0) {
         type = 'start';
-      } else if (seqIndex === courseControlEls.length - 1 || iofType === 'Finish') {
+      } else if (i === ccEls.length - 1) {
         type = 'finish';
-      } else if (iofType === 'CrossingPoint') {
-        type = 'crossingPoint';
-      } else if (iofType === 'MapExchange') {
-        type = 'mapExchange';
       } else {
         type = 'control';
       }
 
-      // Parse score value if present
       const scoreStr = getTextNS(ccEl, ns, 'Score');
-      const score = scoreStr ? parseInt(scoreStr, 10) : undefined;
-      const validScore = score !== undefined && !isNaN(score) ? score : undefined;
+      const parsedScore = scoreStr ? parseInt(scoreStr, 10) : NaN;
+      const score = Number.isNaN(parsedScore) ? undefined : parsedScore;
+      if (score !== undefined) hasScore = true;
 
-      courseControls.push({ controlId: ctrl.id as ControlId, type, score: validScore });
-      if (validScore !== undefined) hasScore = true;
-      seqIndex++;
+      courseControls.push({ controlId: ctrl.id as ControlId, type, score });
     }
 
     courses.push({
@@ -192,18 +198,12 @@ export function importIofXml(
   }
 
   // ---------------------------------------------------------------------------
-  // Build final control list
+  // Return only controls referenced by at least one course
   // ---------------------------------------------------------------------------
-
-  // Only include controls that are actually referenced by at least one course
   const usedControlIds = new Set<ControlId>();
   for (const course of courses) {
-    for (const cc of course.controls) {
-      usedControlIds.add(cc.controlId);
-    }
+    for (const cc of course.controls) usedControlIds.add(cc.controlId);
   }
-
-  // Remap with stable IDs
   const controls = Array.from(controlByIofId.values()).filter((c) =>
     usedControlIds.has(c.id),
   );

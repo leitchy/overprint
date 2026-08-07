@@ -198,6 +198,7 @@ export type SpecialItemType =
   | 'text'
   | 'line'
   | 'rectangle'
+  | 'whiteOut'
   | 'descriptionBox'
   | 'image'
   | 'outOfBounds'
@@ -235,6 +236,15 @@ export interface RectangleItem extends SpecialItemBase {
   lineWidth?: number;
 }
 
+/**
+ * An opaque white rectangle that masks stale map content. Drawn ABOVE the map
+ * but BELOW the course overprint, so course symbols still show over the mask.
+ */
+export interface WhiteOutItem extends SpecialItemBase {
+  type: 'whiteOut';
+  endPosition: MapPoint;
+}
+
 export interface DescriptionBoxItem extends SpecialItemBase {
   type: 'descriptionBox';
   endPosition: MapPoint;
@@ -257,7 +267,7 @@ export interface IofSymbolItem extends SpecialItemBase {
   type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute';
 }
 
-export type SpecialItem = TextItem | LineItem | RectangleItem | DescriptionBoxItem | ImageItem | IofSymbolItem;
+export type SpecialItem = TextItem | LineItem | RectangleItem | WhiteOutItem | DescriptionBoxItem | ImageItem | IofSymbolItem;
 
 export interface OverprintEvent {
   id: EventId;

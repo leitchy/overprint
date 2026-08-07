@@ -197,6 +197,14 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
               position: { x: pos.x, y: pos.y },
               endPosition: { x: pos.x + mmToPixels(30), y: pos.y + mmToPixels(20) },
             });
+          } else if (itemType === 'whiteOut') {
+            // Place a default-sized white-out mask (20x10mm in map coords)
+            store.addSpecialItem({
+              id: generateSpecialItemId(),
+              type: 'whiteOut',
+              position: { x: pos.x, y: pos.y },
+              endPosition: { x: pos.x + mmToPixels(20), y: pos.y + mmToPixels(10) },
+            });
           } else if (itemType === 'descriptionBox') {
             // Place a default-sized description box (60x40mm in map coords)
             // Auto-bind to the active course
@@ -210,7 +218,7 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
             });
           } else {
             // IOF symbols — click to place
-            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'descriptionBox' | 'image'>;
+            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'whiteOut' | 'descriptionBox' | 'image'>;
             store.addSpecialItem({
               id: generateSpecialItemId(),
               type: symType,

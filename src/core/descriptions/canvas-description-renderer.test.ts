@@ -35,16 +35,16 @@ describe('computeGridLayout', () => {
   it('calculates correct row count for empty course', () => {
     const course = createCourse('Test');
     const layout = computeGridLayout(course, 400, 'symbols');
-    // header + info + column headers + 1 empty state row = 4
-    expect(layout.numRows).toBe(4);
+    // header + info + 1 empty state row = 3 (no A–H letter row)
+    expect(layout.numRows).toBe(3);
   });
 
   it('calculates correct row count for course with controls', () => {
     const course = createCourse('Test');
     addControlsToCourse(course, 5);
     const layout = computeGridLayout(course, 400, 'symbols');
-    // header + info + column headers + 7 controls (start + 5 + finish) = 10
-    expect(layout.numRows).toBe(10);
+    // header + info + 7 controls (start + 5 + finish) = 9 (no A–H letter row)
+    expect(layout.numRows).toBe(9);
   });
 
   it('includes secondary title row when present', () => {
@@ -52,8 +52,8 @@ describe('computeGridLayout', () => {
     course.settings.secondaryTitle = 'M21A';
     addControlsToCourse(course, 3);
     const layout = computeGridLayout(course, 400, 'symbols');
-    // header + secondary + info + column headers + 5 controls = 9
-    expect(layout.numRows).toBe(9);
+    // header + secondary + info + 5 controls = 8 (no A–H letter row)
+    expect(layout.numRows).toBe(8);
   });
 
   it('uses 8 columns for symbols mode', () => {

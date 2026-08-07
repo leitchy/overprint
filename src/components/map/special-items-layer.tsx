@@ -17,6 +17,7 @@ import type {
   TextItem,
   LineItem,
   RectangleItem,
+  WhiteOutItem,
   DescriptionBoxItem,
   ImageItem,
   IofSymbolItem,
@@ -26,14 +27,14 @@ import { useDescriptionCanvas } from '@/core/descriptions/use-description-canvas
 import { computeGridLayout } from '@/core/descriptions/canvas-description-renderer';
 import { generateSpecialItemId } from '@/utils/id';
 import { isEditableTarget } from '@/utils/dom';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
+import { mmToMapPixels } from '@/core/geometry/overprint-dimensions';
 
 const SELECTION_DASH = [6, 4];
 const SELECTION_COLOR = '#FFD700';
 const NATURAL_HEIGHT_COLOR = '#4CAF50';
 const NATURAL_HEIGHT_SNAP = 8;
 const DEFAULT_LINE_WIDTH = 2;
-const IOF_SYMBOL_SIZE = 20; // px radius / half-size for IOF symbols
 
 // ---------------------------------------------------------------------------
 // IOF symbol renderers (inline Konva shapes)
@@ -42,11 +43,13 @@ const IOF_SYMBOL_SIZE = 20; // px radius / half-size for IOF symbols
 interface IofSymbolShapeProps {
   color: string;
   lineWidth: number;
+  /** Half-size of the symbol in map pixels (scale-aware, derived from mm + DPI). */
+  size: number;
 }
 
 /** Out of bounds: hatched square */
-function OutOfBoundsShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function OutOfBoundsShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Rect x={-s} y={-s} width={s * 2} height={s * 2} stroke={color} strokeWidth={lineWidth} fill="transparent" listening={false} />
@@ -65,8 +68,8 @@ function OutOfBoundsShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Dangerous area: triangle with ! */
-function DangerousAreaShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function DangerousAreaShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Line
@@ -83,8 +86,8 @@ function DangerousAreaShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Water location: circle with wave */
-function WaterLocationShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE;
+function WaterLocationShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size;
   return (
     <>
       <Circle radius={s} stroke={color} strokeWidth={lineWidth} fill="transparent" listening={false} />
@@ -100,8 +103,8 @@ function WaterLocationShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** First aid: cross (+) shape */
-function FirstAidShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE * 0.7;
+function FirstAidShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size * 0.7;
   return (
     <>
       <Line points={[0, -s, 0, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
@@ -111,8 +114,8 @@ function FirstAidShape({ color, lineWidth }: IofSymbolShapeProps) {
 }
 
 /** Forbidden route: X shape */
-function ForbiddenRouteShape({ color, lineWidth }: IofSymbolShapeProps) {
-  const s = IOF_SYMBOL_SIZE * 0.7;
+function ForbiddenRouteShape({ color, lineWidth, size }: IofSymbolShapeProps) {
+  const s = size * 0.7;
   return (
     <>
       <Line points={[-s, -s, s, s]} stroke={color} strokeWidth={lineWidth * 2} lineCap="round" listening={false} />
@@ -353,6 +356,101 @@ const RectangleItemShape = memo(function RectangleItemShape({
             onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
           />
           {/* EndPosition corner */}
+          <Circle
+            x={w} y={h} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(0, 0, e.target.x(), e.target.y());
+            }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newEnd = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: w, y: h });
+              onUpdate?.({ endPosition: newEnd } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
+        </>
+      )}
+    </Group>
+  );
+});
+
+/**
+ * White-out interaction shape (top layer). The opaque white fill is drawn below
+ * the course by WhiteOutFillLayer; here we render a transparent hit area with a
+ * faint dashed border (so the extent is discoverable) plus resize handles.
+ */
+const WhiteOutItemShape = memo(function WhiteOutItemShape({
+  item,
+  isSelected,
+  draggable,
+  onSelect,
+  onDragEnd,
+  onUpdate,
+}: ItemProps<WhiteOutItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+  const w = item.endPosition.x - item.position.x;
+  const h = item.endPosition.y - item.position.y;
+  const minX = Math.min(0, w);
+  const minY = Math.min(0, h);
+  const absW = Math.abs(w);
+  const absH = Math.abs(h);
+
+  const rectRef = useRef<Konva.Rect>(null);
+  const updateRectVisuals = useCallback((tlX: number, tlY: number, brX: number, brY: number) => {
+    rectRef.current?.setAttrs({
+      x: Math.min(tlX, brX), y: Math.min(tlY, brY),
+      width: Math.abs(brX - tlX), height: Math.abs(brY - tlY),
+    });
+    rectRef.current?.getLayer()?.batchDraw();
+  }, []);
+
+  return (
+    <Group
+      x={item.position.x}
+      y={item.position.y}
+      draggable={draggable}
+      onClick={(e: KonvaEventObject<MouseEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onTap={(e: KonvaEventObject<TouchEvent>) => { e.cancelBubble = true; onSelect(); }}
+      onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+        onDragEnd({ x: e.target.x(), y: e.target.y() });
+      }}
+    >
+      {/* Transparent hit area with a faint dashed outline so the mask is selectable. */}
+      <Rect
+        ref={rectRef}
+        x={minX}
+        y={minY}
+        width={absW}
+        height={absH}
+        fill="transparent"
+        stroke={isSelected ? SELECTION_COLOR : '#999999'}
+        strokeWidth={1}
+        dash={SELECTION_DASH}
+        listening={true}
+      />
+      {isSelected && (
+        <>
+          <Circle
+            x={0} y={0} radius={6} fill={SELECTION_COLOR}
+            draggable={!!onUpdate}
+            onDragStart={(e: KonvaEventObject<DragEvent>) => { e.cancelBubble = true; }}
+            onDragMove={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              updateRectVisuals(e.target.x(), e.target.y(), w, h);
+            }}
+            onDragEnd={(e: KonvaEventObject<DragEvent>) => {
+              e.cancelBubble = true;
+              const newPos = { x: item.position.x + e.target.x(), y: item.position.y + e.target.y() };
+              e.target.position({ x: 0, y: 0 });
+              onUpdate?.({ position: newPos } as Partial<SpecialItem>);
+            }}
+            onMouseEnter={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = 'nwse-resize'; }}
+            onMouseLeave={(e: KonvaEventObject<MouseEvent>) => { const c = e.target.getStage()?.container(); if (c) c.style.cursor = ''; }}
+          />
           <Circle
             x={w} y={h} radius={6} fill={SELECTION_COLOR}
             draggable={!!onUpdate}
@@ -718,16 +816,19 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
   onSelect,
   onDragEnd,
 }: ItemProps<IofSymbolItem>) {
+  const dpi = useEventStore((s) => s.event?.mapFile?.dpi ?? 150);
   const color = item.color ?? OVERPRINT_PURPLE;
-  const lineWidth = DEFAULT_LINE_WIDTH * SCREEN_LINE_MULTIPLIER;
+  // Scale-aware: symbol size and stroke are fixed mm, converted to map pixels.
+  const size = mmToMapPixels(IOF_SPECIAL_SYMBOL_MM, dpi) / 2;
+  const lineWidth = mmToMapPixels(IOF_SPECIAL_SYMBOL_LINE_MM, dpi) * SCREEN_LINE_MULTIPLIER;
 
   const symbolShape = (() => {
     switch (item.type) {
-      case 'outOfBounds': return <OutOfBoundsShape color={color} lineWidth={lineWidth} />;
-      case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} />;
-      case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} />;
-      case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} />;
-      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} />;
+      case 'outOfBounds': return <OutOfBoundsShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} size={size} />;
+      case 'forbiddenRoute': return <ForbiddenRouteShape color={color} lineWidth={lineWidth} size={size} />;
     }
   })();
 
@@ -744,7 +845,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
     >
       {isSelected && (
         <Circle
-          radius={IOF_SYMBOL_SIZE + 6}
+          radius={size + lineWidth * 2}
           stroke={SELECTION_COLOR}
           strokeWidth={1.5}
           dash={SELECTION_DASH}
@@ -755,10 +856,10 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
       {symbolShape}
       {/* Hit target */}
       <Rect
-        x={-IOF_SYMBOL_SIZE}
-        y={-IOF_SYMBOL_SIZE}
-        width={IOF_SYMBOL_SIZE * 2}
-        height={IOF_SYMBOL_SIZE * 2}
+        x={-size}
+        y={-size}
+        width={size * 2}
+        height={size * 2}
         fill="#000"
         opacity={0.001}
       />
@@ -771,7 +872,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
 // ---------------------------------------------------------------------------
 
 interface DrawPreviewProps {
-  itemType: 'line' | 'rectangle' | 'descriptionBox';
+  itemType: 'line' | 'rectangle' | 'whiteOut' | 'descriptionBox';
   start: MapPoint;
   end: MapPoint;
   naturalHeight?: number;
@@ -794,6 +895,22 @@ function DrawPreview({ itemType, start, end, naturalHeight }: DrawPreviewProps) 
   const minY = Math.min(start.y, end.y);
   const absW = Math.abs(end.x - start.x);
   const absH = Math.abs(end.y - start.y);
+
+  if (itemType === 'whiteOut') {
+    return (
+      <Rect
+        x={minX}
+        y={minY}
+        width={absW}
+        height={absH}
+        fill="rgba(255,255,255,0.85)"
+        stroke="#999999"
+        strokeWidth={1}
+        dash={[6, 4]}
+        listening={false}
+      />
+    );
+  }
 
   if (itemType === 'descriptionBox') {
     const isNearNatural = naturalHeight != null && Math.abs(absH - naturalHeight) < NATURAL_HEIGHT_SNAP;
@@ -923,7 +1040,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     const pos = stagePointerPosition(e);
     if (!pos) return;
 
-    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'descriptionBox') {
+    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') {
       setDrawState({ start: pos, current: pos });
     }
   };
@@ -957,6 +1074,13 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
         addSpecialItem({
           id: generateSpecialItemId(),
           type: 'rectangle',
+          position: drawState.start,
+          endPosition: end,
+        });
+      } else if (addItemType === 'whiteOut') {
+        addSpecialItem({
+          id: generateSpecialItemId(),
+          type: 'whiteOut',
           position: drawState.start,
           endPosition: end,
         });
@@ -1070,6 +1194,23 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
                 onUpdate={(updates) => updateSpecialItem(item.id, updates)}
               />
             );
+          case 'whiteOut':
+            return (
+              <WhiteOutItemShape
+                key={item.id}
+                item={item}
+                {...commonProps}
+                onDragEnd={(pos) => {
+                  const ww = item.endPosition.x - item.position.x;
+                  const wh = item.endPosition.y - item.position.y;
+                  updateSpecialItem(item.id, {
+                    position: pos,
+                    endPosition: { x: pos.x + ww, y: pos.y + wh },
+                  } as Partial<SpecialItem>);
+                }}
+                onUpdate={(updates) => updateSpecialItem(item.id, updates)}
+              />
+            );
           case 'descriptionBox':
             return (
               <DescriptionBoxItemShape
@@ -1116,7 +1257,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       })}
 
       {/* Draw preview for line/rectangle while dragging */}
-      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'descriptionBox') && (
+      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'descriptionBox') && (
         <DrawPreview
           itemType={addItemType}
           start={drawState.start}

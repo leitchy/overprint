@@ -24,6 +24,8 @@ import { PrintBoundary } from '@/components/map/print-boundary';
 import { TextFormatToolbar } from '@/components/map/text-format-toolbar';
 import { InlineTextEditor } from '@/components/map/inline-text-editor';
 import { SpecialItemsLayer } from '@/components/map/special-items-layer';
+import { WhiteOutFillLayer } from '@/components/map/white-out-fill-layer';
+import { MoveAllLayer } from '@/components/map/move-all-layer';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { useIsTouch } from '@/hooks/use-is-touch';
 import { SlideDrawer } from '@/components/ui/slide-drawer';
@@ -464,6 +466,9 @@ export function MapCanvas() {
             )}
           </Layer>
 
+          {/* White-out masks — above the map, below the course overprint */}
+          <WhiteOutFillLayer />
+
           {/* Course overprint layer — multiply blend so dark map features show through */}
           <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
@@ -642,6 +647,9 @@ export function MapCanvas() {
 
           {/* Special items layer — interactive annotations above the overprint */}
           <SpecialItemsLayer />
+
+          {/* Move-all-controls tool overlay (captures drag when active) */}
+          <MoveAllLayer />
 
           {/* Overlay layer — GPS dot, print boundary, print area preview (non-interactive) */}
           <Layer listening={false}>

@@ -9,13 +9,15 @@
  *   Row 1:  Course name (header, spans all columns)
  *   Row 2:  Secondary title (optional, spans all columns)
  *   Row 3:  Info row — length + climb (spans all columns)
- *   Row 4:  Column headers A B C D E F G H
- *   Row 5+: One row per CourseControl
+ *   Row 4+: One row per CourseControl
+ *
+ * Length/climb formatting is shared with the PDF renderers via desc-rows.ts.
  */
 
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { calculateCourseLength } from '@/core/geometry/course-length';
+import { formatLengthKm, formatClimb } from '@/core/descriptions/desc-rows';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
 
@@ -78,11 +80,9 @@ async function rasterizeSymbol(
 // Layout helpers
 // ---------------------------------------------------------------------------
 
-const COLUMN_HEADERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 const BORDER_COLOR = '#000000';
 const HEADER_BG = '#F3E8FF'; // Light violet tint for header
 const WHITE = '#FFFFFF';
-const GRAY_100 = '#F3F4F6';
 const GRAY_400 = '#9CA3AF';
 const TEXT_COLOR = '#1F2937';
 
@@ -124,7 +124,6 @@ export function computeGridLayout(
   let numRows = 1; // header
   if (course.settings.secondaryTitle) numRows += 1;
   numRows += 1; // info row
-  numRows += 1; // column headers
   numRows += Math.max(course.controls.length, 1); // control rows (min 1 for empty state)
 
   const gridHeight = numRows * cellSize;
@@ -397,7 +396,7 @@ export async function renderDescriptionToCanvas(
   const tmpCtx = tmpCanvas.getContext('2d')!;
 
   interface RowInfo {
-    type: 'header' | 'secondary' | 'info' | 'colHeaders' | 'control' | 'empty';
+    type: 'header' | 'secondary' | 'info' | 'control' | 'empty';
     height: number;
     ccIndex?: number; // index into course.controls for control rows
   }
@@ -417,7 +416,6 @@ export async function renderDescriptionToCanvas(
   if (!isScore) {
     rows.push({ type: 'info', height: cellSize });
   }
-  rows.push({ type: 'colHeaders', height: cellSize });
 
   if (course.controls.length === 0) {
     rows.push({ type: 'empty', height: cellSize });
@@ -476,28 +474,13 @@ export async function renderDescriptionToCanvas(
 
       case 'info': {
         const lengthM = calculateCourseLength(course.controls, controls, mapScale, mapDpi);
-        const climbValue = course.climb ?? course.settings.climb;
-        const climbText = climbValue !== undefined ? ` / ${climbValue}m↑` : '';
-        const infoText = `${Math.round(lengthM)} m${climbText}`;
+        const climbText = formatClimb(course.climb ?? course.settings.climb);
+        const infoText = climbText
+          ? `${formatLengthKm(lengthM)}   ${climbText}`
+          : formatLengthKm(lengthM);
         drawCell(ctx, 0, currentY, totalWidth, rh);
         const infoFontSize = Math.max(7, cellSize * 0.45);
         drawCenteredText(ctx, infoText, 0, currentY, totalWidth, rh, infoFontSize);
-        break;
-      }
-
-      case 'colHeaders': {
-        const headers = [...COLUMN_HEADERS];
-        if (hasTextColumn) headers.push('Text');
-        for (let col = 0; col < headers.length; col++) {
-          const colWidth = col === 8 ? textColWidth : cellSize;
-          const colX = col < 8 ? col * cellSize : 8 * cellSize;
-          drawCell(ctx, colX, currentY, colWidth, rh, { bg: GRAY_100 });
-          const hdrFontSize = Math.max(6, cellSize * 0.35);
-          drawCenteredText(ctx, headers[col]!, colX, currentY, colWidth, rh, hdrFontSize, {
-            color: GRAY_400,
-            bold: true,
-          });
-        }
         break;
       }
 

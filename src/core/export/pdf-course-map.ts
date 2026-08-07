@@ -9,9 +9,9 @@ import { computePageLayout, computeCourseBounds, computeMultiPageViewports, mmTo
 import { renderOverprint } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
-import { calculateCourseLength } from '@/core/geometry/course-length';
+import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { OVERPRINT_PURPLE } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
   /** Which course to export. If omitted, exports the first course. */
@@ -169,6 +169,9 @@ export async function generateCoursePdf(
           drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
         }
 
+        // White-out masks — below the overprint
+        drawWhiteOuts(page, event.specialItems, 'all-controls' as CourseId, toPdf);
+
         // Render all controls as circles with codes (score course = no legs)
         renderOverprint(
           { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
@@ -270,6 +273,9 @@ export async function generateCoursePdf(
         } else if (embeddedMap) {
           drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
         }
+
+        // White-out masks — below the overprint
+        drawWhiteOuts(page, event.specialItems, course.id, toPdf);
 
         // Draw vector overprint (filtered to part if multi-part)
         renderOverprint(
@@ -437,6 +443,31 @@ function drawEmbeddedPdfPage(
  * Items with no courseIds restriction are always rendered.
  * Items with courseIds are only rendered if courseId is in the list.
  */
+/**
+ * Draw white-out masks as opaque rectangles. Called AFTER the base map and
+ * BEFORE the overprint so masks hide map detail but not course symbols.
+ */
+function drawWhiteOuts(
+  page: PDFPage,
+  specialItems: SpecialItem[],
+  courseId: CourseId,
+  toPdf: (point: MapPoint) => MapPoint,
+): void {
+  for (const item of specialItems) {
+    if (item.type !== 'whiteOut') continue;
+    if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) continue;
+    const p0 = toPdf(item.position);
+    const p1 = toPdf(item.endPosition);
+    page.drawRectangle({
+      x: Math.min(p0.x, p1.x),
+      y: Math.min(p0.y, p1.y),
+      width: Math.abs(p1.x - p0.x),
+      height: Math.abs(p1.y - p0.y),
+      color: hexToRgb(item.color ?? '#FFFFFF'),
+    });
+  }
+}
+
 async function renderSpecialItems(
   page: PDFPage,
   pdfDoc: PDFDocument,
@@ -450,7 +481,9 @@ async function renderSpecialItems(
   font: PDFFont,
   effectivePPP: number,
 ): Promise<void> {
-  const IOF_SYMBOL_PT = 12; // pt half-size for IOF symbols in PDF
+  // Scale-aware: symbols are a fixed physical size (mm) on the printed page.
+  const IOF_SYMBOL_PT = mmToPdfPoints(IOF_SPECIAL_SYMBOL_MM) / 2; // half-size in pt
+  const symLine = mmToPdfPoints(IOF_SPECIAL_SYMBOL_LINE_MM); // stroke width in pt
 
   for (const item of specialItems) {
     // Filter by course
@@ -463,6 +496,9 @@ async function renderSpecialItems(
     if (item.type === 'descriptionBox') {
       continue; // All desc boxes skipped — auto-generation handles them
     }
+
+    // White-outs are drawn below the overprint by drawWhiteOuts(), not here.
+    if (item.type === 'whiteOut') continue;
 
     const colorHex = item.color ?? OVERPRINT_PURPLE;
     const itemColor = hexToRgb(colorHex);
@@ -516,14 +552,14 @@ async function renderSpecialItems(
         page.drawRectangle({
           x: pos.x - s, y: pos.y - s,
           width: s * 2, height: s * 2,
-          borderColor: itemColor, borderWidth: 1,
+          borderColor: itemColor, borderWidth: symLine,
         });
         for (let i = -2; i <= 2; i++) {
           const ox = i * (s / 2);
           page.drawLine({
             start: { x: pos.x + ox - s, y: pos.y - s },
             end: { x: pos.x + ox + s, y: pos.y + s },
-            thickness: 0.7,
+            thickness: symLine * 0.7,
             color: itemColor,
           });
         }
@@ -532,35 +568,35 @@ async function renderSpecialItems(
 
       case 'dangerousArea': {
         const s = IOF_SYMBOL_PT;
-        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: 1, color: itemColor });
-        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: 1, color: itemColor });
+        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: symLine, color: itemColor });
         break;
       }
 
       case 'waterLocation': {
         // Circle with wave inside
         const s = IOF_SYMBOL_PT;
-        page.drawCircle({ x: pos.x, y: pos.y, size: s, borderColor: itemColor, borderWidth: 1 });
+        page.drawCircle({ x: pos.x, y: pos.y, size: s, borderColor: itemColor, borderWidth: symLine });
         page.drawLine({
           start: { x: pos.x - s * 0.5, y: pos.y },
           end: { x: pos.x + s * 0.5, y: pos.y },
-          thickness: 1, color: itemColor,
+          thickness: symLine, color: itemColor,
         });
         break;
       }
 
       case 'firstAid': {
         const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x, y: pos.y - s }, end: { x: pos.x, y: pos.y + s }, thickness: 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x - s, y: pos.y }, end: { x: pos.x + s, y: pos.y }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x, y: pos.y - s }, end: { x: pos.x, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s, y: pos.y }, end: { x: pos.x + s, y: pos.y }, thickness: symLine * 2, color: itemColor });
         break;
       }
 
       case 'forbiddenRoute': {
         const s = IOF_SYMBOL_PT * 0.7;
-        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: 2, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x - s, y: pos.y - s }, end: { x: pos.x + s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
+        page.drawLine({ start: { x: pos.x + s, y: pos.y - s }, end: { x: pos.x - s, y: pos.y + s }, thickness: symLine * 2, color: itemColor });
         break;
       }
 
@@ -707,98 +743,15 @@ async function renderAutoDescriptionBox(
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
   const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
-  // --- Step 1: Build explicit row list ---
-  type DescRow =
-    | { kind: 'header'; text: string; fontSize: number }
-    | { kind: 'splitInfo'; sections: string[] }
-    | { kind: 'directive'; leftSymbol: string; distanceText: string }
-    | { kind: 'control'; cc: CourseControl; seqNumber: number | null };
-
-  const secondaryTitle = course.settings.secondaryTitle;
-  const dpi = 96;
-  const scale = eventSettings.printScale;
-  const courseLabel = partLabel ? `${course.name} ${partLabel}` : course.name;
-
-  // Distance helper (straight-line, map pixels → metres → round to 10m)
-  function distBetween(idx1: number, idx2: number): number {
-    const c1 = controls[course.controls[idx1]?.controlId as ControlId];
-    const c2 = controls[course.controls[idx2]?.controlId as ControlId];
-    if (!c1 || !c2) return 0;
-    const dx = c2.position.x - c1.position.x;
-    const dy = c2.position.y - c1.position.y;
-    const distPx = Math.sqrt(dx * dx + dy * dy);
-    const metres = (distPx / dpi) * 25.4 * (scale / 1000);
-    return Math.round(metres / 10) * 10; // round to nearest 10m
-  }
-
-  // Build header rows
-  const headerRowList: DescRow[] = [];
-  headerRowList.push({ kind: 'header', text: eventName, fontSize: DESC_HEADER_FONT_SIZE });
-
-  if (secondaryTitle && !isAllControls) {
-    headerRowList.push({ kind: 'header', text: secondaryTitle, fontSize: DESC_HEADER_FONT_SIZE - 1 });
-  }
-
-  if (isAllControls) {
-    const numNormal = course.controls.filter((cc) =>
-      cc.type !== 'start' && cc.type !== 'finish',
-    ).length;
-    headerRowList.push({ kind: 'splitInfo', sections: ['All controls', `${numNormal} controls`] });
-  } else {
-    const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
-    const lengthKm = (lengthM / 1000).toFixed(1) + ' km';
-    const climbValue = course.climb ?? course.settings.climb;
-    const climbText = climbValue !== undefined && climbValue >= 0
-      ? `${Math.round(climbValue / 5) * 5} m` : '';
-    const sections = climbText ? [courseLabel, lengthKm, climbText] : [courseLabel, lengthKm];
-    headerRowList.push({ kind: 'splitInfo', sections });
-  }
-
-  // Start directive
-  const hasStart = course.controls.some((cc) => cc.type === 'start');
-  if (hasStart) {
-    const startIdx = course.controls.findIndex((cc) => cc.type === 'start');
-    const firstCtrlIdx = course.controls.findIndex((cc, i) =>
-      i > startIdx && cc.type !== 'start' && cc.type !== 'crossingPoint',
-    );
-    const startDist = (startIdx >= 0 && firstCtrlIdx > startIdx)
-      ? distBetween(startIdx, firstCtrlIdx) : 0;
-    headerRowList.push({ kind: 'directive', leftSymbol: 'start', distanceText: startDist > 0 ? `${startDist} m` : '' });
-  }
-
-  // Build body rows (controls + exchange directives + finish)
-  const bodyRowList: DescRow[] = [];
-  let seqNumber = 0;
-  for (const cc of course.controls) {
-    const isStart = cc.type === 'start';
-    const isFinish = cc.type === 'finish';
-    const isExchange = cc.type === 'mapExchange' || cc.type === 'mapFlip';
-
-    let seq: number | null = null;
-    if (!isStart && !isFinish && !isAllControls) {
-      seqNumber++;
-      seq = seqNumber;
-    }
-
-    bodyRowList.push({ kind: 'control', cc, seqNumber: seq });
-
-    if (isExchange) {
-      bodyRowList.push({ kind: 'directive', leftSymbol: 'exchange', distanceText: '' });
-    }
-  }
-
-  // Finish directive
-  const hasFinish = course.controls.some((cc) => cc.type === 'finish');
-  if (hasFinish) {
-    const finishIdx = course.controls.findIndex((cc) => cc.type === 'finish');
-    const lastCtrlIdx = course.controls.length - 1 -
-      [...course.controls].reverse().findIndex((cc) =>
-        cc.type !== 'finish' && cc.type !== 'crossingPoint',
-      );
-    const finishDist = (lastCtrlIdx >= 0 && finishIdx > lastCtrlIdx)
-      ? distBetween(lastCtrlIdx, finishIdx) : 0;
-    bodyRowList.push({ kind: 'directive', leftSymbol: 'finish', distanceText: finishDist > 0 ? `${finishDist} m` : '' });
-  }
+  // --- Step 1: Build explicit row list (shared builder — see desc-rows.ts) ---
+  const { headerRows: headerRowList, bodyRows: bodyRowList } = buildDescRows(course, controls, {
+    eventName,
+    scale: eventSettings.printScale,
+    dpi: 96,
+    isAllControls,
+    partLabel,
+    headerFontSize: DESC_HEADER_FONT_SIZE,
+  });
 
   // --- Step 2: Sizing (uses row counts, not control counts) ---
   const headerCount = headerRowList.length;

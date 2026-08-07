@@ -201,3 +201,53 @@ describe('undo/redo', () => {
     expect(Object.keys(useEventStore.getState().event!.controls)).toHaveLength(1);
   });
 });
+
+describe('moveAllControls', () => {
+  it('translates every control by the given delta', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addControlToCourse({ x: 300, y: 400 });
+
+    useEventStore.getState().moveAllControls(50, -25);
+
+    const positions = Object.values(useEventStore.getState().event!.controls)
+      .map((c) => `${c.position.x},${c.position.y}`)
+      .sort();
+    expect(positions).toEqual(['150,175', '350,375']);
+  });
+
+  it('translates special items (position and endPosition)', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().addSpecialItem({
+      id: 'wo1' as never,
+      type: 'whiteOut',
+      position: { x: 10, y: 20 },
+      endPosition: { x: 30, y: 40 },
+    });
+
+    useEventStore.getState().moveAllControls(5, 5);
+
+    const item = useEventStore.getState().event!.specialItems[0]!;
+    expect(item.position).toEqual({ x: 15, y: 25 });
+    expect('endPosition' in item && item.endPosition).toEqual({ x: 35, y: 45 });
+  });
+
+  it('is undoable as a single action', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().moveAllControls(50, 50);
+    useEventStore.temporal.getState().undo();
+
+    const c = Object.values(useEventStore.getState().event!.controls)[0]!;
+    expect(c.position).toEqual({ x: 100, y: 200 });
+  });
+
+  it('is a no-op for a zero delta', () => {
+    useEventStore.getState().newEvent('Test');
+    useEventStore.getState().addControlToCourse({ x: 100, y: 200 });
+    useEventStore.getState().moveAllControls(0, 0);
+    const c = Object.values(useEventStore.getState().event!.controls)[0]!;
+    expect(c.position).toEqual({ x: 100, y: 200 });
+  });
+});

@@ -7,7 +7,8 @@ export type Tool =
   | { type: 'addControl' }
   | { type: 'addSpecialItem'; itemType: SpecialItemType }
   | { type: 'setPrintArea' }
-  | { type: 'calibrate' };
+  | { type: 'calibrate' }
+  | { type: 'moveAll' };
 
 export type MobilePanel = 'none' | 'course' | 'descriptions' | 'menu';
 
