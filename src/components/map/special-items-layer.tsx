@@ -27,7 +27,7 @@ import { useDescriptionCanvas } from '@/core/descriptions/use-description-canvas
 import { computeGridLayout } from '@/core/descriptions/canvas-description-renderer';
 import { generateSpecialItemId } from '@/utils/id';
 import { isEditableTarget } from '@/utils/dom';
-import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM } from '@/core/models/constants';
+import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM } from '@/core/models/constants';
 import { mmToMapPixels } from '@/core/geometry/overprint-dimensions';
 
 const SELECTION_DASH = [6, 4];
@@ -195,10 +195,15 @@ const LineItemShape = memo(function LineItemShape({
   onDragEnd,
   onUpdate,
 }: ItemProps<LineItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+  const dpi = useEventStore((s) => s.event?.mapFile?.dpi ?? 150);
   const color = item.color ?? OVERPRINT_PURPLE;
   const dx = item.endPosition.x - item.position.x;
   const dy = item.endPosition.y - item.position.y;
   const strokeW = (item.lineWidth ?? DEFAULT_LINE_WIDTH) * SCREEN_LINE_MULTIPLIER;
+  // Marked-route dash (scale-aware mm) — undefined leaves the line solid.
+  const dash = item.lineStyle === 'dashed'
+    ? [mmToMapPixels(MARKED_ROUTE_DASH_MM, dpi), mmToMapPixels(MARKED_ROUTE_GAP_MM, dpi)]
+    : undefined;
 
   // Ref for imperative line update during handle drag
   const lineRef = useRef<Konva.Line>(null);
@@ -224,7 +229,8 @@ const LineItemShape = memo(function LineItemShape({
         points={[0, 0, dx, dy]}
         stroke={color}
         strokeWidth={strokeW}
-        lineCap="round"
+        dash={dash}
+        lineCap={item.lineStyle === 'dashed' ? 'butt' : 'round'}
         listening={true}
         hitStrokeWidth={12}
       />
@@ -1012,6 +1018,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
   const isPan = activeTool.type === 'pan';
   const isAddSpecialItem = activeTool.type === 'addSpecialItem';
   const addItemType = isAddSpecialItem ? activeTool.itemType : null;
+  const addLineStyle = isAddSpecialItem ? activeTool.lineStyle : undefined;
 
   // Filter items to show:
   // - Description boxes: only show allControls boxes (on the All Controls view) or user-created ones.
@@ -1069,6 +1076,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
           type: 'line',
           position: drawState.start,
           endPosition: end,
+          lineStyle: addLineStyle,
         });
       } else if (addItemType === 'rectangle') {
         addSpecialItem({

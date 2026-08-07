@@ -5,7 +5,7 @@ import type { SpecialItemType } from '@/core/models/types';
 export type Tool =
   | { type: 'pan' }
   | { type: 'addControl' }
-  | { type: 'addSpecialItem'; itemType: SpecialItemType }
+  | { type: 'addSpecialItem'; itemType: SpecialItemType; lineStyle?: 'solid' | 'dashed' }
   | { type: 'setPrintArea' }
   | { type: 'calibrate' }
   | { type: 'moveAll' };

@@ -552,6 +552,10 @@ export function Toolbar() {
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'line' as SpecialItemType }),
     },
     {
+      label: t('addMarkedRoute'),
+      onClick: () => setTool({ type: 'addSpecialItem', itemType: 'line' as SpecialItemType, lineStyle: 'dashed' }),
+    },
+    {
       label: t('addRectangle'),
       onClick: () => setTool({ type: 'addSpecialItem', itemType: 'rectangle' as SpecialItemType }),
     },

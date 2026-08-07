@@ -228,6 +228,8 @@ export interface LineItem extends SpecialItemBase {
   type: 'line';
   endPosition: MapPoint;
   lineWidth?: number; // map pixels, defaults to DEFAULT_LINE_WIDTH
+  /** 'dashed' renders a marked-route line (IOF 707/711 dash pattern); default solid. */
+  lineStyle?: 'solid' | 'dashed';
 }
 
 export interface RectangleItem extends SpecialItemBase {
