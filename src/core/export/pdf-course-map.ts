@@ -12,6 +12,7 @@ import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { crossHatchSegments } from '@/core/geometry/hatch';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
+import { maxRasterLongSide } from '@/core/files/raster-config';
 import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
@@ -356,8 +357,9 @@ async function prepareMapImage(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  // Cap at 4096px on longest side to keep PDF size reasonable
-  const maxDim = 4096;
+  // Cap the embedded map at the device-safe long side (desktop 8192, less on
+  // iOS / low-memory) instead of a flat 4096, so large maps keep print detail.
+  const maxDim = maxRasterLongSide();
   const renderScale = Math.min(1, maxDim / Math.max(imgWidth, imgHeight));
   canvas.width = Math.round(imgWidth * renderScale);
   canvas.height = Math.round(imgHeight * renderScale);
