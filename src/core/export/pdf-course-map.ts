@@ -12,7 +12,8 @@ import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { crossHatchSegments } from '@/core/geometry/hatch';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
-import { maxRasterLongSide } from '@/core/files/raster-config';
+import { maxRasterLongSide, printRasterLongSide } from '@/core/files/raster-config';
+import { rasterizeSvgToImage } from '@/core/files/rasterize-svg';
 import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
 
 export interface PdfExportOptions {
@@ -20,6 +21,25 @@ export interface PdfExportOptions {
   courseIndex?: number;
   /** Export multiple courses into one PDF. Overrides courseIndex when set. */
   courseIndices?: number[];
+}
+
+/**
+ * The base map, described in a way the exporter can render at print resolution.
+ *
+ * `mapImage` is the screen-density display bitmap. For vector maps (OCAD/OMAP)
+ * `svg` carries the sized-less source so the exporter can re-rasterise at print
+ * DPI instead of embedding the (lower-resolution) display bitmap — this is the
+ * detail-preserving path (D5). `width`/`height` are the *logical* map dimensions
+ * (control-coordinate space), which may differ from the current display bitmap's
+ * pixel size when an adaptive zoom raster is active.
+ */
+export interface MapSource {
+  /** Sized-less SVG (viewBox only) for OCAD/OMAP; null for raster/PDF maps. */
+  svg?: string | null;
+  /** Logical map width in pixels (control-coordinate space). */
+  width: number;
+  /** Logical map height in pixels (control-coordinate space). */
+  height: number;
 }
 
 /**
@@ -52,6 +72,7 @@ export async function generateCoursePdf(
   mapImage: HTMLCanvasElement | HTMLImageElement,
   options: PdfExportOptions = {},
   pdfArrayBuffer?: ArrayBuffer | null,
+  mapSource?: MapSource,
 ): Promise<{ blob: Blob; suggestedName: string }> {
   if (!event.mapFile) throw new Error('No map file loaded');
 
@@ -61,9 +82,20 @@ export async function generateCoursePdf(
 
   const { dpi, scale: mapScale } = event.mapFile;
 
-  // Map image dimensions
-  const imgWidth = mapImage instanceof HTMLCanvasElement ? mapImage.width : mapImage.naturalWidth;
-  const imgHeight = mapImage instanceof HTMLCanvasElement ? mapImage.height : mapImage.naturalHeight;
+  // Logical map dimensions (control-coordinate space). Prefer the caller-supplied
+  // logical size — the display bitmap's pixel size can diverge from it when an
+  // adaptive zoom raster is active. Fall back to the bitmap size for back-compat.
+  const imgWidth = mapSource?.width ?? (mapImage instanceof HTMLCanvasElement ? mapImage.width : mapImage.naturalWidth);
+  const imgHeight = mapSource?.height ?? (mapImage instanceof HTMLCanvasElement ? mapImage.height : mapImage.naturalHeight);
+
+  // Smallest print scale across the exported courses drives the print-DPI target
+  // (a course printed most-enlarged needs the densest raster).
+  const exportedPrintScales = indices
+    .map((ci) => event.courses[ci]?.settings.printScale ?? event.settings.printScale)
+    .filter((s): s is number => typeof s === 'number' && s > 0);
+  const minPrintScale = exportedPrintScales.length > 0
+    ? Math.min(...exportedPrintScales)
+    : event.settings.printScale;
 
   // Create PDF
   const pdfDoc = await PDFDocument.create();
@@ -81,7 +113,12 @@ export async function generateCoursePdf(
     embeddedPdfPage = pages[0] ?? null;
   }
   if (!embeddedPdfPage) {
-    embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight);
+    embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight, {
+      svg: mapSource?.svg ?? null,
+      nativeDpi: dpi,
+      mapScale,
+      printScale: minPrintScale,
+    });
   }
 
   let lastCourseName = '';
@@ -340,34 +377,72 @@ function viewportToPdf(layout: PageLayout, viewport: MapViewport): (point: MapPo
 
 interface EmbeddedMapImage {
   image: Awaited<ReturnType<PDFDocument['embedPng']>>;
-  renderScale: number;
+}
+
+/** Print-resolution options for {@link prepareMapImage}. */
+interface PrintRasterOptions {
+  /** Sized-less SVG (viewBox only) for a vector map, or null for raster/PDF. */
+  svg: string | null;
+  /** Effective dpi of the map at its own `mapScale`. */
+  nativeDpi: number;
+  /** Map scale denominator. */
+  mapScale: number;
+  /** Smallest print-scale denominator being exported. */
+  printScale: number;
 }
 
 /**
- * Prepare the map image for embedding — scales it down if needed and embeds it
- * into the PDF document. Returns null if the canvas context is unavailable.
+ * Prepare the map image for embedding and embed it into the PDF document.
+ *
+ * For vector maps (OCAD/OMAP), `opts.svg` is re-rasterised at the print-DPI
+ * target long side (capped per device) rather than reusing the screen-density
+ * display bitmap — this preserves detail in print (D5). For raster/PDF-fallback
+ * maps the display bitmap is used, downscaled only if it exceeds the device cap.
+ * Returns null if the canvas context is unavailable.
  */
 async function prepareMapImage(
   pdfDoc: PDFDocument,
   mapImage: HTMLCanvasElement | HTMLImageElement,
   imgWidth: number,
   imgHeight: number,
+  opts?: PrintRasterOptions,
 ): Promise<EmbeddedMapImage | null> {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
 
-  // Cap the embedded map at the device-safe long side (desktop 8192, less on
-  // iOS / low-memory) instead of a flat 4096, so large maps keep print detail.
   const maxDim = maxRasterLongSide();
-  const renderScale = Math.min(1, maxDim / Math.max(imgWidth, imgHeight));
-  canvas.width = Math.round(imgWidth * renderScale);
-  canvas.height = Math.round(imgHeight * renderScale);
 
-  if (renderScale !== 1) {
-    ctx.scale(renderScale, renderScale);
+  // Decide the embedded bitmap's pixel dimensions (embedW × embedH) and the
+  // source to draw from. The source is always scaled to fill the canvas, so its
+  // own natural size is irrelevant — this keeps a zoomed adaptive display bitmap
+  // (natural size ≠ logical size) from being clipped.
+  let source: HTMLCanvasElement | HTMLImageElement = mapImage;
+  let embedW: number;
+  let embedH: number;
+
+  if (opts?.svg) {
+    // Vector source: re-rasterise the SVG at the print-DPI target long side so the
+    // embedded bitmap has real detail, not upscaled screen pixels.
+    const longSide = Math.max(imgWidth, imgHeight);
+    const embedLong = printRasterLongSide(longSide, opts.nativeDpi, opts.mapScale, opts.printScale, maxDim);
+    const up = longSide > 0 ? embedLong / longSide : 1;
+    embedW = Math.round(imgWidth * up);
+    embedH = Math.round(imgHeight * up);
+    source = await rasterizeSvgToImage(opts.svg, embedW, embedH, 'blob');
+  } else {
+    // Raster / PDF-fallback: use the display bitmap, downscaled only if it
+    // exceeds the device-safe long side (desktop 8192, less on iOS / low-memory).
+    const natW = mapImage instanceof HTMLCanvasElement ? mapImage.width : mapImage.naturalWidth;
+    const natH = mapImage instanceof HTMLCanvasElement ? mapImage.height : mapImage.naturalHeight;
+    const scaleDown = Math.min(1, maxDim / Math.max(natW, natH));
+    embedW = Math.max(1, Math.round(natW * scaleDown));
+    embedH = Math.max(1, Math.round(natH * scaleDown));
   }
-  ctx.drawImage(mapImage, 0, 0);
+
+  canvas.width = embedW;
+  canvas.height = embedH;
+  ctx.drawImage(source, 0, 0, embedW, embedH);
 
   const pngBlob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))), 'image/png');
@@ -375,7 +450,7 @@ async function prepareMapImage(
 
   const pngBytes = new Uint8Array(await pngBlob.arrayBuffer());
   const image = await pdfDoc.embedPng(pngBytes);
-  return { image, renderScale };
+  return { image };
 }
 
 /**
