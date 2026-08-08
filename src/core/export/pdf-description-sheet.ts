@@ -15,6 +15,7 @@ import type { Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
+import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 
@@ -106,6 +107,7 @@ export async function generateDescriptionSheetPdf(
   if (!course) throw new Error('No course to export');
 
   const lang = event.settings.language ?? 'en';
+  const appearance = course.settings.descriptionAppearance ?? 'symbols';
   const dpi = event.mapFile?.dpi ?? 96;
   const scale = event.mapFile?.scale ?? event.settings.printScale;
 
@@ -340,6 +342,34 @@ export async function generateDescriptionSheetPdf(
       : (seqNumber != null ? String(seqNumber) : null);
     const colB: string | null = isStart || isFinish ? null : String(ctrl.code);
     const desc = ctrl.description;
+
+    // Text mode: [seq][code][one wide sentence cell spanning columns C–H].
+    if (appearance === 'text') {
+      const rowY = currentY - cellPt;
+      const drawTextCell = (x: number, w: number, text: string | null, center: boolean) => {
+        page.drawRectangle({ x, y: rowY, width: w, height: cellPt, borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH });
+        if (!text) return;
+        // Shrink to fit the width; truncate with … only if it hits the minimum size.
+        let size = TEXT_FONT_SIZE;
+        const maxW = w - cellPt * 0.2;
+        while (size > 5 && font.widthOfTextAtSize(text, size) > maxW) size -= 0.5;
+        let shown = text;
+        while (shown.length > 1 && font.widthOfTextAtSize(shown + '…', size) > maxW) shown = shown.slice(0, -1);
+        if (shown !== text) shown += '…';
+        const tw = font.widthOfTextAtSize(shown, size);
+        page.drawText(shown, {
+          x: center ? x + (w - tw) / 2 : x + cellPt * 0.1,
+          y: rowY + (cellPt - size) / 2,
+          size, font, color: TEXT_COLOR,
+        });
+      };
+      drawTextCell(startX, cellPt, colA, true);
+      drawTextCell(startX + cellPt, cellPt, colB, true);
+      drawTextCell(startX + cellPt * 2, cellPt * 6, generateTextDescription(desc, lang) || null, false);
+      currentY = rowY;
+      return;
+    }
+
     const symOrText = (v: string | undefined): string | null =>
       !v ? null : getSymbolSvg(v) ? `sym:${v}` : getSymbolName(v, lang);
     await drawRow([

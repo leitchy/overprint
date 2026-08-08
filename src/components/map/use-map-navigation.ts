@@ -206,12 +206,12 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
               position: { x: pos.x, y: pos.y },
               endPosition: { x: pos.x + mmToPixels(20), y: pos.y + mmToPixels(10) },
             });
-          } else if (itemType === 'outOfBoundsArea') {
-            // Place a default 20x20mm square out-of-bounds area (vertices relative).
+          } else if (itemType === 'outOfBoundsArea' || itemType === 'dangerousArea') {
+            // Place a default 20x20mm square hatched area (vertices relative).
             const s = mmToPixels(20);
             store.addSpecialItem({
               id: generateSpecialItemId(),
-              type: 'outOfBoundsArea',
+              type: itemType,
               position: { x: pos.x, y: pos.y },
               vertices: [{ x: 0, y: 0 }, { x: s, y: 0 }, { x: s, y: s }, { x: 0, y: s }],
             });
@@ -228,7 +228,7 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
             });
           } else {
             // IOF symbols — click to place
-            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'descriptionBox' | 'image'>;
+            const symType = itemType as Exclude<typeof itemType, 'text' | 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'dangerousArea' | 'descriptionBox' | 'image'>;
             store.addSpecialItem({
               id: generateSpecialItemId(),
               type: symType,

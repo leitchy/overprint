@@ -18,7 +18,7 @@ import type {
   LineItem,
   RectangleItem,
   WhiteOutItem,
-  OutOfBoundsAreaItem,
+  HatchAreaItem,
   DescriptionBoxItem,
   ImageItem,
   IofSymbolItem,
@@ -69,23 +69,6 @@ function OutOfBoundsShape({ color, lineWidth, size }: IofSymbolShapeProps) {
   );
 }
 
-/** Dangerous area: triangle with ! */
-function DangerousAreaShape({ color, lineWidth, size }: IofSymbolShapeProps) {
-  const s = size;
-  return (
-    <>
-      <Line
-        points={[0, -s, s * 0.9, s * 0.7, -s * 0.9, s * 0.7, 0, -s]}
-        closed
-        stroke={color}
-        strokeWidth={lineWidth}
-        fill="transparent"
-        listening={false}
-      />
-      <Text text="!" x={-4} y={-8} fontSize={s} fill={color} listening={false} />
-    </>
-  );
-}
 
 /** Water location: circle with wave */
 function WaterLocationShape({ color, lineWidth, size }: IofSymbolShapeProps) {
@@ -502,19 +485,19 @@ const WhiteOutItemShape = memo(function WhiteOutItemShape({
 });
 
 /**
- * Out-of-bounds area (IOF 709): a polygon filled with a purple 45°+135°
- * cross-hatch (PurplePen appearance). Vertices are relative to item.position.
- * Whole-item drag moves the group; per-vertex handles reshape it; double-click a
- * handle removes that vertex (min 3).
+ * Hatched area (IOF 709 out-of-bounds / 710 dangerous): a polygon filled with a
+ * purple 45°+135° cross-hatch (PurplePen appearance — identical for both).
+ * Vertices are relative to item.position. Whole-item drag moves the group;
+ * per-vertex handles reshape it; double-click a handle removes that vertex (min 3).
  */
-const OutOfBoundsAreaShape = memo(function OutOfBoundsAreaShape({
+const HatchAreaShape = memo(function HatchAreaShape({
   item,
   isSelected,
   draggable,
   onSelect,
   onDragEnd,
   onUpdate,
-}: ItemProps<OutOfBoundsAreaItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
+}: ItemProps<HatchAreaItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
   const dpi = useEventStore((s) => s.event?.mapFile?.dpi ?? 150);
   const color = item.color ?? OVERPRINT_PURPLE;
   const verts = item.vertices;
@@ -954,7 +937,6 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
   const symbolShape = (() => {
     switch (item.type) {
       case 'outOfBounds': return <OutOfBoundsShape color={color} lineWidth={lineWidth} size={size} />;
-      case 'dangerousArea': return <DangerousAreaShape color={color} lineWidth={lineWidth} size={size} />;
       case 'waterLocation': return <WaterLocationShape color={color} lineWidth={lineWidth} size={size} />;
       case 'firstAid': return <FirstAidShape color={color} lineWidth={lineWidth} size={size} />;
       case 'forbiddenRoute': return <ForbiddenRouteShape color={color} dpi={dpi} />;
@@ -1002,7 +984,7 @@ const IofSymbolItemShape = memo(function IofSymbolItemShape({
 // ---------------------------------------------------------------------------
 
 interface DrawPreviewProps {
-  itemType: 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'descriptionBox';
+  itemType: 'line' | 'rectangle' | 'whiteOut' | 'outOfBoundsArea' | 'dangerousArea' | 'descriptionBox';
   start: MapPoint;
   end: MapPoint;
   naturalHeight?: number;
@@ -1042,7 +1024,7 @@ function DrawPreview({ itemType, start, end, naturalHeight }: DrawPreviewProps) 
     );
   }
 
-  if (itemType === 'outOfBoundsArea') {
+  if (itemType === 'outOfBoundsArea' || itemType === 'dangerousArea') {
     return (
       <Rect
         x={minX}
@@ -1187,7 +1169,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
     const pos = stagePointerPosition(e);
     if (!pos) return;
 
-    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'descriptionBox') {
+    if (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'dangerousArea' || addItemType === 'descriptionBox') {
       setDrawState({ start: pos, current: pos });
     }
   };
@@ -1232,13 +1214,13 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
           position: drawState.start,
           endPosition: end,
         });
-      } else if (addItemType === 'outOfBoundsArea') {
+      } else if (addItemType === 'outOfBoundsArea' || addItemType === 'dangerousArea') {
         // Drag defines a quad; vertices are relative to the start (position).
         const w = end.x - drawState.start.x;
         const h = end.y - drawState.start.y;
         addSpecialItem({
           id: generateSpecialItemId(),
-          type: 'outOfBoundsArea',
+          type: addItemType,
           position: drawState.start,
           vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }],
         });
@@ -1370,8 +1352,9 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
               />
             );
           case 'outOfBoundsArea':
+          case 'dangerousArea':
             return (
-              <OutOfBoundsAreaShape
+              <HatchAreaShape
                 key={item.id}
                 item={item}
                 {...commonProps}
@@ -1425,7 +1408,7 @@ export const SpecialItemsLayer = memo(function SpecialItemsLayer() {
       })}
 
       {/* Draw preview for line/rectangle while dragging */}
-      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'descriptionBox') && (
+      {drawState && addItemType && (addItemType === 'line' || addItemType === 'rectangle' || addItemType === 'whiteOut' || addItemType === 'outOfBoundsArea' || addItemType === 'dangerousArea' || addItemType === 'descriptionBox') && (
         <DrawPreview
           itemType={addItemType}
           start={drawState.start}

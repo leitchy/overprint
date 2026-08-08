@@ -188,3 +188,23 @@ describe('serializeEvent — round-trips newer fields', () => {
     expect(r.specialItems.some((s) => s.type === 'whiteOut')).toBe(true);
   });
 });
+
+describe('deserializeEvent — legacy dangerous-area migration', () => {
+  it('gives a legacy dangerous-area point default polygon vertices', () => {
+    // Hand-crafted legacy envelope: dangerousArea as a point (no vertices).
+    const legacy = JSON.stringify({
+      formatId: 'overprint',
+      version: '0.19.0',
+      event: {
+        id: 'e1', name: 'Legacy', mapFile: null, courses: [], controls: {},
+        settings: {}, specialItems: [
+          { id: 's1', type: 'dangerousArea', position: { x: 100, y: 100 } },
+        ], version: '0.19.0',
+      },
+    });
+    const { event } = deserializeEvent(legacy);
+    const item = event.specialItems[0]!;
+    expect(item.type).toBe('dangerousArea');
+    expect('vertices' in item && Array.isArray(item.vertices) && item.vertices.length).toBeGreaterThanOrEqual(3);
+  });
+});

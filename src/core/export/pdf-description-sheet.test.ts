@@ -41,3 +41,18 @@ describe('generateDescriptionSheetPdf — pagination (C6)', () => {
     expect(await pageCount(blob)).toBeGreaterThan(1);
   });
 });
+
+describe('generateDescriptionSheetPdf — text mode (C7)', () => {
+  it('renders a text-appearance sheet as sentence rows without error', async () => {
+    const event = makeEvent(6);
+    // Give a control a real feature so the sentence composer has content.
+    const mid = Object.values(event.controls)[2]!;
+    mid.description = { columnD: '1.3' }; // re-entrant
+    event.courses[0]!.settings.descriptionAppearance = 'text';
+    const { blob } = await generateDescriptionSheetPdf(event);
+    expect(await pageCount(blob)).toBe(1);
+    // Valid PDF
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    expect(new TextDecoder('latin1').decode(bytes).startsWith('%PDF')).toBe(true);
+  });
+});

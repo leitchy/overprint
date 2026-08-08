@@ -17,6 +17,7 @@
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
+import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
 
@@ -430,15 +431,17 @@ export async function renderDescriptionToCanvas(
   const rows: { row: DescRow | null; height: number }[] = [];
   for (const r of descRows) {
     let rowHeight = cellSize;
-    if (r.kind === 'control' && hasTextColumn) {
+    if (r.kind === 'control' && (hasTextColumn || isTextMode)) {
       const ctrl = controls[r.cc.controlId as ControlId];
       if (ctrl) {
         const d = ctrl.description;
-        const composedText = composeDescriptionText(
-          [d.columnC, d.columnD, d.columnE, d.columnF, d.columnG, d.columnH],
-          lang,
-        );
-        if (composedText) rowHeight = measureTextRowHeight(tmpCtx, composedText, textColWidth, cellSize);
+        // Text mode: one wide sentence cell (columns C–H merged). symbolsAndText:
+        // the extra text column. Measure whichever applies to grow the row.
+        const text = isTextMode
+          ? generateTextDescription(d, lang)
+          : composeDescriptionText([d.columnC, d.columnD, d.columnE, d.columnF, d.columnG, d.columnH], lang);
+        const width = isTextMode ? cellSize * 6 : textColWidth;
+        if (text) rowHeight = measureTextRowHeight(tmpCtx, text, width, cellSize);
       }
     }
     rows.push({ row: r, height: rowHeight });
@@ -559,11 +562,25 @@ export async function renderDescriptionToCanvas(
           drawCenteredText(ctx, String(ctrl.code), cellSize, currentY, cellSize, rh, Math.max(6, cellSize * 0.4));
         }
 
-        // Columns C-H: description symbols (vertically centered when row is taller)
         const desc = ctrl.description;
         const descCols = [desc.columnC, desc.columnD, desc.columnE, desc.columnF, desc.columnG, desc.columnH];
-        const symbolYOffset = (rh - cellSize) / 2;
 
+        if (isTextMode) {
+          // Text mode: a single wide sentence cell spanning columns C–H.
+          const wideX = 2 * cellSize;
+          const wideW = 6 * cellSize;
+          drawCell(ctx, wideX, currentY, wideW, rh);
+          const sentence = generateTextDescription(desc, lang);
+          if (sentence) {
+            drawWrappedText(ctx, sentence, wideX, currentY, wideW, rh, Math.max(7, cellSize * 0.35), {
+              align: 'left', color: TEXT_COLOR,
+            });
+          }
+          break;
+        }
+
+        // Columns C-H: description symbols (vertically centered when row is taller)
+        const symbolYOffset = (rh - cellSize) / 2;
         for (let i = 0; i < 6; i++) {
           const colX = (i + 2) * cellSize;
           drawCell(ctx, colX, currentY, cellSize, rh);

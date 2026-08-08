@@ -250,12 +250,13 @@ export interface WhiteOutItem extends SpecialItemBase {
 }
 
 /**
- * An out-of-bounds area (IOF 709): a closed polygon filled with a purple
- * cross-hatch (45° + 135°), no solid boundary. Vertices are relative to
- * `position` (the anchor), matching the rectangle/description-box convention.
+ * A hatched area — out-of-bounds (IOF 709) or dangerous (IOF 710). Both render
+ * as a closed polygon filled with a purple 45°+135° cross-hatch and no solid
+ * boundary (PurplePen OOBCourseObj / DangerousCourseObj — identical fill).
+ * Vertices are relative to `position`, matching the rectangle convention.
  */
-export interface OutOfBoundsAreaItem extends SpecialItemBase {
-  type: 'outOfBoundsArea';
+export interface HatchAreaItem extends SpecialItemBase {
+  type: 'outOfBoundsArea' | 'dangerousArea';
   /** Polygon vertices relative to `position`, at least 3. */
   vertices: MapPoint[];
 }
@@ -279,10 +280,10 @@ export interface ImageItem extends SpecialItemBase {
 }
 
 export interface IofSymbolItem extends SpecialItemBase {
-  type: 'outOfBounds' | 'dangerousArea' | 'waterLocation' | 'firstAid' | 'forbiddenRoute' | 'mapIssue';
+  type: 'outOfBounds' | 'waterLocation' | 'firstAid' | 'forbiddenRoute' | 'mapIssue';
 }
 
-export type SpecialItem = TextItem | LineItem | RectangleItem | WhiteOutItem | OutOfBoundsAreaItem | DescriptionBoxItem | ImageItem | IofSymbolItem;
+export type SpecialItem = TextItem | LineItem | RectangleItem | WhiteOutItem | HatchAreaItem | DescriptionBoxItem | ImageItem | IofSymbolItem;
 
 export interface OverprintEvent {
   id: EventId;
