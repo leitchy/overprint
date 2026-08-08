@@ -25,6 +25,19 @@ import { mmToPdfPoints } from './pdf-page-layout';
 export const PURPLE = cmyk(...OVERPRINT_PURPLE_CMYK);
 
 /**
+ * Build an SVG path `d` string for a polyline of PDF-space (y-up) points.
+ *
+ * pdf-lib's `drawSvgPath` applies an internal `scale(1,-1)` (SVG is y-down), so a
+ * point given in PDF y-up space would render mirrored to `-y` (off-page). We
+ * pre-negate y here so the internal flip cancels out and the polyline lands
+ * on-page — while keeping the mitre joins that a polyline (vs. per-segment lines)
+ * gives at bends/arcs. Exported for regression testing.
+ */
+export function pdfPolylineToSvgPath(points: MapPoint[]): string {
+  return points.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${-p.y}`).join(' ');
+}
+
+/**
  * Register (once per page) an ExtGState that makes the overprint layer behave like a
  * real spot overprint: OP/op (stroking + non-stroking overprint), OPM 1 so it applies
  * per-component on CMYK output. When `multiply` is set, also add a Multiply blend so
@@ -172,11 +185,8 @@ export function renderOverprint(
               color: PURPLE,
             });
           } else if (subPath.length > 2) {
-            // Polyline via SVG path for proper joins at bends
-            const svgPath = subPath
-              .map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
-              .join(' ');
-            page.drawSvgPath(svgPath, {
+            // Polyline via SVG path for proper joins at bends (y-flip handled).
+            page.drawSvgPath(pdfPolylineToSvgPath(subPath), {
               borderColor: PURPLE,
               borderWidth: lineWidth,
             });
@@ -353,8 +363,7 @@ function drawGappedCircle(
       const r = (deg * Math.PI) / 180;
       pts.push({ x: center.x + radius * Math.cos(r), y: center.y + radius * Math.sin(r) });
     }
-    const svgPath = pts.map((p, j) => `${j === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-    page.drawSvgPath(svgPath, { borderColor: PURPLE, borderWidth: lineWidth });
+    page.drawSvgPath(pdfPolylineToSvgPath(pts), { borderColor: PURPLE, borderWidth: lineWidth });
   }
 }
 
