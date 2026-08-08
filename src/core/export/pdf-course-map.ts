@@ -102,8 +102,8 @@ export async function generateCoursePdf(
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
   // Embed the base map once — pdf-lib reuses across all pages.
-  // For PDF-source maps, embed the original PDF page as vectors.
-  // For raster/OCAD/OMAP, fall back to PNG rasterisation.
+  // Priority: PDF-source → embed original PDF page (vectors); OCAD/OMAP → embed
+  // the retained SVG as true vectors (D5); anything else / on failure → PNG raster.
   const isPdfSource = event.mapFile.type === 'pdf' && pdfArrayBuffer;
   let embeddedMap: EmbeddedMapImage | null = null;
   let embeddedPdfPage: PDFEmbeddedPage | null = null;
@@ -111,6 +111,24 @@ export async function generateCoursePdf(
   if (isPdfSource) {
     const pages = await pdfDoc.embedPdf(pdfArrayBuffer!);
     embeddedPdfPage = pages[0] ?? null;
+  }
+  // OCAD/OMAP vector base map: render the retained SVG into a scratch PDF and
+  // embed it. The scratch page shares the map's aspect ratio, so drawEmbeddedPdfPage
+  // stretches it onto the map rect exactly like the PDF-source path. Falls back to
+  // raster on any validation/render failure so export never breaks.
+  if (!embeddedPdfPage && mapSource?.svg) {
+    try {
+      const { validateSvgForVector, renderSvgToScratchPdf } = await import('./svg-to-pdf');
+      if (validateSvgForVector(mapSource.svg).ok) {
+        const scratch = await renderSvgToScratchPdf(mapSource.svg);
+        const scratchBytes = await scratch.save();
+        const pages = await pdfDoc.embedPdf(scratchBytes);
+        embeddedPdfPage = pages[0] ?? null;
+      }
+    } catch (err) {
+      console.warn('Vector map embed failed; using raster fallback:', err);
+      embeddedPdfPage = null;
+    }
   }
   if (!embeddedPdfPage) {
     embeddedMap = await prepareMapImage(pdfDoc, mapImage, imgWidth, imgHeight, {
