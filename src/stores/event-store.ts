@@ -669,7 +669,12 @@ export const useEventStore = create<EventState & EventActions>()(
           const course = findCourse(state.event, courseId);
           if (!course) return;
           const dpi = state.event.mapFile?.dpi ?? 150;
-          const dims = overprintPixelDimensions(state.event.settings, dpi);
+          const dims = overprintPixelDimensions(
+            state.event.settings,
+            dpi,
+            state.event.mapFile?.scale,
+            course.settings.printScale ?? state.event.settings.printScale,
+          );
           const offsets = autoNumberOffsets(course, state.event.controls, dims);
           for (const [index, offset] of offsets) {
             const cc = course.controls[index];

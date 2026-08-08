@@ -123,3 +123,18 @@ export const OVERPRINT_DIMS: Record<MapStandard, OverprintStandardDims> = {
 export function overprintDims(standard: MapStandard): OverprintStandardDims {
   return OVERPRINT_DIMS[standard] ?? OVERPRINT_DIMS.ISOM2017;
 }
+
+/**
+ * Reference scale at which each standard's overprint dimensions are defined
+ * (ISOM 2017-2 at 1:15000; ISSprOM 2019-2 at 1:4000). Used by the
+ * 'relativeTo15000' item-scaling mode to keep symbols a fixed ground size.
+ */
+export const OVERPRINT_REFERENCE_SCALES: Record<MapStandard, number> = {
+  ISOM2017: 15000,
+  ISSprOM2019: 4000,
+};
+
+/** Resolve the overprint reference scale for a standard (ISOM fallback). */
+export function overprintReferenceScale(standard: MapStandard): number {
+  return OVERPRINT_REFERENCE_SCALES[standard] ?? OVERPRINT_REFERENCE_SCALES.ISOM2017;
+}

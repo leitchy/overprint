@@ -20,6 +20,7 @@ import type {
   CourseControlType,
   CourseSettings,
   DescriptionStandard,
+  ItemScaling,
   MapFile,
   MapPoint,
   MapStandard,
@@ -286,6 +287,16 @@ export function importPpen(
   const eventPrintScale = allControlsEl
     ? (parseFloat(getAttr(allControlsEl, 'print-scale') ?? String(mapScale)) || mapScale)
     : mapScale;
+
+  // <course-appearance scale-sizes="None|RelativeToMap|RelativeTo15000">
+  // maps to EventSettings.itemScaling (PurplePen ItemScaling). Absent →
+  // relativeToMap (our default, matching PurplePen's "scale with the map").
+  const courseAppearanceEl = getChild(eventEl, 'course-appearance');
+  const scaleSizesRaw = courseAppearanceEl ? getAttr(courseAppearanceEl, 'scale-sizes') : null;
+  const itemScaling: ItemScaling =
+    scaleSizesRaw === 'None' ? 'none'
+      : scaleSizesRaw === 'RelativeTo15000' ? 'relativeTo15000'
+        : 'relativeToMap';
 
   const descriptionsEl = getChild(eventEl, 'descriptions');
   const descLang = descriptionsEl ? (getAttr(descriptionsEl, 'lang') ?? 'en') : 'en';
@@ -728,6 +739,7 @@ export function importPpen(
   event.settings.printScale = eventPrintScale;
   event.settings.descriptionStandard = descriptionStandard;
   event.settings.mapStandard = mapStandard;
+  event.settings.itemScaling = itemScaling;
 
   // Promote common per-course page setup to event level
   if (courses.length > 0) {

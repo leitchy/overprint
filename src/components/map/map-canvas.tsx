@@ -292,17 +292,20 @@ export function MapCanvas() {
     }
   }, []);
 
-  // Compute overprint dimensions — only recomputes when settings or dpi change
-  const dpi = mapFile?.dpi ?? 150;
-  const dimensions = useMemo(
-    () => (settings ? overprintPixelDimensions(settings, dpi) : null),
-    [settings, dpi],
-  );
-
   // Derived course collections — memoised to avoid downstream re-renders
   const activeCourse = useMemo(
     () => courses?.find((c) => c.id === activeCourseId) ?? null,
     [courses, activeCourseId],
+  );
+
+  // Compute overprint dimensions — item-scaling aware, so on-screen symbol
+  // sizes match the PDF export when print scale differs from map scale.
+  const dpi = mapFile?.dpi ?? 150;
+  const mapScale = mapFile?.scale;
+  const activePrintScale = activeCourse?.settings.printScale ?? settings?.printScale;
+  const dimensions = useMemo(
+    () => (settings ? overprintPixelDimensions(settings, dpi, mapScale, activePrintScale) : null),
+    [settings, dpi, mapScale, activePrintScale],
   );
   // Part-filtered active course — when viewing a specific part, slice the controls
   const displayCourse = useMemo((): Course | null => {

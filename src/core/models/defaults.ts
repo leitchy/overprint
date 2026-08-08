@@ -31,6 +31,7 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   pageSetup: DEFAULT_PAGE_SETUP,
   language: 'en',
   overprintBlend: true,
+  itemScaling: 'relativeToMap',
 };
 
 /**

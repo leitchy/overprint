@@ -139,6 +139,29 @@ describe('importPpen', () => {
     const { event } = importPpen(MINIMAL_PPEN, DPI, MAP_HEIGHT_PX);
     expect(event.settings.printScale).toBe(10000);
   });
+
+  it('maps course-appearance scale-sizes="RelativeToMap" to itemScaling', () => {
+    const { event } = importPpen(MINIMAL_PPEN, DPI, MAP_HEIGHT_PX);
+    expect(event.settings.itemScaling).toBe('relativeToMap');
+  });
+
+  it('maps scale-sizes="None" and "RelativeTo15000" to itemScaling', () => {
+    const noneXml = MINIMAL_PPEN.replace('scale-sizes="RelativeToMap"', 'scale-sizes="None"');
+    expect(importPpen(noneXml, DPI, MAP_HEIGHT_PX).event.settings.itemScaling).toBe('none');
+
+    const relRefXml = MINIMAL_PPEN.replace('scale-sizes="RelativeToMap"', 'scale-sizes="RelativeTo15000"');
+    expect(importPpen(relRefXml, DPI, MAP_HEIGHT_PX).event.settings.itemScaling).toBe('relativeTo15000');
+  });
+
+  it('defaults itemScaling to relativeToMap when course-appearance is absent', () => {
+    const noAppearance = MINIMAL_PPEN.replace(
+      /<course-appearance[^/]*\/>/,
+      '',
+    );
+    expect(noAppearance).not.toContain('course-appearance');
+    const { event } = importPpen(noAppearance, DPI, MAP_HEIGHT_PX);
+    expect(event.settings.itemScaling).toBe('relativeToMap');
+  });
 });
 
 // ---------------------------------------------------------------------------

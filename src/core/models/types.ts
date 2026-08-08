@@ -171,6 +171,16 @@ export interface PageSetup {
 export type DescriptionStandard = '2018' | '2024';
 export type MapStandard = 'ISOM2017' | 'ISSprOM2019';
 
+/**
+ * How overprint symbol sizes respond when the print scale differs from the
+ * map scale (PurplePen "Item sizes" / ItemScaling):
+ * - 'none'            — symbols are a fixed mm size on the printed page.
+ * - 'relativeToMap'   — symbols scale with the map enlargement (default).
+ * - 'relativeTo15000' — symbols keep a fixed ground size, as if the map were
+ *   printed at the standard's reference scale (1:15000 ISOM, 1:4000 ISSprOM).
+ */
+export type ItemScaling = 'none' | 'relativeToMap' | 'relativeTo15000';
+
 export interface EventSettings {
   printScale: number;
   controlCircleDiameter: number; // mm at print scale
@@ -191,6 +201,8 @@ export interface EventSettings {
    *  shows through the purple in on-screen viewers. Default true. (The DeviceCMYK
    *  overprint flag is always set for press output regardless.) */
   overprintBlend?: boolean;
+  /** Overprint symbol size scaling mode. Default 'relativeToMap' (see {@link ItemScaling}). */
+  itemScaling?: ItemScaling;
 }
 
 // ---------------------------------------------------------------------------
