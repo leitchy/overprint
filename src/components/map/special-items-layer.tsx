@@ -149,7 +149,9 @@ const TextItemShape = memo(function TextItemShape({
   onDragEnd,
   onDblClick,
 }: ItemProps<TextItem>) {
-  const color = item.color ?? OVERPRINT_PURPLE;
+  // Text (titles, notes) defaults to black — matching PurplePen; explicit
+  // user colours are still honoured. (Course-symbol specials keep purple.)
+  const color = item.color ?? '#000000';
   const konvaFontStyle = [
     item.fontStyle === 'italic' ? 'italic' : '',
     item.fontWeight === 'bold' ? 'bold' : '',
@@ -302,7 +304,9 @@ const RectangleItemShape = memo(function RectangleItemShape({
   onDragEnd,
   onUpdate,
 }: ItemProps<RectangleItem> & { onUpdate?: (updates: Partial<SpecialItem>) => void }) {
-  const color = item.color ?? OVERPRINT_PURPLE;
+  // Rectangles (borders, frames) default to black — matching PurplePen; explicit
+  // user colours are still honoured. (Course-symbol specials keep purple.)
+  const color = item.color ?? '#000000';
   const w = item.endPosition.x - item.position.x;
   const h = item.endPosition.y - item.position.y;
   const minX = Math.min(0, w);

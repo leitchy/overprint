@@ -643,14 +643,18 @@ export function importPpen(
         // boundary = course boundary marker (short line segment at map edge)
         if (loc1) {
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
-          specialItems.push({ ...baseProps, type: 'line', endPosition: pos2 });
+          const appearEl = getChild(soEl, 'appearance');
+          const colorStr = appearEl ? getAttr(appearEl, 'color') : null;
+          specialItems.push({ ...baseProps, type: 'line', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined });
         }
         break;
       }
       case 'rectangle': {
         if (loc1) {
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
-          specialItems.push({ ...baseProps, type: 'rectangle', endPosition: pos2 });
+          const appearEl = getChild(soEl, 'appearance');
+          const colorStr = appearEl ? getAttr(appearEl, 'color') : null;
+          specialItems.push({ ...baseProps, type: 'rectangle', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined });
         }
         break;
       }

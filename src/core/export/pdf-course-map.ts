@@ -705,10 +705,17 @@ async function renderSpecialItems(
     // White-outs are drawn below the overprint by drawWhiteOuts(), not here.
     if (item.type === 'whiteOut') continue;
 
-    // Default purple special items use the spot DeviceCMYK purple (print-correct);
-    // user-chosen custom colours stay sRGB.
-    const colorHex = item.color ?? OVERPRINT_PURPLE;
-    const itemColor = (!item.color || item.color === OVERPRINT_PURPLE) ? PURPLE : hexToRgb(colorHex);
+    // Colour resolution:
+    // - An explicit user colour is honoured (spot DeviceCMYK purple when it IS
+    //   the overprint purple, otherwise sRGB).
+    // - With NO colour set, text and rectangles (titles, notes, map borders)
+    //   default to BLACK — matching PurplePen; only IOF course-symbol specials
+    //   (OOB, dangerous, water, first aid, forbidden route, map issue) and
+    //   course lines default to the overprint purple.
+    const annotationDefaultsBlack = item.type === 'text' || item.type === 'rectangle';
+    const itemColor = !item.color
+      ? (annotationDefaultsBlack ? rgb(0, 0, 0) : PURPLE)
+      : item.color === OVERPRINT_PURPLE ? PURPLE : hexToRgb(item.color);
     const pos = toPdf(item.position);
 
     switch (item.type) {
