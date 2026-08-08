@@ -143,6 +143,13 @@ function restoreBrandedIds(raw: OverprintEvent): OverprintEvent {
       (restored as { courseIds: ReturnType<typeof asCourseId>[] }).courseIds =
         (item['courseIds'] as string[]).map(asCourseId);
     }
+    // Migration: legacy 'dangerousArea' was a point symbol (no vertices); it is
+    // now a hatched area. Give old point items a small default polygon.
+    if (restored.type === 'dangerousArea' && !Array.isArray((item as { vertices?: unknown }).vertices)) {
+      (restored as unknown as { vertices: { x: number; y: number }[] }).vertices = [
+        { x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 80 }, { x: 0, y: 80 },
+      ];
+    }
     return restored;
   });
 

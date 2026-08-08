@@ -655,11 +655,27 @@ export function importPpen(
         break;
       }
       case 'out-of-bounds':
-        specialItems.push({ ...baseProps, type: 'outOfBounds' });
+      case 'dangerous-area': {
+        // PurplePen stores these as area polygons (multiple locations); import as
+        // hatched areas with vertices relative to the first location (position).
+        const verts = locations.map((loc) => {
+          const p = convertPoint(getFloatAttr(loc, 'x'), getFloatAttr(loc, 'y'), dpi, mapHeightPx, viewBox);
+          return { x: p.x - pos1.x, y: p.y - pos1.y };
+        });
+        const areaType = kind === 'out-of-bounds' ? 'outOfBoundsArea' : 'dangerousArea';
+        if (verts.length >= 3) {
+          specialItems.push({ ...baseProps, type: areaType, vertices: verts });
+        } else {
+          // Defensive fallback: a small default square so nothing is dropped.
+          const s = (20 * dpi) / 25.4;
+          specialItems.push({
+            ...baseProps,
+            type: areaType,
+            vertices: [{ x: 0, y: 0 }, { x: s, y: 0 }, { x: s, y: s }, { x: 0, y: s }],
+          });
+        }
         break;
-      case 'dangerous-area':
-        specialItems.push({ ...baseProps, type: 'dangerousArea' });
-        break;
+      }
       case 'water-location':
         specialItems.push({ ...baseProps, type: 'waterLocation' });
         break;

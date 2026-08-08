@@ -552,7 +552,8 @@ async function renderSpecialItems(
         break;
       }
 
-      case 'outOfBoundsArea': {
+      case 'outOfBoundsArea':
+      case 'dangerousArea': {
         // Cross-hatch (45°+135°) fill, no boundary — vertices are relative to position.
         const poly = item.vertices.map((v) =>
           toPdf({ x: item.position.x + v.x, y: item.position.y + v.y }),
@@ -587,14 +588,6 @@ async function renderSpecialItems(
             color: itemColor,
           });
         }
-        break;
-      }
-
-      case 'dangerousArea': {
-        const s = IOF_SYMBOL_PT;
-        page.drawLine({ start: { x: pos.x, y: pos.y + s }, end: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
-        page.drawLine({ start: { x: pos.x + s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, thickness: symLine, color: itemColor });
-        page.drawLine({ start: { x: pos.x - s * 0.9, y: pos.y - s * 0.7 }, end: { x: pos.x, y: pos.y + s }, thickness: symLine, color: itemColor });
         break;
       }
 
