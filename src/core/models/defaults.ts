@@ -30,6 +30,7 @@ export const DEFAULT_EVENT_SETTINGS: EventSettings = {
   mapStandard: 'ISOM2017',
   pageSetup: DEFAULT_PAGE_SETUP,
   language: 'en',
+  overprintBlend: true,
 };
 
 /**

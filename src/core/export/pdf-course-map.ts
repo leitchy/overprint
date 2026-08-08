@@ -6,7 +6,7 @@ import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
 import type { PageLayout, MapViewport } from './pdf-page-layout';
 import { computePageLayout, computeCourseBounds, computeMultiPageViewports, mmToPdfPoints } from './pdf-page-layout';
-import { renderOverprint } from './pdf-overprint-renderer';
+import { renderOverprint, PURPLE } from './pdf-overprint-renderer';
 import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
@@ -501,8 +501,10 @@ async function renderSpecialItems(
     // White-outs are drawn below the overprint by drawWhiteOuts(), not here.
     if (item.type === 'whiteOut') continue;
 
+    // Default purple special items use the spot DeviceCMYK purple (print-correct);
+    // user-chosen custom colours stay sRGB.
     const colorHex = item.color ?? OVERPRINT_PURPLE;
-    const itemColor = hexToRgb(colorHex);
+    const itemColor = (!item.color || item.color === OVERPRINT_PURPLE) ? PURPLE : hexToRgb(colorHex);
     const pos = toPdf(item.position);
 
     switch (item.type) {

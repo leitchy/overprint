@@ -12,6 +12,13 @@
  */
 export const OVERPRINT_PURPLE = '#BB29BB';
 
+/**
+ * The same overprint purple as DeviceCMYK (ISOM 2017 App. 1 §4 — CMYK 35/85/0/0).
+ * Used for PDF export so the purple is a spot-colour-correct separation that can
+ * truly overprint the map inks, rather than an opaque sRGB fill. [c, m, y, k].
+ */
+export const OVERPRINT_PURPLE_CMYK = [0.35, 0.85, 0, 0] as const;
+
 /** Non-current control colour for All Controls view — pink/magenta */
 export const NON_CURRENT_COLOR = '#E8A0D0';
 
