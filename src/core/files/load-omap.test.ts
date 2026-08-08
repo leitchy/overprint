@@ -166,3 +166,71 @@ describe('coordsToPath', () => {
     expect(result.match(/Z/g)?.length).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Upper-ink tagging (IOF colour order, D2)
+// ---------------------------------------------------------------------------
+
+import { parseOmapXml, _buildSvg as buildSvg } from './load-omap';
+
+/** Minimal OMAP document: 4 colours, one line symbol per colour, one path each. */
+const INK_TEST_OMAP = `<?xml version="1.0" encoding="UTF-8"?>
+<map xmlns="http://openorienteering.org/apps/mapper/xml/v2" version="9">
+  <colors count="4">
+    <color priority="0" name="Black" c="0" m="0" y="0" k="1" opacity="1">
+      <rgb method="cmyk" r="0" g="0" b="0"/>
+    </color>
+    <color priority="1" name="Black 50%" c="0" m="0" y="0" k="0.5" opacity="1">
+      <rgb method="cmyk" r="0.5" g="0.5" b="0.5"/>
+    </color>
+    <color priority="2" name="Brown for contours" c="0" m="0.56" y="1" k="0.18" opacity="1">
+      <rgb method="cmyk" r="0.82" g="0.45" b="0.09"/>
+    </color>
+    <color priority="3" name="Green" c="0.76" m="0" y="0.91" k="0" opacity="1">
+      <rgb method="cmyk" r="0.24" g="0.68" b="0.26"/>
+    </color>
+  </colors>
+  <barrier version="6" required="0.6.0">
+    <symbols count="4">
+      <symbol type="2" id="0" code="1"><line_symbol color="0" line_width="200"/></symbol>
+      <symbol type="2" id="1" code="2"><line_symbol color="1" line_width="200"/></symbol>
+      <symbol type="2" id="2" code="3"><line_symbol color="2" line_width="200"/></symbol>
+      <symbol type="4" id="3" code="4"><area_symbol inner_color="3"/></symbol>
+    </symbols>
+    <parts count="1" current="0">
+      <part name="map">
+        <objects count="4">
+          <object type="1" symbol="0"><coords>0 0;1000 0</coords></object>
+          <object type="1" symbol="1"><coords>0 100;1000 100</coords></object>
+          <object type="1" symbol="2"><coords>0 200;1000 200</coords></object>
+          <object type="1" symbol="3"><coords>0 300;1000 300;1000 400;0 400 18</coords></object>
+        </objects>
+      </part>
+    </parts>
+  </barrier>
+</map>`;
+
+describe('extractColors CMYK retention', () => {
+  it('retains cmyk fractions and colour names', () => {
+    const { colors } = parseOmapXml(INK_TEST_OMAP);
+    expect(colors.get(0)).toMatchObject({ name: 'Black', cmyk: [0, 0, 0, 1] });
+    expect(colors.get(1)).toMatchObject({ name: 'Black 50%', cmyk: [0, 0, 0, 0.5] });
+    expect(colors.get(2)?.cmyk).toEqual([0, 0.56, 1, 0.18]);
+  });
+});
+
+describe('buildSvg upper-ink tagging', () => {
+  it('tags 100% black and brown strokes, not screens or green fills', () => {
+    const { objects, symbols, colors } = parseOmapXml(INK_TEST_OMAP);
+    const svg = buildSvg(objects, symbols, colors);
+
+    const tagged = svg.match(/<[^>]*data-ink="upper"[^>]*>/g) ?? [];
+    expect(tagged).toHaveLength(2);
+    // Black (rgb(0,0,0)) and brown strokes are tagged...
+    expect(tagged.some((t) => t.includes('stroke="rgb(0,0,0)"'))).toBe(true);
+    expect(tagged.some((t) => t.includes('stroke="rgb(209,115,23)"'))).toBe(true);
+    // ...the 50% black screen and the green area fill are not.
+    expect(tagged.some((t) => t.includes('rgb(128,128,128)'))).toBe(false);
+    expect(tagged.some((t) => t.includes('fill="rgb'))).toBe(false);
+  });
+});

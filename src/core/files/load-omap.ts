@@ -24,6 +24,11 @@ export interface OmapColor {
   r: number; // 0–255
   g: number;
   b: number;
+  /** CMYK fractions 0–1 from the colour definition (when present). Used to
+   *  classify 100% black/brown/blue inks for IOF colour-order tagging (D2). */
+  cmyk?: CmykFractions;
+  /** Colour name from the map file (e.g. "Black", "Brown 50%"). */
+  name?: string;
 }
 
 /** Point symbol glyph element (sub-shape within a point symbol) */
@@ -142,6 +147,7 @@ export interface OmapObject {
 import type { GeoReference } from '@/core/models/types';
 import { BASE_RASTER_LONG_SIDE } from './raster-config';
 import { rasterizeSvgToImage } from './rasterize-svg';
+import { INK_ATTR, INK_UPPER, isUpperInk, type CmykFractions } from './ink-classification';
 
 interface LoadOmapResult {
   image: HTMLImageElement;
@@ -384,11 +390,26 @@ function extractColors(doc: Document): Map<number, OmapColor> {
     const el = colorEls[i]!;
     const rgbEl = q(el, 'rgb');
     if (rgbEl) {
+      // CMYK fractions live as c/m/y/k attributes on <color> (Mapper v9);
+      // fall back to a <cmyk c m y k> child for older exports. Retained for
+      // IOF colour-order ink classification (D2) — not for rendering.
+      const cmykSource = el.hasAttribute('k') ? el : q(el, 'cmyk');
+      let cmyk: CmykFractions | undefined;
+      if (cmykSource?.hasAttribute('k')) {
+        cmyk = [
+          numAttr(cmykSource, 'c', 0),
+          numAttr(cmykSource, 'm', 0),
+          numAttr(cmykSource, 'y', 0),
+          numAttr(cmykSource, 'k', 0),
+        ];
+      }
       // Values are floats 0.0–1.0, convert to 0–255
       colors.set(i, {
         r: Math.round(parseFloat(rgbEl.getAttribute('r') ?? '0') * 255),
         g: Math.round(parseFloat(rgbEl.getAttribute('g') ?? '0') * 255),
         b: Math.round(parseFloat(rgbEl.getAttribute('b') ?? '0') * 255),
+        cmyk,
+        name: el.getAttribute('name') ?? undefined,
       });
     }
   }
@@ -764,6 +785,18 @@ function buildSvg(
   const parts: string[] = [];
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vbX} ${vbY} ${vbW} ${vbH}">`);
 
+  // Colour indices classified as upper inks (100% black/brown/blue — see
+  // ink-classification.ts). Fragments drawn in these colours are tagged
+  // data-ink="upper" so the vector PDF exporter can redraw them above the
+  // lower course purple (IOF colour order, D2). Conservative: pattern fills
+  // and point-glyph internals are never tagged.
+  const upperInks = new Set<number>();
+  for (const [idx, col] of colors) {
+    if (col.cmyk && isUpperInk(col.cmyk, col.name)) upperInks.add(idx);
+  }
+  const inkAttr = (idx: number): string =>
+    upperInks.has(idx) ? ` ${INK_ATTR}="${INK_UPPER}"` : '';
+
   // Generate <defs> with SVG pattern definitions for area hatching/dot fills
   const defs: string[] = [];
   for (const [symId, sym] of symbols) {
@@ -852,7 +885,7 @@ function buildSvg(
       // Solid fill (if inner_color / combined fill is set)
       const solidColor = sym.type === 4 ? sym.colorIndex : sym.fillColorIndex;
       if (solidColor >= 0) {
-        mapFrags.push({ pri: priOf(solidColor), svg: `<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"/>` });
+        mapFrags.push({ pri: priOf(solidColor), svg: `<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"${inkAttr(solidColor)}/>` });
       }
 
       // Pattern fill layers
@@ -869,7 +902,7 @@ function buildSvg(
       // Combined symbols: border stroke on top of the fill (may be dashed)
       if (sym.type === 16 && sym.colorIndex >= 0 && sym.lineWidth > 0) {
         const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
-        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"/>` });
+        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
       }
     } else {
       const d = coordsToPath(obj.coords, false);
@@ -885,9 +918,9 @@ function buildSvg(
         // core (paint-order trick), emitted first so it stays underneath.
         if (sym.border) {
           const outer = sw + 2 * sym.border.shift + sym.border.width;
-          mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"/>` });
+          mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"${inkAttr(sym.border.color)}/>` });
         }
-        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"/>` });
+        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
       }
 
       // Along-line glyphs: mid symbols repeated along each sub-path (walls, fences,
@@ -945,7 +978,7 @@ function buildSvg(
       parts.push(svg);
     } else {
       // Fallback dot (glyphless symbol or a glyph that drew nothing)
-      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${colorStr(colors, sym.colorIndex)}"/>`);
+      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${colorStr(colors, sym.colorIndex)}"${inkAttr(sym.colorIndex)}/>`);
     }
   }
 
@@ -987,7 +1020,7 @@ function buildSvg(
     };
 
     const attrs = (anchor: string) =>
-      `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"`;
+      `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"${inkAttr(sym.colorIndex)}`;
 
     if (lines.length <= 1) {
       const lineText = lines[0] ?? '';
@@ -1011,7 +1044,7 @@ function buildSvg(
 }
 
 /** @internal Exported for testing */
-export { coordsToPath as _coordsToPath };
+export { coordsToPath as _coordsToPath, buildSvg as _buildSvg };
 
 /**
  * Convert OMAP coordinates (with flags) to an SVG path string.

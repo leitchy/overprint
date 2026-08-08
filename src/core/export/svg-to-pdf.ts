@@ -70,6 +70,18 @@ const MAX_PAGE_SIDE = 14_000;
 /** Safety cap on emitted pattern tile primitives per filled area. */
 const MAX_PATTERN_TILES = 500_000;
 
+/** Options for {@link renderSvgToScratchPdf}. */
+export interface RenderSvgOptions {
+  /**
+   * When `'upper'`, render ONLY elements tagged `data-ink="upper"` by the map
+   * loaders (100% black/brown/blue inks — see files/ink-classification.ts),
+   * skipping everything else while still honouring inherited paint and group
+   * transforms. Used for the IOF colour-order pass that redraws dark map
+   * linework ABOVE the lower course purple (D2).
+   */
+  inkFilter?: 'upper';
+}
+
 export interface SvgVectorValidation {
   /** True when every node is inside the renderable vocabulary. */
   ok: boolean;
@@ -641,6 +653,8 @@ interface RenderCtx {
   page: PDFPage;
   font: PDFFont;
   patterns: Map<string, PatternDef>;
+  /** When set, only elements inside a `data-ink="upper"` subtree are painted. */
+  inkFilter?: 'upper';
 }
 
 const FILL_EVEN_ODD = () => PDFOperator.of(PDFOperatorNames.FillEvenOdd);
@@ -1046,7 +1060,13 @@ function inheritPaint(el: Element, inherited: InheritedPaint): InheritedPaint {
   return { fill: fill ?? inherited.fill, stroke: stroke ?? inherited.stroke };
 }
 
-function renderElement(ctx: RenderCtx, el: Element, inherited: InheritedPaint): void {
+function renderElement(ctx: RenderCtx, el: Element, inherited: InheritedPaint, inkActive = false): void {
+  // Ink filtering: a data-ink="upper" tag activates painting for the element
+  // and its whole subtree; untagged groups still recurse (a tagged child may
+  // sit anywhere), but untagged shapes/text are skipped entirely.
+  const active = inkActive || el.getAttribute('data-ink') === 'upper';
+  const skip = ctx.inkFilter !== undefined && !active;
+
   switch (el.tagName.toLowerCase()) {
     case 'defs':
     case 'pattern':
@@ -1059,18 +1079,18 @@ function renderElement(ctx: RenderCtx, el: Element, inherited: InheritedPaint): 
         ctx.page.pushOperators(pushGraphicsState(), concatTransformationMatrix(...m));
       }
       const childPaint = inheritPaint(el, inherited);
-      for (const child of Array.from(el.children)) renderElement(ctx, child, childPaint);
+      for (const child of Array.from(el.children)) renderElement(ctx, child, childPaint, active);
       if (hasTransform) ctx.page.pushOperators(popGraphicsState());
       return;
     }
-    case 'path': return renderPath(ctx, el, inherited);
+    case 'path': return skip ? undefined : renderPath(ctx, el, inherited);
     case 'circle':
-    case 'ellipse': return renderCircleOrEllipse(ctx, el, inherited);
-    case 'rect': return renderRect(ctx, el, inherited);
-    case 'line': return renderLine(ctx, el, inherited);
-    case 'polygon': return renderPoly(ctx, el, true, inherited);
-    case 'polyline': return renderPoly(ctx, el, false, inherited);
-    case 'text': return renderText(ctx, el, inherited);
+    case 'ellipse': return skip ? undefined : renderCircleOrEllipse(ctx, el, inherited);
+    case 'rect': return skip ? undefined : renderRect(ctx, el, inherited);
+    case 'line': return skip ? undefined : renderLine(ctx, el, inherited);
+    case 'polygon': return skip ? undefined : renderPoly(ctx, el, true, inherited);
+    case 'polyline': return skip ? undefined : renderPoly(ctx, el, false, inherited);
+    case 'text': return skip ? undefined : renderText(ctx, el, inherited);
     default:
       return; // validator should have rejected; be lenient here
   }
@@ -1092,7 +1112,7 @@ function renderElement(ctx: RenderCtx, el: Element, inherited: InheritedPaint): 
  * Call {@link validateSvgForVector} first; this function assumes an
  * in-vocabulary SVG and silently skips constructs it cannot draw.
  */
-export async function renderSvgToScratchPdf(svg: string): Promise<PDFDocument> {
+export async function renderSvgToScratchPdf(svg: string, options: RenderSvgOptions = {}): Promise<PDFDocument> {
   const dom = new DOMParser().parseFromString(svg, 'image/svg+xml');
   if (dom.getElementsByTagName('parsererror').length > 0) {
     throw new Error('Invalid SVG: XML parse error');
@@ -1119,7 +1139,12 @@ export async function renderSvgToScratchPdf(svg: string): Promise<PDFDocument> {
     stroke: styleProp(root, 'stroke') ?? null,
   };
 
-  const ctx: RenderCtx = { page, font, patterns: collectPatterns(root, rootPaint) };
+  const ctx: RenderCtx = {
+    page,
+    font,
+    patterns: collectPatterns(root, rootPaint),
+    inkFilter: options.inkFilter,
+  };
 
   // Base CTM: SVG user space (y-down, viewBox origin) → page points (y-up).
   page.pushOperators(

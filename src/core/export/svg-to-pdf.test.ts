@@ -515,3 +515,57 @@ describe('renderSvgToScratchPdf', () => {
       .rejects.toThrow(/viewBox/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// inkFilter: 'upper' (IOF colour-order redraw pass, D2)
+// ---------------------------------------------------------------------------
+
+describe('renderSvgToScratchPdf with inkFilter: upper', () => {
+  const INK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="transparent" viewBox="0 0 200 100">
+    <rect x="0" y="0" width="200" height="100" fill="white"/>
+    <path d="M 11 12 L 91 92" fill="none" stroke="rgb(0,0,0)" stroke-width="2" data-ink="upper"/>
+    <path d="M 13 94 L 93 14" fill="none" stroke="rgb(255,186,0)" stroke-width="2"/>
+    <g transform="translate(50,50)">
+      <path d="M 21 22 L 41 42" fill="none" stroke="rgb(209,115,23)" stroke-width="1" data-ink="upper"/>
+    </g>
+  </svg>`;
+
+  it('emits ops only for tagged elements', async () => {
+    const doc = await renderSvgToScratchPdf(INK_SVG, { inkFilter: 'upper' });
+    const content = contentStreamText(await saveFlat(doc));
+    // Tagged black + brown paths present (identified by their coordinates)...
+    expect(content).toMatch(/11 -?12 m/);
+    expect(content).toMatch(/21 -?22 m/);
+    // ...untagged yellow path and white rect absent.
+    expect(content).not.toMatch(/13 -?94 m/);
+    expect(content).not.toMatch(/1 1 1 rg/);
+    // Untagged stroke colour never set; tagged colours are.
+    expect(content).toMatch(/0 0 0 RG/);
+    expect(content).not.toMatch(new RegExp(`${255 / 255} ${(186 / 255).toFixed(5).replace(/0+$/, '')}`));
+  });
+
+  it('still honours group transforms around tagged children', async () => {
+    const doc = await renderSvgToScratchPdf(INK_SVG, { inkFilter: 'upper' });
+    const content = contentStreamText(await saveFlat(doc));
+    expect(content).toMatch(/1 0 0 1 50 50 cm/);
+  });
+
+  it('a tagged group activates its whole subtree', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" fill="transparent" viewBox="0 0 100 100">
+      <g data-ink="upper" stroke="rgb(0,0,0)">
+        <path d="M 5 6 L 7 8" fill="none" stroke-width="1"/>
+      </g>
+    </svg>`;
+    const doc = await renderSvgToScratchPdf(svg, { inkFilter: 'upper' });
+    const content = contentStreamText(await saveFlat(doc));
+    expect(content).toMatch(/5 -?6 m/);
+  });
+
+  it('unfiltered render still draws everything, tags ignored', async () => {
+    const doc = await renderSvgToScratchPdf(INK_SVG);
+    const content = contentStreamText(await saveFlat(doc));
+    expect(content).toMatch(/11 -?12 m/);
+    expect(content).toMatch(/13 -?94 m/);
+    expect(content).toMatch(/1 1 1 rg/);
+  });
+});
