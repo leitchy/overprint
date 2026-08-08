@@ -20,7 +20,7 @@
 // Types
 // ---------------------------------------------------------------------------
 
-interface OmapColor {
+export interface OmapColor {
   r: number; // 0–255
   g: number;
   b: number;
@@ -69,7 +69,7 @@ interface OmapPatternDef {
   offsetAlong?: number;
 }
 
-interface OmapSymbol {
+export interface OmapSymbol {
   id: number;
   /** 1=point, 2=line, 4=area, 8=text, 16=combined */
   type: number;
@@ -118,14 +118,14 @@ const COORD_CURVE_START = 1 << 0;  // 1  — next two coords are bezier control 
 const COORD_CLOSE_POINT = 1 << 1;  // 2  — close the current sub-path
 const COORD_HOLE_POINT  = 1 << 4;  // 16 — last coord of sub-path; next starts a hole
 
-interface OmapCoord {
+export interface OmapCoord {
   x: number;
   y: number;
   /** Coordinate flags bitmask (CurveStart=1, ClosePoint=2, HolePoint=16, etc.) */
   flags: number;
 }
 
-interface OmapObject {
+export interface OmapObject {
   /** 0=point, 1=path, 4=text */
   type: number;
   symbolId: number;
@@ -1306,9 +1306,23 @@ export { flattenCoords as _flattenCoords, sampleAt as _sampleAt };
 // Main loader
 // ---------------------------------------------------------------------------
 
-export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
-  const xmlString = await file.text();
+/** Raw parse result of an OMAP/XMAP XML document (before SVG building). */
+export interface ParsedOmap {
+  doc: Document;
+  scale: number | null;
+  colors: Map<number, OmapColor>;
+  symbols: Map<number, OmapSymbol>;
+  objects: OmapObject[];
+}
 
+/**
+ * Parse OMAP/XMAP XML text into raw colour/symbol/object structures.
+ *
+ * This is the pure parsing entry used by {@link loadOmapMap}; it is exported so
+ * the .omap course exporter (export-omap.ts) can round-trip its output through
+ * the real parsing path in tests.
+ */
+export function parseOmapXml(xmlString: string): ParsedOmap {
   // Reject legacy binary format (OOM v0.8 and older)
   if (xmlString.startsWith('OMAP')) {
     throw new Error(
@@ -1326,11 +1340,19 @@ export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
     throw new Error(`Failed to parse .omap/.xmap file: ${parseError.textContent?.slice(0, 200)}`);
   }
 
-  // Extract data
-  const scale = extractScale(doc);
-  const colors = extractColors(doc);
-  const symbols = extractSymbols(doc);
-  const objects = extractObjects(doc);
+  return {
+    doc,
+    scale: extractScale(doc),
+    colors: extractColors(doc),
+    symbols: extractSymbols(doc),
+    objects: extractObjects(doc),
+  };
+}
+
+export async function loadOmapMap(file: File): Promise<LoadOmapResult> {
+  const xmlString = await file.text();
+
+  const { doc, scale, colors, symbols, objects } = parseOmapXml(xmlString);
 
   if (objects.length === 0) {
     throw new Error('No map objects found in the .omap/.xmap file.');
