@@ -10,6 +10,7 @@ import { useViewportStore } from '@/stores/viewport-store';
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import type { Tool } from '@/stores/tool-store';
 import type { SpecialItemType } from '@/core/models/types';
+import type { MapSource } from '@/core/export/pdf-course-map';
 import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
@@ -26,6 +27,21 @@ import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
 
 import { MAP_FILE_ACCEPT } from '@/utils/platform';
+
+/**
+ * Build the {@link MapSource} for a PDF export from the map-image store.
+ * Supplies the sized-less OCAD/OMAP SVG (so the exporter can re-rasterise at
+ * print DPI) and the logical map dimensions (control-coordinate space, which
+ * an adaptive zoom bitmap may not match).
+ */
+function getExportMapSource(): MapSource {
+  const { imageWidth, imageHeight, rerender } = useMapImageStore.getState();
+  return {
+    svg: rerender?.kind === 'svg' ? rerender.svg : null,
+    width: imageWidth,
+    height: imageHeight,
+  };
+}
 
 /** Undo/Redo buttons for the compact toolbar — subscribes to temporal state via event store. */
 function UndoRedoButtons() {
@@ -219,6 +235,7 @@ export function Toolbar() {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
     const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
+    const mapSource = getExportMapSource();
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -230,13 +247,13 @@ export function Toolbar() {
       if ('showSaveFilePicker' in window) {
         // Get file handle while gesture is still valid
         const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf, mapSource);
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
       } else {
         // Fallback: generate then auto-download
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf, mapSource);
         await saveBlob(blob, suggestedName);
       }
     } catch (err) {
@@ -249,6 +266,7 @@ export function Toolbar() {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
     const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
+    const mapSource = getExportMapSource();
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -258,12 +276,12 @@ export function Toolbar() {
 
       if ('showSaveFilePicker' in window) {
         const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf, mapSource);
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
       } else {
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf);
+        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf, mapSource);
         await saveBlob(blob, suggestedName);
       }
     } catch (err) {
@@ -276,6 +294,7 @@ export function Toolbar() {
     const currentEvent = useEventStore.getState().event;
     const mapImage = useMapImageStore.getState().image;
     const pdfBuf = useMapImageStore.getState().pdfArrayBuffer;
+    const mapSource = getExportMapSource();
     if (!currentEvent || !mapImage) return;
 
     try {
@@ -285,7 +304,7 @@ export function Toolbar() {
         // Chrome/Edge: pick folder, write all course PDFs there
         const dirHandle = await window.showDirectoryPicker();
         for (let i = 0; i < currentEvent.courses.length; i++) {
-          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf);
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf, mapSource);
           const fileHandle = await dirHandle.getFileHandle(suggestedName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(blob);
@@ -294,7 +313,7 @@ export function Toolbar() {
       } else {
         // Fallback: sequential auto-downloads
         for (let i = 0; i < currentEvent.courses.length; i++) {
-          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf);
+          const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf, mapSource);
           await saveBlob(blob, suggestedName);
         }
       }

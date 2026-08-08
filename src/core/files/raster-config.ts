@@ -17,6 +17,49 @@
 export const BASE_RASTER_LONG_SIDE = 4000;
 
 /**
+ * Target print resolution (dpi) for re-rasterising a vector map (OCAD/OMAP SVG)
+ * into an exported PDF. The display bitmap is a screen-density raster; embedding
+ * it directly caps print quality well below what the vector source can produce.
+ * Re-rasterising at this density (subject to the device long-side cap) restores
+ * near-print detail. 600 dpi is the practical ceiling for orienteering print.
+ */
+export const PRINT_TARGET_DPI = 600;
+
+/**
+ * Compute the long side (px) at which to re-rasterise a vector map for PDF export.
+ *
+ * The embedded raster must be dense enough that, once the map is scaled from its
+ * native `mapScale` to the `printScale` on paper, it still resolves at ~`targetDpi`.
+ * A map printed enlarged (printScale < mapScale) needs proportionally more pixels.
+ *
+ * The result is:
+ *  - never below the logical long side (never throw away base detail), and
+ *  - never above `cap` (the device-safe canvas/image ceiling).
+ *
+ * @param logicalLongSide  Long side (px) of the map in control-coordinate space.
+ * @param nativeDpi        Effective dpi of the map at its own `mapScale`.
+ * @param mapScale         Map scale denominator (e.g. 10000 for 1:10000).
+ * @param printScale       Smallest print-scale denominator being exported.
+ * @param cap              Device long-side cap (see `maxRasterLongSide`).
+ */
+export function printRasterLongSide(
+  logicalLongSide: number,
+  nativeDpi: number,
+  mapScale: number,
+  printScale: number,
+  cap: number,
+  targetDpi: number = PRINT_TARGET_DPI,
+): number {
+  if (logicalLongSide <= 0) return 0;
+  let needed = logicalLongSide;
+  if (nativeDpi > 0 && mapScale > 0 && printScale > 0) {
+    const factor = (targetDpi / nativeDpi) * (mapScale / printScale);
+    needed = logicalLongSide * factor;
+  }
+  return Math.round(Math.min(Math.max(needed, logicalLongSide), cap));
+}
+
+/**
  * Maximum long side (px) the adaptive re-rasterizer may target for this device.
  * Returns a conservative value on iOS / coarse-pointer / low-memory hardware.
  */
