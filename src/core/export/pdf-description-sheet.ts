@@ -3,14 +3,17 @@
  *
  * Renders the standard 8-column control description grid as pdf-lib vector
  * graphics. Symbol cells (C-H) are rasterized from SVG via an off-screen
- * canvas and embedded as PNG images. Text cells (A, B) use Helvetica.
+ * canvas and embedded as PNG images. Text cells (A, B) use Roboto Condensed,
+ * header rows Roboto / Roboto Bold (Helvetica fallback — see description-fonts.ts).
  *
  * IOF cell size: 7mm × 7mm (standard grid unit).
  * Header row: course name spanning all 8 columns.
  * Info row: course length (metres) spanning all 8 columns.
  * Control rows: one row per CourseControl in sequence.
  */
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
+import type { PDFFont } from 'pdf-lib';
+import { embedDescriptionFonts } from './description-fonts';
 import type { Course, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
@@ -116,8 +119,13 @@ export async function generateDescriptionSheetPdf(
   // ---------------------------------------------------------------------------
 
   const pdfDoc = await PDFDocument.create();
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  // Description typography (C8, matches PurplePen): Roboto Bold for the
+  // primary header, Roboto for secondary header/split-info rows, Roboto
+  // Condensed for grid cell text. Falls back to Helvetica when unavailable.
+  const descFonts = await embedDescriptionFonts(pdfDoc);
+  const font = descFonts.condensed;
+  const headerFont = descFonts.regular;
+  const boldFont = descFonts.bold;
 
   // Cache: symbolId → embedded PDFImage
   const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
@@ -169,7 +177,7 @@ export async function generateDescriptionSheetPdf(
    * Draw a single row of cells at the current Y position.
    * `cells` is an array of 8 items corresponding to columns A-H.
    * Each cell is either:
-   *   - A text string (drawn with Helvetica)
+   *   - A text string (drawn with Roboto Condensed)
    *   - A symbolId string prefixed with 'sym:' (embedded PNG)
    *   - null / undefined (empty cell)
    *
@@ -177,11 +185,11 @@ export async function generateDescriptionSheetPdf(
    */
   async function drawRow(
     cells: ReadonlyArray<string | null | undefined>,
-    opts: { fontSize?: number; bold?: boolean; headerSpan?: boolean } = {},
+    opts: { fontSize?: number; bold?: boolean; headerSpan?: boolean; font?: PDFFont } = {},
   ): Promise<void> {
     const rowY = currentY - cellPt;
     const fontSize = opts.fontSize ?? TEXT_FONT_SIZE;
-    const usedFont = opts.bold ? boldFont : font;
+    const usedFont = opts.font ?? (opts.bold ? boldFont : font);
 
     if (opts.headerSpan) {
       // Single cell spanning all columns
@@ -292,9 +300,9 @@ export async function generateDescriptionSheetPdf(
       page.drawRectangle({ x, y: rowY, width: w, height: cellPt, borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH });
       let text = sections[i]!;
       const maxW = w - cellPt * 0.16;
-      while (font.widthOfTextAtSize(text, HEADER_FONT_SIZE) > maxW && text.length > 1) text = text.slice(0, -1);
-      const tw = font.widthOfTextAtSize(text, HEADER_FONT_SIZE);
-      page.drawText(text, { x: x + (w - tw) / 2, y: rowY + (cellPt - HEADER_FONT_SIZE) / 2, size: HEADER_FONT_SIZE, font, color: TEXT_COLOR });
+      while (headerFont.widthOfTextAtSize(text, HEADER_FONT_SIZE) > maxW && text.length > 1) text = text.slice(0, -1);
+      const tw = headerFont.widthOfTextAtSize(text, HEADER_FONT_SIZE);
+      page.drawText(text, { x: x + (w - tw) / 2, y: rowY + (cellPt - HEADER_FONT_SIZE) / 2, size: HEADER_FONT_SIZE, font: headerFont, color: TEXT_COLOR });
       x += w;
     }
     currentY = rowY;
@@ -395,7 +403,13 @@ export async function generateDescriptionSheetPdf(
   async function drawHeaders(): Promise<void> {
     for (const row of repeatHeaderRows) {
       if (row.kind === 'header') {
-        await drawRow([row.text], { headerSpan: true, bold: row === repeatHeaderRows[0], fontSize: row.fontSize });
+        const isPrimary = row === repeatHeaderRows[0];
+        await drawRow([row.text], {
+          headerSpan: true,
+          bold: isPrimary,
+          fontSize: row.fontSize,
+          font: isPrimary ? boldFont : headerFont,
+        });
       } else if (row.kind === 'splitInfo') {
         drawSplitInfoRow(row.sections);
       }

@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, clipEvenOdd, endPath } from 'pdf-lib';
 import { rectangle as rectOp } from 'pdf-lib';
 import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
+import { embedDescriptionFonts, type DescriptionFonts } from './description-fonts';
 import type { OverprintEvent, Course, CourseControl, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
@@ -101,6 +102,8 @@ export async function generateCoursePdf(
   // Create PDF
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  // Description-box typography (C8): Roboto faces, Helvetica fallback.
+  const descFonts = await embedDescriptionFonts(pdfDoc);
 
   // Embed the base map once — pdf-lib reuses across all pages.
   // Priority: PDF-source → embed original PDF page (vectors); OCAD/OMAP → embed
@@ -272,7 +275,7 @@ export async function generateCoursePdf(
         const importedTopY = allControlsDescBox ? toPdf(allControlsDescBox.position).y : undefined;
         descBoxTopY = importedTopY; // share with course pages
         await renderAutoDescriptionBox(
-          page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, font,
+          page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, descFonts,
           event.name, undefined, undefined, importedCols, undefined, descBoxTopY, true,
         );
 
@@ -377,7 +380,7 @@ export async function generateCoursePdf(
 
         // Auto-generate description box (rendered before special items so
         // images/logos from .ppen draw on top of the white background)
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, font, event.name, partLabel, undefined, undefined, undefined, descBoxTopY);
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, descFonts, event.name, partLabel, undefined, undefined, undefined, descBoxTopY);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
@@ -981,7 +984,7 @@ async function renderAutoDescriptionBox(
   controls: Record<ControlId, Control>,
   eventSettings: EventSettings,
   layout: PageLayout,
-  font: PDFFont,
+  fonts: DescriptionFonts,
   eventName: string,
   partLabel?: string,
   overrideCellPt?: number,
@@ -990,6 +993,12 @@ async function renderAutoDescriptionBox(
   overrideTopY?: number,
   isAllControls = false,
 ): Promise<void> {
+  // C8 typography (matches PurplePen): Roboto Bold for the primary header,
+  // Roboto for other header rows / split-info, Roboto Condensed for cell text.
+  const cellFont = fonts.condensed;
+  const headerFont = fonts.regular;
+  const headerBoldFont = fonts.bold;
+
   const lang = eventSettings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
   const hasTextCol = appearance === 'symbolsAndText';
@@ -1142,35 +1151,37 @@ async function renderAutoDescriptionBox(
         const fontSize = isTextCol ? DESC_TEXT_FONT_SIZE * 0.75 : DESC_TEXT_FONT_SIZE;
         let displayText = cell;
         const maxTextWidth = colWidth - colWidth * 0.1;
-        while (font.widthOfTextAtSize(displayText, fontSize) > maxTextWidth && displayText.length > 1) {
+        while (cellFont.widthOfTextAtSize(displayText, fontSize) > maxTextWidth && displayText.length > 1) {
           displayText = displayText.slice(0, -1);
         }
         if (isTextCol) {
           page.drawText(displayText, {
             x: correctCellX + cellPt * 0.08, y: rowY + (cellPt - fontSize) / 2,
-            size: fontSize, font, color: DESC_TEXT_COLOR,
+            size: fontSize, font: cellFont, color: DESC_TEXT_COLOR,
           });
         } else {
-          const textWidth = font.widthOfTextAtSize(displayText, fontSize);
+          const textWidth = cellFont.widthOfTextAtSize(displayText, fontSize);
           page.drawText(displayText, {
             x: correctCellX + (colWidth - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
-            size: fontSize, font, color: DESC_TEXT_COLOR,
+            size: fontSize, font: cellFont, color: DESC_TEXT_COLOR,
           });
         }
       }
     }
   }
 
-  // Helper: draw a header row spanning all columns
-  function drawHeader(gridX: number, rowY: number, text: string, fontSize: number): void {
+  // Helper: draw a header row spanning all columns (Roboto Bold for the
+  // primary event/course-name row, Roboto for secondary header rows)
+  function drawHeader(gridX: number, rowY: number, text: string, fontSize: number, bold = false): void {
+    const hFont = bold ? headerBoldFont : headerFont;
     page.drawRectangle({
       x: gridX, y: rowY, width: gridWidth, height: cellPt,
       borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
     });
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const textWidth = hFont.widthOfTextAtSize(text, fontSize);
     page.drawText(text, {
       x: gridX + (gridWidth - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
-      size: fontSize, font, color: DESC_TEXT_COLOR,
+      size: fontSize, font: hFont, color: DESC_TEXT_COLOR,
     });
   }
 
@@ -1192,11 +1203,11 @@ async function renderAutoDescriptionBox(
       const fontSize = DESC_HEADER_FONT_SIZE;
       let text = sections[i]!;
       const maxW = w - cellPt * 0.16;
-      while (font.widthOfTextAtSize(text, fontSize) > maxW && text.length > 1) text = text.slice(0, -1);
-      const tw = font.widthOfTextAtSize(text, fontSize);
+      while (headerFont.widthOfTextAtSize(text, fontSize) > maxW && text.length > 1) text = text.slice(0, -1);
+      const tw = headerFont.widthOfTextAtSize(text, fontSize);
       page.drawText(text, {
         x: x + (w - tw) / 2, y: rowY + (cellPt - fontSize) / 2,
-        size: fontSize, font, color: DESC_TEXT_COLOR,
+        size: fontSize, font: headerFont, color: DESC_TEXT_COLOR,
       });
       x += w;
     }
@@ -1259,7 +1270,7 @@ async function renderAutoDescriptionBox(
 
       // Distance text centered over the dashed line
       const rFontSize = DESC_TEXT_FONT_SIZE;
-      const rw = font.widthOfTextAtSize(rightText, rFontSize);
+      const rw = cellFont.widthOfTextAtSize(rightText, rFontSize);
       const textX = gridX + leftW + (rightW - rw) / 2;
       // White background behind text to clear the dashes
       page.drawRectangle({
@@ -1269,7 +1280,7 @@ async function renderAutoDescriptionBox(
       });
       page.drawText(rightText, {
         x: textX, y: rowY + (cellPt - rFontSize) / 2,
-        size: rFontSize, font, color: DESC_TEXT_COLOR,
+        size: rFontSize, font: cellFont, color: DESC_TEXT_COLOR,
       });
     }
   }
@@ -1305,7 +1316,7 @@ async function renderAutoDescriptionBox(
       rowY -= cellPt;
       switch (row.kind) {
         case 'header':
-          drawHeader(colX, rowY, row.text, row.fontSize);
+          drawHeader(colX, rowY, row.text, row.fontSize, row === headerRowList[0]);
           break;
         case 'splitInfo':
           drawSplitInfoRow(colX, rowY, row.sections);

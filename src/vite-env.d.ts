@@ -1,6 +1,13 @@
 /// <reference types="vite/client" />
 
 declare const __APP_VERSION__: string;
+
+// Vite `?url` asset imports for font files (vite/client's `*.ttf` wildcard
+// does not match specifiers carrying the `?url` query).
+declare module '*.ttf?url' {
+  const url: string;
+  export default url;
+}
 declare const __APP_COMMIT__: string;
 
 // File System Access API (Chrome/Edge)
