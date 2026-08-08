@@ -116,7 +116,7 @@ Read from `src/components/descriptions/*`, `src/core/descriptions/*`, `src/core/
 | D2 | **PDF is opaque RGB purple on top** — no CMYK, no colour-order/overprint → purple obscures black/brown/blue in print (what App.1 exists to prevent) | Emit DeviceCMYK 35/85/0/0 (pdf-lib `cmyk()`); interim: Darken ExtGState on overprint layer (toggle, default on). True colour-order = draw map black/brown/blue 100% above purple — rides on the vector-PDF pipeline | M → L |
 | D3 | **IOF XML v3 export is NOT schema-valid**: uses `<Control><ControlId>` inside `<Course>` (schema wants `<CourseControl type><Control>code</Control>`); `<Type>` child (should be `type` attribute); `LegLength` off-by-one (spec = from *previous* control); missing `Map`, `Course/Length`, `Climb`, geo `Position` | Rewrite exporter to schema shape; add Map/Length/Climb; emit geo Position when calibrated | M |
 | D4 | **IOF XML import can't read real v3** (PurplePen/Condes files import as empty courses — parser only reads Overprint's own dialect) | Rewrite importer to accept real v3 (keep back-compat); add IOF example + a PP-generated file as fixtures; validate exporter vs IOF.xsd in CI | M |
-| D5 | OCAD/OMAP PDF export capped at 4096 px (below ~200 dpi on A3) though loaders retain full SVG | **Rasterise at print DPI: DONE** — export re-rasterises the OCAD/OMAP SVG at `PRINT_TARGET_DPI` (600), scaled by print/map-scale ratio and clamped to the device long-side cap (`printRasterLongSide`), instead of embedding the screen bitmap; also uses logical map dims so a zoomed adaptive raster can't corrupt print scale. Later SVG→PDF **vector** still deferred (rides D2-true/D6 pipeline) | S → L |
+| D5 | OCAD/OMAP PDF export capped at 4096 px (below ~200 dpi on A3) though loaders retain full SVG | **DONE (true vector).** Phase 1 of the vector-PDF pipeline: OCAD/OMAP maps are embedded as **true PDF vectors** — `svg-to-pdf.ts` walks the retained SVG and emits raw pdf-lib path operators (even-odd fills, SVG fill/stroke inheritance, `<g>` transforms, hatch/dot `<pattern>` reconstruction, text) into a scratch page that `generateCoursePdf` `embedPdf`s and draws via the existing `drawEmbeddedPdfPage`. `validateSvgForVector` gates the vocabulary; anything unsupported falls back to the print-DPI raster embed. Verified by rasterising real `.ocd` fixtures (full colour, correct patterns). Earlier print-DPI raster (`printRasterLongSide`) remains the fallback | ✓ |
 | D6 | No OCAD/OMAP course export (PP writes .ocd/.omap for print-shop/mapper merge) | **.omap/.xmap first** (XML we already parse); native .ocd binary — defer (cf. ADR-009/010) | L |
 | D7 | GPX export + geo positions absent though the georef/proj4 pipeline exists | GPX waypoints; geo Position in XML — near-free field-checking win | S |
 
@@ -163,7 +163,7 @@ A5 crossing-point glyph.
   cleanup (removes/remaps an existing symbol — judgement call), **B3 out-of-bounds polygon
   tool (large — new drawing tool + hatch fill).**
 
-**Tier 4 — big/structural:** D2-true colour-order + D5 (print-DPI raster **done**; true vector) /D6 vector-PDF & OOM export, A8 item-scaling
+**Tier 4 — big/structural:** D2-true colour-order (Phase 2 of the vector pipeline) + **D5 true-vector base map DONE** / D6 OOM export, A8 item-scaling
 model, C7/C8 text mode + fonts, E10 course variations/relays, [ADR-015](../adrs/ADR-015-live-dom-svg-map-layer.md) DOM-SVG display.
 
 ---
