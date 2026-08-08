@@ -139,6 +139,29 @@ describe('importPpen', () => {
     const { event } = importPpen(MINIMAL_PPEN, DPI, MAP_HEIGHT_PX);
     expect(event.settings.printScale).toBe(10000);
   });
+
+  it('maps course-appearance scale-sizes="RelativeToMap" to itemScaling', () => {
+    const { event } = importPpen(MINIMAL_PPEN, DPI, MAP_HEIGHT_PX);
+    expect(event.settings.itemScaling).toBe('relativeToMap');
+  });
+
+  it('maps scale-sizes="None" and "RelativeTo15000" to itemScaling', () => {
+    const noneXml = MINIMAL_PPEN.replace('scale-sizes="RelativeToMap"', 'scale-sizes="None"');
+    expect(importPpen(noneXml, DPI, MAP_HEIGHT_PX).event.settings.itemScaling).toBe('none');
+
+    const relRefXml = MINIMAL_PPEN.replace('scale-sizes="RelativeToMap"', 'scale-sizes="RelativeTo15000"');
+    expect(importPpen(relRefXml, DPI, MAP_HEIGHT_PX).event.settings.itemScaling).toBe('relativeTo15000');
+  });
+
+  it('defaults itemScaling to relativeToMap when course-appearance is absent', () => {
+    const noAppearance = MINIMAL_PPEN.replace(
+      /<course-appearance[^/]*\/>/,
+      '',
+    );
+    expect(noAppearance).not.toContain('course-appearance');
+    const { event } = importPpen(noAppearance, DPI, MAP_HEIGHT_PX);
+    expect(event.settings.itemScaling).toBe('relativeToMap');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -316,6 +339,31 @@ describe('importPpen — special objects', () => {
     const { event } = importPpen(MINIMAL_PPEN, DPI, MAP_HEIGHT_PX);
     const item = event.specialItems[0]!;
     expect(item.position.x).toBeCloseTo(mmToPx(220.0), 1);
+  });
+
+  it('captures appearance colour for text and rectangle, leaving it unset otherwise', () => {
+    // Regression: title/border colour was dropped on import for rectangles/lines,
+    // so they defaulted to overprint purple instead of their real (dark) colour.
+    const xml = `<course-scribe-event>
+      <event id="1">
+        <title>Colour</title>
+        <map kind="OCAD" scale="5000">test.ocd</map>
+        <standards map="2017" description="2018" />
+        <all-controls print-scale="5000" />
+        <descriptions lang="en" />
+      </event>
+      <special-object id="10" kind="rectangle"><location x="180" y="150" /><location x="220" y="130" /><appearance color="1,0,0,0" /></special-object>
+      <special-object id="11" kind="text"><text>Title</text><location x="180" y="160" /><location x="220" y="150" /><appearance color="1,0,0,0" /></special-object>
+      <special-object id="12" kind="rectangle"><location x="10" y="10" /><location x="20" y="5" /></special-object>
+    </course-scribe-event>`;
+    const { event } = importPpen(xml, DPI, MAP_HEIGHT_PX);
+    const text = event.specialItems.find((i) => i.type === 'text');
+    const colouredRect = event.specialItems.find((i) => i.type === 'rectangle' && i.color);
+    const plainRect = event.specialItems.find((i) => i.type === 'rectangle' && !i.color);
+    expect(text?.color).toBe('#00ffff'); // cmyk 1,0,0,0
+    expect(colouredRect?.color).toBe('#00ffff');
+    expect(plainRect).toBeDefined();
+    expect(plainRect!.color).toBeUndefined(); // no appearance → unset → defaults black at render
   });
 });
 

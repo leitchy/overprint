@@ -11,6 +11,7 @@ import { getSymbolSvg, getSymbolName } from '@/core/iof/symbol-db';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { crossHatchSegments } from '@/core/geometry/hatch';
+import { eventOverprintSizeMultiplier } from '@/core/geometry/overprint-dimensions';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
 import { maxRasterLongSide, printRasterLongSide } from '@/core/files/raster-config';
 import { rasterizeSvgToImage } from '@/core/files/rasterize-svg';
@@ -246,7 +247,13 @@ export async function generateCoursePdf(
 
         // Render all controls as circles with codes (score course = no legs)
         drawOverprintPasses(
-          { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
+          {
+            page,
+            settings: event.settings,
+            toPdf,
+            effectivePPP: viewport.effectivePPP,
+            sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
+          },
           allControlsCourse,
           event.controls,
           font,
@@ -353,7 +360,14 @@ export async function generateCoursePdf(
 
         // Draw vector overprint (filtered to part if multi-part)
         drawOverprintPasses(
-          { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP, sequenceOffset },
+          {
+            page,
+            settings: event.settings,
+            toPdf,
+            effectivePPP: viewport.effectivePPP,
+            sequenceOffset,
+            sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
+          },
           renderCourse,
           event.controls,
           font,
@@ -645,6 +659,7 @@ function drawOverprintPasses(
     toPdf: (point: MapPoint) => MapPoint;
     effectivePPP: number;
     sequenceOffset?: number;
+    sizeMultiplier?: number;
   },
   course: Course,
   controls: Record<ControlId, Control>,
@@ -705,10 +720,17 @@ async function renderSpecialItems(
     // White-outs are drawn below the overprint by drawWhiteOuts(), not here.
     if (item.type === 'whiteOut') continue;
 
-    // Default purple special items use the spot DeviceCMYK purple (print-correct);
-    // user-chosen custom colours stay sRGB.
-    const colorHex = item.color ?? OVERPRINT_PURPLE;
-    const itemColor = (!item.color || item.color === OVERPRINT_PURPLE) ? PURPLE : hexToRgb(colorHex);
+    // Colour resolution:
+    // - An explicit user colour is honoured (spot DeviceCMYK purple when it IS
+    //   the overprint purple, otherwise sRGB).
+    // - With NO colour set, text and rectangles (titles, notes, map borders)
+    //   default to BLACK — matching PurplePen; only IOF course-symbol specials
+    //   (OOB, dangerous, water, first aid, forbidden route, map issue) and
+    //   course lines default to the overprint purple.
+    const annotationDefaultsBlack = item.type === 'text' || item.type === 'rectangle';
+    const itemColor = !item.color
+      ? (annotationDefaultsBlack ? rgb(0, 0, 0) : PURPLE)
+      : item.color === OVERPRINT_PURPLE ? PURPLE : hexToRgb(item.color);
     const pos = toPdf(item.position);
 
     switch (item.type) {

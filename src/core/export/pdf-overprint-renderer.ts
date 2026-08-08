@@ -91,6 +91,12 @@ interface PdfOverprintContext {
    * only on the raster path (where nothing is redrawn above the purple).
    */
   solidOverprint?: boolean;
+  /**
+   * Paper-space symbol size multiplier (see overprintSizeMultiplier /
+   * ItemScaling). Scales SYMBOL dimensions only — never positions or the
+   * viewport transform. Default 1 (fixed IOF mm on the page).
+   */
+  sizeMultiplier?: number;
 }
 
 /**
@@ -104,7 +110,9 @@ export function renderOverprint(
   font: PDFFont,
 ): void {
   const { page, settings } = ctx;
-  const lineWidth = mmToPdfPoints(settings.lineWidth);
+  // Item-scaling multiplier — applied to every SYMBOL dimension (not positions).
+  const k = ctx.sizeMultiplier ?? 1;
+  const lineWidth = mmToPdfPoints(settings.lineWidth) * k;
 
   // Resolve controls with positions and per-course number offsets
   const resolved: Array<{
@@ -141,15 +149,15 @@ export function renderOverprint(
   const gsName = registerOverprintGState(page, multiply);
   page.pushOperators(pushGraphicsState(), setGraphicsState(gsName));
 
-  // Dimension helpers (IOF exact, in PDF points)
+  // Dimension helpers (IOF mm × item-scaling multiplier, in PDF points)
   const std = overprintDims(settings.mapStandard);
-  const circleRadius = mmToPdfPoints(settings.controlCircleDiameter / 2);
-  const startTriangleSide = mmToPdfPoints(std.startTriangleSide);
-  const finishOuterRadius = mmToPdfPoints(std.finishOuterDiameter / 2);
-  const finishInnerRadius = mmToPdfPoints(std.finishInnerDiameter / 2);
-  const circleGap = mmToPdfPoints(std.circleGap);
-  const numberSize = mmToPdfPoints(settings.numberSize);
-  const crossingPointArm = mmToPdfPoints(std.crossingPointArm);
+  const circleRadius = mmToPdfPoints(settings.controlCircleDiameter / 2) * k;
+  const startTriangleSide = mmToPdfPoints(std.startTriangleSide) * k;
+  const finishOuterRadius = mmToPdfPoints(std.finishOuterDiameter / 2) * k;
+  const finishInnerRadius = mmToPdfPoints(std.finishInnerDiameter / 2) * k;
+  const circleGap = mmToPdfPoints(std.circleGap) * k;
+  const numberSize = mmToPdfPoints(settings.numberSize) * k;
+  const crossingPointArm = mmToPdfPoints(std.crossingPointArm) * k;
 
   function shapeOffset(type: CourseControlType): number {
     return computeShapeOffset(
@@ -181,8 +189,8 @@ export function renderOverprint(
       pdfRadius,
       shapeOffset,
       lineWidth,
-      mmToPdfPoints(3.5),
-      mmToPdfPoints(0.5),
+      mmToPdfPoints(3.5) * k,
+      mmToPdfPoints(0.5) * k,
     );
 
     for (let i = 1; i < resolved.length; i++) {
