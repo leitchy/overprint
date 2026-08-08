@@ -187,6 +187,10 @@ export interface EventSettings {
   contourInterval?: number;
   /** Map author credit line for PDF output. */
   mapAuthor?: string;
+  /** PDF export: apply a Multiply blend to the overprint layer so map detail
+   *  shows through the purple in on-screen viewers. Default true. (The DeviceCMYK
+   *  overprint flag is always set for press output regardless.) */
+  overprintBlend?: boolean;
 }
 
 // ---------------------------------------------------------------------------

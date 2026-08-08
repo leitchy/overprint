@@ -1,5 +1,5 @@
-import type { PDFFont, PDFPage } from 'pdf-lib';
-import { rgb } from 'pdf-lib';
+import type { PDFFont, PDFPage, PDFName } from 'pdf-lib';
+import { cmyk, pushGraphicsState, popGraphicsState, setGraphicsState } from 'pdf-lib';
 import type {
   Control,
   Course,
@@ -13,20 +13,34 @@ import { buildLegPath, splitPathByGaps, mergeGaps } from '@/core/geometry/leg-pa
 import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { visibleArcs } from '@/core/geometry/circle-gaps';
-import { overprintDims, OVERPRINT_PURPLE, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
+import { overprintDims, OVERPRINT_PURPLE_CMYK, NUMBER_DIGIT_HEIGHT_TO_EM } from '@/core/models/constants';
 import { mmToPdfPoints } from './pdf-page-layout';
 
 /**
- * IOF course-overprint purple, single-sourced from OVERPRINT_PURPLE (PMS "Purple",
- * ≈ CMYK 35/85/0/0). Kept in sync with the on-screen colour so PDF and screen match.
- * (Future: emit DeviceCMYK 35/85/0/0 + colour-order overprint per ISOM App. 1.)
+ * IOF course-overprint purple as DeviceCMYK 35/85/0/0 (ISOM 2017 App. 1 §4). Emitting
+ * CMYK — not sRGB — makes it a spot-correct separation that can truly overprint the
+ * map inks. The overprint flag + optional Multiply blend are applied to the whole
+ * overprint layer via an ExtGState (see registerOverprintGState).
  */
-const PURPLE = (() => {
-  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(OVERPRINT_PURPLE);
-  return m
-    ? rgb(parseInt(m[1]!, 16) / 255, parseInt(m[2]!, 16) / 255, parseInt(m[3]!, 16) / 255)
-    : rgb(187 / 255, 41 / 255, 187 / 255);
-})();
+export const PURPLE = cmyk(...OVERPRINT_PURPLE_CMYK);
+
+/**
+ * Register (once per page) an ExtGState that makes the overprint layer behave like a
+ * real spot overprint: OP/op (stroking + non-stroking overprint), OPM 1 so it applies
+ * per-component on CMYK output. When `multiply` is set, also add a Multiply blend so
+ * on-screen viewers (which ignore OP unless overprint-preview is on) still show map
+ * detail through the purple. Returns the resource name to pass to setGraphicsState.
+ */
+function registerOverprintGState(page: PDFPage, multiply: boolean): PDFName {
+  const dict = page.doc.context.obj({
+    Type: 'ExtGState',
+    OP: true,
+    op: true,
+    OPM: 1,
+    ...(multiply ? { BM: 'Multiply' } : {}),
+  });
+  return page.node.newExtGState('OP', dict);
+}
 
 interface PdfOverprintContext {
   page: PDFPage;
@@ -69,6 +83,13 @@ export function renderOverprint(
   }
 
   if (resolved.length === 0) return;
+
+  // Wrap the whole overprint layer in an ExtGState (overprint flag + optional
+  // Multiply blend). Drawn after the base map + white-outs, so this scope covers
+  // only the purple overprint. pdf-lib's per-draw q/Q nest inside this outer scope.
+  const multiply = ctx.settings.overprintBlend ?? true;
+  const gsName = registerOverprintGState(page, multiply);
+  page.pushOperators(pushGraphicsState(), setGraphicsState(gsName));
 
   // Dimension helpers (IOF exact, in PDF points)
   const std = overprintDims(settings.mapStandard);
@@ -240,6 +261,8 @@ export function renderOverprint(
       });
     }
   }
+
+  page.pushOperators(popGraphicsState());
 }
 
 /**
