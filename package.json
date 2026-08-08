@@ -1,6 +1,6 @@
 {
   "name": "overprint",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "type": "module",
   "description": "Web-based orienteering course setting software",
@@ -22,6 +22,7 @@
   "author": "Jim Cresswell",
   "license": "AGPL-3.0-only",
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "buffer": "^6.0.3",
     "immer": "^11.1.4",
     "konva": "^10.2.3",

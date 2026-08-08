@@ -20,6 +20,11 @@ import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
 import { sortControlsByCode } from '@/core/geometry/course-utils';
 import { getSymbolSvg, getSymbolName, getSymbolText } from '@/core/iof/symbol-db';
+import {
+  loadDescriptionFonts,
+  DESC_HEADER_FONT_FAMILY,
+  DESC_CELL_FONT_FAMILY,
+} from './description-font-loader';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -147,11 +152,11 @@ function drawCenteredText(
   width: number,
   height: number,
   fontSize: number,
-  opts: { bold?: boolean; color?: string; align?: 'center' | 'left' } = {},
+  opts: { bold?: boolean; color?: string; align?: 'center' | 'left'; family?: string } = {},
 ) {
-  const { bold = false, color = TEXT_COLOR, align = 'center' } = opts;
+  const { bold = false, color = TEXT_COLOR, align = 'center', family = DESC_CELL_FONT_FAMILY } = opts;
   ctx.fillStyle = color;
-  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px sans-serif`;
+  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px ${family}`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = align;
 
@@ -228,7 +233,7 @@ function wrapText(
   fontSize: number,
   bold = false,
 ): string[] {
-  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px sans-serif`;
+  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px ${DESC_CELL_FONT_FAMILY}`;
   const words = text.split(/\s+/);
   if (words.length === 0) return [''];
 
@@ -269,7 +274,7 @@ function drawWrappedText(
   ctx.clip();
 
   ctx.fillStyle = color;
-  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px sans-serif`;
+  ctx.font = `${bold ? 'bold ' : ''}${fontSize}px ${DESC_CELL_FONT_FAMILY}`;
   ctx.textBaseline = 'top';
   ctx.textAlign = align;
 
@@ -295,7 +300,7 @@ function fitFontSize(
   bold = false,
 ): number {
   for (let size = idealSize; size >= minSize; size -= 1) {
-    ctx.font = `${bold ? 'bold ' : ''}${size}px sans-serif`;
+    ctx.font = `${bold ? 'bold ' : ''}${size}px ${DESC_HEADER_FONT_FAMILY}`;
     if (ctx.measureText(text).width <= maxWidth) return size;
   }
   return minSize;
@@ -394,6 +399,11 @@ export async function renderDescriptionToCanvas(
   const hasTextColumn = appearance === 'symbolsAndText';
   const isTextMode = appearance === 'text';
   const symbolMode: 'symbol' | 'text' = isTextMode ? 'text' : 'symbol';
+
+  // C8: make Roboto / Roboto Condensed available to the canvas before any
+  // measurement or drawing. Resolves immediately after the first load; falls
+  // back to the generic sans-serif in the font stacks when unavailable.
+  await loadDescriptionFonts();
 
   const textColMultiplier = hasTextColumn ? 4.5 : 0;
   const effectiveCols = 8 + textColMultiplier;
@@ -504,7 +514,10 @@ export async function renderDescriptionToCanvas(
         drawCell(ctx, 0, currentY, totalWidth, rh, isPrimary ? { bg: HEADER_BG } : {});
         const ideal = isPrimary ? Math.max(8, cellSize * 0.55) : Math.max(7, cellSize * 0.45);
         const size = fitFontSize(ctx, row.text, totalWidth * 0.9, ideal, Math.max(6, cellSize * 0.3), isPrimary);
-        drawCenteredText(ctx, row.text, 0, currentY, totalWidth, rh, size, { bold: isPrimary });
+        drawCenteredText(ctx, row.text, 0, currentY, totalWidth, rh, size, {
+          bold: isPrimary,
+          family: DESC_HEADER_FONT_FAMILY,
+        });
         break;
       }
 
