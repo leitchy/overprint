@@ -9,6 +9,7 @@ if (typeof (globalThis as any).Buffer === 'undefined') {
 import type { GeoReference } from '@/core/models/types';
 import { BASE_RASTER_LONG_SIDE } from './raster-config';
 import { rasterizeSvgToImage } from './rasterize-svg';
+import { INK_ATTR, INK_UPPER, isUpperInk, type CmykFractions } from './ink-classification';
 
 interface LoadOcadResult {
   image: HTMLImageElement;
@@ -70,6 +71,10 @@ export async function loadOcadMap(file: File): Promise<LoadOcadResult> {
   // (which may contain title text, logos, borders) are not available — only
   // the bounding box and fill color are rendered.
   injectRectangleObjects(svgEl, ocadFile);
+
+  // Tag elements painted in 100% black/brown/blue so the vector PDF exporter
+  // can redraw them above the lower course purple (IOF colour order, D2).
+  tagUpperInkElements(svgEl, ocadFile);
 
   // Fix text rendering:
   // SVG loaded via <img> or data URL cannot resolve system fonts.
@@ -165,6 +170,80 @@ function injectRectangleObjects(svgEl: SVGElement, ocadFile: any): void {
     targetGroup.appendChild(polygon);
   }
 }
+
+/** Resolve a paint property on an OCAD SVG element: inline `style` first
+ *  (ocad2geojson packs paint there), then the presentation attribute. */
+function ocadPaintProp(el: Element, name: string): string | undefined {
+  const style = el.getAttribute('style');
+  if (style) {
+    for (const decl of style.split(';')) {
+      const idx = decl.indexOf(':');
+      if (idx < 0) continue;
+      if (decl.slice(0, idx).trim() === name) {
+        const v = decl.slice(idx + 1).trim();
+        if (v !== '') return v;
+      }
+    }
+  }
+  const attr = el.getAttribute(name);
+  return attr !== null && attr !== '' ? attr : undefined;
+}
+
+const OCAD_TAGGABLE = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'polygon', 'polyline', 'text']);
+
+/**
+ * Tag SVG elements whose paint is a 100% black/brown/blue map ink with
+ * `data-ink="upper"` (see ink-classification.ts). The vector PDF exporter
+ * re-renders exactly those elements ABOVE the lower course purple so the
+ * printed stack follows the IOF colour order (ISOM App. 1 §5).
+ *
+ * ocad2geojson colours carry `cmyk` (0–100 per component) + `name`; we build
+ * an `rgb(r, g, b)` → upper lookup from that table, then walk the tree with
+ * fill/stroke inheritance. An element is tagged only when at least one of its
+ * effective paints is an upper ink and NO effective paint is a non-upper
+ * colour (pattern fills and screens keep the element under the purple).
+ * Conservative by design: when unsure, don't tag.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function tagUpperInkElements(svgEl: SVGElement, ocadFile: any): void {
+  const upperRgb = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const color of (ocadFile.colors ?? []) as any[]) {
+    if (!color || !Array.isArray(color.cmyk) || color.cmyk.length !== 4) continue;
+    const cmyk = color.cmyk.map((v: number) => Number(v) / 100) as unknown as CmykFractions;
+    if (isUpperInk(cmyk, typeof color.name === 'string' ? color.name : undefined)) {
+      upperRgb.add(String(color.rgb).replace(/\s+/g, '').toLowerCase());
+    }
+  }
+  if (upperRgb.size === 0) return;
+
+  const normalize = (v: string) => v.replace(/\s+/g, '').toLowerCase();
+  const isNoPaint = (v: string | null): boolean =>
+    v === null || v === '' || normalize(v) === 'none' || normalize(v) === 'transparent';
+  const isUpper = (v: string | null): boolean => v !== null && upperRgb.has(normalize(v));
+
+  // Root paint context matches svg-to-pdf: SVG initial fill is black, but the
+  // OCAD root overrides it (fill="transparent"); stroke's initial value is none.
+  const walk = (el: Element, inhFill: string | null, inhStroke: string | null): void => {
+    const fill = ocadPaintProp(el, 'fill') ?? inhFill;
+    const stroke = ocadPaintProp(el, 'stroke') ?? inhStroke;
+
+    if (OCAD_TAGGABLE.has(el.tagName.toLowerCase())) {
+      const fillOk = isNoPaint(fill) || isUpper(fill);
+      const strokeOk = isNoPaint(stroke) || isUpper(stroke);
+      const anyUpper = isUpper(fill) || isUpper(stroke);
+      if (anyUpper && fillOk && strokeOk) el.setAttribute(INK_ATTR, INK_UPPER);
+    }
+    for (const child of Array.from(el.children)) walk(child, fill, stroke);
+  };
+
+  const rootFill = ocadPaintProp(svgEl, 'fill') ?? 'black';
+  const rootStroke = ocadPaintProp(svgEl, 'stroke') ?? null;
+  for (const child of Array.from(svgEl.children)) walk(child, rootFill, rootStroke);
+}
+
+/** @internal Exported for testing */
+export { tagUpperInkElements as _tagUpperInkElements };
 
 /**
  * Extract georeferencing data from OCAD CRS metadata.

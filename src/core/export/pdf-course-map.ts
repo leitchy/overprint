@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, endPath } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, clipEvenOdd, endPath } from 'pdf-lib';
 import { rectangle as rectOp } from 'pdf-lib';
 import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
 import type { OverprintEvent, Course, CourseControl, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
@@ -107,6 +107,12 @@ export async function generateCoursePdf(
   const isPdfSource = event.mapFile.type === 'pdf' && pdfArrayBuffer;
   let embeddedMap: EmbeddedMapImage | null = null;
   let embeddedPdfPage: PDFEmbeddedPage | null = null;
+  // True colour-order (D2): a second scratch page holding ONLY the map's
+  // upper-ink linework (100% black/brown/blue, tagged data-ink="upper" by the
+  // loaders), redrawn between the lower and upper purple layers. Null when the
+  // map has no tagged inks or the vector embed failed — those cases keep the
+  // interim single-layer Multiply behaviour.
+  let embeddedUpperInkPage: PDFEmbeddedPage | null = null;
 
   if (isPdfSource) {
     const pages = await pdfDoc.embedPdf(pdfArrayBuffer!);
@@ -124,10 +130,19 @@ export async function generateCoursePdf(
         const scratchBytes = await scratch.save();
         const pages = await pdfDoc.embedPdf(scratchBytes);
         embeddedPdfPage = pages[0] ?? null;
+
+        // Upper-ink pass — only worth rendering when the loader tagged
+        // something. Failure here just degrades to single-layer behaviour.
+        if (embeddedPdfPage && mapSource.svg.includes('data-ink="upper"')) {
+          const upperScratch = await renderSvgToScratchPdf(mapSource.svg, { inkFilter: 'upper' });
+          const upperPages = await pdfDoc.embedPdf(await upperScratch.save());
+          embeddedUpperInkPage = upperPages[0] ?? null;
+        }
       }
     } catch (err) {
       console.warn('Vector map embed failed; using raster fallback:', err);
       embeddedPdfPage = null;
+      embeddedUpperInkPage = null;
     }
   }
   if (!embeddedPdfPage) {
@@ -230,11 +245,13 @@ export async function generateCoursePdf(
         drawWhiteOuts(page, event.specialItems, 'all-controls' as CourseId, toPdf);
 
         // Render all controls as circles with codes (score course = no legs)
-        renderOverprint(
+        drawOverprintPasses(
           { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP },
           allControlsCourse,
           event.controls,
           font,
+          embeddedUpperInkPage,
+          { layout, imgWidth, imgHeight, specialItems: event.specialItems, courseId: 'all-controls' as CourseId },
         );
 
         // Auto-generate All Controls description box.
@@ -335,11 +352,13 @@ export async function generateCoursePdf(
         drawWhiteOuts(page, event.specialItems, course.id, toPdf);
 
         // Draw vector overprint (filtered to part if multi-part)
-        renderOverprint(
+        drawOverprintPasses(
           { page, settings: event.settings, toPdf, effectivePPP: viewport.effectivePPP, sequenceOffset },
           renderCourse,
           event.controls,
           font,
+          embeddedUpperInkPage,
+          { layout, imgWidth, imgHeight, specialItems: event.specialItems, courseId: course.id },
         );
 
         // Auto-generate description box (rendered before special items so
@@ -496,10 +515,24 @@ function drawEmbeddedMap(
   });
 }
 
+/** Axis-aligned rectangle in PDF points (bottom-left origin). */
+interface PdfRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Draw an embedded PDF page (vector-preserving) onto the output page.
  * Uses a clip rectangle to keep the map within the printable area.
  * Positioning math is identical to drawEmbeddedMap.
+ *
+ * `holes` (optional) punches rectangles OUT of the clip region via an
+ * even-odd clip path — used by the upper-ink colour-order pass so redrawn map
+ * linework never reappears over white-out masks. Caveat: two OVERLAPPING
+ * holes re-include their intersection under even-odd; overlapping white-outs
+ * are rare enough that we accept that edge case.
  */
 function drawEmbeddedPdfPage(
   page: PDFPage,
@@ -508,17 +541,24 @@ function drawEmbeddedPdfPage(
   toPdf: (point: MapPoint) => MapPoint,
   imgWidth: number,
   imgHeight: number,
+  holes?: PdfRect[],
 ): void {
   const topLeft = toPdf({ x: 0, y: 0 });
   const bottomRight = toPdf({ x: imgWidth, y: imgHeight });
 
   // Clip to printable area — the full PDF page may extend beyond the viewport
-  page.pushOperators(
+  const clipOps = [
     pushGraphicsState(),
     rectOp(layout.marginLeft, layout.marginBottom, layout.printableWidth, layout.printableHeight),
-    clip(),
-    endPath(),
-  );
+  ];
+  if (holes && holes.length > 0) {
+    for (const h of holes) clipOps.push(rectOp(h.x, h.y, h.width, h.height));
+    clipOps.push(clipEvenOdd());
+  } else {
+    clipOps.push(clip());
+  }
+  clipOps.push(endPath());
+  page.pushOperators(...clipOps);
 
   page.drawPage(embeddedPage, {
     x: topLeft.x,
@@ -539,6 +579,29 @@ function drawEmbeddedPdfPage(
  * Items with no courseIds restriction are always rendered.
  * Items with courseIds are only rendered if courseId is in the list.
  */
+/** PDF-point rectangles of the white-out masks that apply to a course. */
+function whiteOutRects(
+  specialItems: SpecialItem[],
+  courseId: CourseId,
+  toPdf: (point: MapPoint) => MapPoint,
+): Array<PdfRect & { color: string }> {
+  const rects: Array<PdfRect & { color: string }> = [];
+  for (const item of specialItems) {
+    if (item.type !== 'whiteOut') continue;
+    if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) continue;
+    const p0 = toPdf(item.position);
+    const p1 = toPdf(item.endPosition);
+    rects.push({
+      x: Math.min(p0.x, p1.x),
+      y: Math.min(p0.y, p1.y),
+      width: Math.abs(p1.x - p0.x),
+      height: Math.abs(p1.y - p0.y),
+      color: item.color ?? '#FFFFFF',
+    });
+  }
+  return rects;
+}
+
 /**
  * Draw white-out masks as opaque rectangles. Called AFTER the base map and
  * BEFORE the overprint so masks hide map detail but not course symbols.
@@ -549,19 +612,65 @@ function drawWhiteOuts(
   courseId: CourseId,
   toPdf: (point: MapPoint) => MapPoint,
 ): void {
-  for (const item of specialItems) {
-    if (item.type !== 'whiteOut') continue;
-    if (item.courseIds && item.courseIds.length > 0 && !item.courseIds.includes(courseId)) continue;
-    const p0 = toPdf(item.position);
-    const p1 = toPdf(item.endPosition);
+  for (const r of whiteOutRects(specialItems, courseId, toPdf)) {
     page.drawRectangle({
-      x: Math.min(p0.x, p1.x),
-      y: Math.min(p0.y, p1.y),
-      width: Math.abs(p1.x - p0.x),
-      height: Math.abs(p1.y - p0.y),
-      color: hexToRgb(item.color ?? '#FFFFFF'),
+      x: r.x, y: r.y, width: r.width, height: r.height,
+      color: hexToRgb(r.color),
     });
   }
+}
+
+/**
+ * Render the course overprint, honouring IOF colour order when possible (D2).
+ *
+ * With an upper-ink page available (vector OCAD/OMAP path with tagged inks),
+ * this performs the true colour-order passes 2–4 of the printed stack —
+ * pass 1 (full base map) and the white-outs were already drawn by the caller:
+ *
+ *   2. LOWER purple course symbols (701/703/705/706/710.1/715, ISOM 704),
+ *   3. the map's black/brown/blue-100% linework REDRAWN above the purple,
+ *      clipped to exclude the white-out rectangles so masks stay effective,
+ *   4. UPPER purple symbols (sprint 704 numbers).
+ *
+ * On this path the purple is a solid spot overprint (OP, no Multiply): the
+ * map detail genuinely sits on top, so a blend would double-compensate.
+ *
+ * Without an upper-ink page (raster fallback, PDF-source maps, untagged
+ * SVGs), the legacy single pass with the optional Multiply interim is kept.
+ */
+function drawOverprintPasses(
+  ctx: {
+    page: PDFPage;
+    settings: EventSettings;
+    toPdf: (point: MapPoint) => MapPoint;
+    effectivePPP: number;
+    sequenceOffset?: number;
+  },
+  course: Course,
+  controls: Record<ControlId, Control>,
+  font: PDFFont,
+  upperInkPage: PDFEmbeddedPage | null,
+  opts: {
+    layout: PageLayout;
+    imgWidth: number;
+    imgHeight: number;
+    specialItems: SpecialItem[];
+    courseId: CourseId;
+  },
+): void {
+  if (!upperInkPage) {
+    renderOverprint(ctx, course, controls, font);
+    return;
+  }
+
+  renderOverprint({ ...ctx, layer: 'lower', solidOverprint: true }, course, controls, font);
+
+  const holes = whiteOutRects(opts.specialItems, opts.courseId, ctx.toPdf);
+  drawEmbeddedPdfPage(
+    ctx.page, upperInkPage, opts.layout, ctx.toPdf, opts.imgWidth, opts.imgHeight, holes,
+  );
+
+  renderOverprint({ ...ctx, layer: 'upper', solidOverprint: true }, course, controls, font);
 }
 
 async function renderSpecialItems(

@@ -435,6 +435,27 @@ export function Toolbar() {
     }
   };
 
+  const handleExportOmap = async () => {
+    const state = useEventStore.getState();
+    const currentEvent = state.event;
+    if (!currentEvent || currentEvent.courses.length === 0) return;
+
+    // Export the active course (fall back to the first course)
+    const activeIndex = currentEvent.courses.findIndex((c) => c.id === state.activeCourseId);
+    const courseIndex = activeIndex >= 0 ? activeIndex : 0;
+
+    try {
+      const { exportCourseToOmap, suggestedOmapFilename } = await import('@/core/files/export-omap');
+      const xml = exportCourseToOmap(currentEvent, courseIndex);
+      await saveString(xml, suggestedOmapFilename(currentEvent, courseIndex), 'application/xml', [
+        { description: 'OpenOrienteering Mapper', accept: { 'application/xml': ['.omap'] } },
+      ]);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      console.error('OMAP export failed:', err);
+    }
+  };
+
   const handleImportIofXml = () => {
     iofXmlInputRef.current?.click();
   };
@@ -472,6 +493,7 @@ export function Toolbar() {
     },
     { label: t('exportIofXml'), onClick: handleExportIofXml, disabled: !canExport },
     { label: t('exportGpx'), onClick: handleExportGpx, disabled: !canExportGpx },
+    { label: t('exportOmap'), onClick: handleExportOmap, disabled: !canExport },
     { label: t('exportPng'), onClick: () => handleExportImage('png'), disabled: !hasImage },
     { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
     { separator: true },

@@ -55,6 +55,22 @@ function registerOverprintGState(page: PDFPage, multiply: boolean): PDFName {
   return page.node.newExtGState('OP', dict);
 }
 
+/**
+ * Which IOF purple layer to render (Printing & Colour Defs Rev 4 §6).
+ *
+ * Of the symbols THIS renderer draws, the split is:
+ * - lower (below map black/brown/blue 100%): 701 start, 703 circle, 705 legs,
+ *   706 finish, 710.1 crossing point, 715 map exchange/flip, and 704 numbers
+ *   on ISOM maps.
+ * - upper (above the map inks): 704 numbers on ISSprOM (sprint) maps. The
+ *   other upper symbols (702, 707, 709, 711, 710.2, 714) are special items
+ *   rendered elsewhere.
+ *
+ * When omitted, BOTH layers are drawn in one pass (legacy behaviour, used by
+ * the raster export path where no colour-order exists anyway).
+ */
+export type OverprintLayer = 'lower' | 'upper';
+
 interface PdfOverprintContext {
   page: PDFPage;
   settings: EventSettings;
@@ -64,6 +80,17 @@ interface PdfOverprintContext {
   effectivePPP: number;
   /** Offset added to sequence numbers when rendering a course part (default 0). */
   sequenceOffset?: number;
+  /** Render only this purple layer (see {@link OverprintLayer}). Omit = both. */
+  layer?: OverprintLayer;
+  /**
+   * True on the vector-PDF colour-order path (D2): the purple is a solid spot
+   * overprint (OP flag only, NO Multiply blend). With true colour-order the
+   * map's dark linework is literally redrawn above the lower purple, so adding
+   * a Multiply blend as well would double-compensate — map detail would show
+   * through via the blend AND be painted on top. The Multiply interim stays
+   * only on the raster path (where nothing is redrawn above the purple).
+   */
+  solidOverprint?: boolean;
 }
 
 /**
@@ -97,10 +124,20 @@ export function renderOverprint(
 
   if (resolved.length === 0) return;
 
+  // Layer split (see OverprintLayer): control numbers (704) are the only
+  // upper-purple symbol this renderer draws, and only on sprint maps.
+  const isSprint = settings.mapStandard === 'ISSprOM2019';
+  const numbersAreUpper = isSprint;
+  const layer = ctx.layer;
+  const drawShapes = layer !== 'upper'; // legs, circles, start, finish, etc. = lower
+  const drawNumbers = layer === undefined || (layer === 'upper') === numbersAreUpper;
+  if (!drawShapes && !drawNumbers) return; // upper pass on ISOM: nothing to draw
+
   // Wrap the whole overprint layer in an ExtGState (overprint flag + optional
   // Multiply blend). Drawn after the base map + white-outs, so this scope covers
   // only the purple overprint. pdf-lib's per-draw q/Q nest inside this outer scope.
-  const multiply = ctx.settings.overprintBlend ?? true;
+  // On the true colour-order path (solidOverprint) the blend is forced OFF.
+  const multiply = ctx.solidOverprint ? false : (ctx.settings.overprintBlend ?? true);
   const gsName = registerOverprintGState(page, multiply);
   page.pushOperators(pushGraphicsState(), setGraphicsState(gsName));
 
@@ -126,9 +163,9 @@ export function renderOverprint(
     );
   }
 
-  // Draw legs first (behind shapes).
+  // Draw legs first (behind shapes). Legs (705) are lower purple.
   // Score courses have no ordered legs — skip them entirely.
-  if (course.courseType !== 'score') {
+  if (drawShapes && course.courseType !== 'score') {
     // Auto leg-cut gaps, computed in PDF-point space (same as the drawn paths).
     const pdfRadius = (type: CourseControlType): number =>
       type === 'start' || type === 'mapExchange' || type === 'mapFlip' ? startTriangleSide / Math.sqrt(3)
@@ -215,7 +252,9 @@ export function renderOverprint(
   for (const { control, type, index, numberOffset } of resolved) {
     const pt = ctx.toPdf(control.position);
 
-    if (type === 'start') {
+    if (!drawShapes) {
+      // Upper pass: skip all shapes, fall through to the (upper) numbers.
+    } else if (type === 'start') {
       drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget);
     } else if (type === 'finish') {
       drawFinishCircles(page, pt, finishOuterRadius, finishInnerRadius, lineWidth);
@@ -253,7 +292,7 @@ export function renderOverprint(
     // Label — default offset to the right of the shape, then apply
     // the user-defined numberOffset (stored in map pixels, converted via effectivePPP).
     // PDF Y-axis is inverted relative to screen (bottom-left origin), so negate Y.
-    if (labelText !== '') {
+    if (drawNumbers && labelText !== '') {
       const baseOffsetX = shapeOffset(type) + lineWidth;
       const baseOffsetY = -numberSize * 0.35;
 

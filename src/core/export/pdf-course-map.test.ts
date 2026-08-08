@@ -1,0 +1,190 @@
+/**
+ * Structural tests for the vector-PDF true colour-order pipeline (D2).
+ *
+ * Runs the real generateCoursePdf vector path over a tiny tagged SVG map and
+ * asserts, from the decompressed PAGE content stream, that the draw order is:
+ *
+ *   base map (Do) → white-outs → LOWER purple → upper-ink redraw (Do, clipped
+ *   around white-outs) → UPPER purple
+ *
+ * and that the vector path never sets a Multiply blend mode.
+ */
+import { inflateSync } from 'node:zlib';
+import { describe, it, expect } from 'vitest';
+import { PDFDocument, PDFArray, PDFRawStream } from 'pdf-lib';
+import { generateCoursePdf } from './pdf-course-map';
+import type { Control, Course, EventSettings, OverprintEvent, SpecialItem } from '@/core/models/types';
+import type { ControlId, CourseId, EventId, SpecialItemId } from '@/utils/id';
+
+// A map with one tagged (upper-ink) black line and one untagged yellow line,
+// mimicking what the OCAD/OMAP loaders emit after ink classification.
+const TAGGED_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="transparent" viewBox="0 0 800 600">
+<rect x="0" y="0" width="800" height="600" fill="white"/>
+<path d="M 10 10 L 790 590" fill="none" stroke="rgb(0,0,0)" stroke-width="4" data-ink="upper"/>
+<path d="M 10 590 L 790 10" fill="none" stroke="rgb(255,186,0)" stroke-width="4"/>
+</svg>`;
+
+function makeEvent(mapStandard: EventSettings['mapStandard'], specialItems: SpecialItem[] = []): OverprintEvent {
+  const ctrl = (id: string, code: number, x: number, y: number): Control => ({
+    id: id as ControlId,
+    code,
+    position: { x, y },
+    description: { columnD: '' },
+  });
+  const course: Course = {
+    id: 'course-1' as CourseId,
+    name: 'Vector Test',
+    courseType: 'normal',
+    controls: [
+      { controlId: 's1' as ControlId, type: 'start' },
+      { controlId: 'c1' as ControlId, type: 'control' },
+      { controlId: 'f1' as ControlId, type: 'finish' },
+    ],
+    settings: {},
+  };
+  return {
+    id: 'event-1' as EventId,
+    name: 'Colour Order Event',
+    mapFile: { name: 'tiny.omap', type: 'omap', scale: 10000, dpi: 150 },
+    courses: [course],
+    controls: {
+      ['s1' as ControlId]: ctrl('s1', 31, 150, 150),
+      ['c1' as ControlId]: ctrl('c1', 32, 400, 300),
+      ['f1' as ControlId]: ctrl('f1', 33, 650, 450),
+    },
+    settings: {
+      printScale: 10000,
+      controlCircleDiameter: 5,
+      lineWidth: 0.35,
+      numberSize: 4,
+      descriptionStandard: '2024',
+      mapStandard,
+      language: 'en',
+      pageSetup: {
+        paperSize: 'A4',
+        orientation: 'portrait',
+        margins: { top: 10, right: 10, bottom: 10, left: 10 },
+      },
+    },
+    specialItems,
+    version: '1',
+  };
+}
+
+/** Decompressed content stream text of one page of a loaded PDF. */
+function pageContentText(doc: PDFDocument, pageIndex: number): string {
+  const page = doc.getPage(pageIndex);
+  const contents = page.node.Contents();
+  const streams: PDFRawStream[] = [];
+  const push = (obj: unknown) => {
+    if (obj instanceof PDFRawStream) streams.push(obj);
+  };
+  if (contents instanceof PDFArray) {
+    for (let i = 0; i < contents.size(); i++) push(doc.context.lookup(contents.get(i)));
+  } else if (contents) {
+    push(doc.context.lookup(contents) ?? contents);
+  }
+  return streams
+    .map((s) => {
+      const body = s.getContents();
+      try {
+        return inflateSync(Buffer.from(body)).toString('latin1');
+      } catch {
+        return Buffer.from(body).toString('latin1');
+      }
+    })
+    .join('\n');
+}
+
+/**
+ * Every indirect object of the loaded document, stringified — dictionaries
+ * like ExtGStates live inside compressed object streams, so raw-byte greps
+ * miss them; the parsed object model doesn't.
+ */
+function allObjectsText(doc: PDFDocument): string {
+  return doc.context
+    .enumerateIndirectObjects()
+    .map(([, obj]) => String(obj))
+    .join('\n');
+}
+
+async function exportAndLoad(event: OverprintEvent): Promise<{ content: string; raw: string }> {
+  const { blob } = await generateCoursePdf(
+    event,
+    // The vector path never touches the display bitmap when mapSource carries
+    // logical dimensions — a bare object stands in for the HTMLImageElement.
+    {} as HTMLImageElement,
+    { courseIndex: 0 },
+    null,
+    { svg: TAGGED_SVG, width: 800, height: 600 },
+  );
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const doc = await PDFDocument.load(bytes);
+  return { content: pageContentText(doc, 0), raw: allObjectsText(doc) };
+}
+
+const PURPLE_STROKE = '0.35 0.85 0 0 K';
+const PURPLE_FILL = '0.35 0.85 0 0 k';
+
+describe('generateCoursePdf true colour-order (vector path)', () => {
+  it('orders the passes: map Do → lower purple → upper-ink Do → upper purple', async () => {
+    // Sprint standard so the upper pass has visible content (704 numbers).
+    const { content } = await exportAndLoad(makeEvent('ISSprOM2019'));
+
+    const doMatches = [...content.matchAll(/\/\S+ Do/g)];
+    expect(doMatches.length).toBe(2); // base map + upper-ink redraw
+
+    const firstDo = doMatches[0]!.index;
+    const secondDo = doMatches[1]!.index;
+    const lowerPurple = content.indexOf(PURPLE_STROKE);
+    const upperPurple = content.indexOf(PURPLE_FILL, secondDo);
+
+    expect(lowerPurple).toBeGreaterThan(firstDo);
+    expect(secondDo).toBeGreaterThan(lowerPurple);
+    expect(upperPurple).toBeGreaterThan(secondDo);
+  });
+
+  it('ISOM keeps the upper purple pass empty but still redraws the upper inks', async () => {
+    const { content } = await exportAndLoad(makeEvent('ISOM2017'));
+    const doMatches = [...content.matchAll(/\/\S+ Do/g)];
+    expect(doMatches.length).toBe(2);
+    // Numbers (704) are LOWER on ISOM → purple text fill before the second Do.
+    const purpleText = content.indexOf(PURPLE_FILL);
+    expect(purpleText).toBeGreaterThan(-1);
+    expect(purpleText).toBeLessThan(doMatches[1]!.index);
+  });
+
+  it('sets no Multiply blend anywhere on the vector colour-order path', async () => {
+    const { raw } = await exportAndLoad(makeEvent('ISSprOM2019'));
+    expect(raw).not.toContain('/Multiply');
+    expect(raw).toContain('/OP true'); // solid spot overprint stays on
+  });
+
+  it('clips the upper-ink redraw around white-out rectangles (even-odd)', async () => {
+    const whiteOut: SpecialItem = {
+      id: 'w1' as SpecialItemId,
+      type: 'whiteOut',
+      position: { x: 300, y: 200 },
+      endPosition: { x: 500, y: 400 },
+    };
+    const { content } = await exportAndLoad(makeEvent('ISSprOM2019', [whiteOut]));
+    // The second Do (upper-ink page) is preceded by an even-odd clip (W* n)
+    // carrying more than just the printable-area rectangle.
+    const secondDo = [...content.matchAll(/\/\S+ Do/g)][1]!.index;
+    const before = content.slice(0, secondDo);
+    expect(before).toMatch(/W\*/);
+  });
+
+  it('renders a single purple pass when the map has no tagged inks', async () => {
+    const event = makeEvent('ISSprOM2019');
+    const untagged = TAGGED_SVG.replace(/ data-ink="upper"/g, '');
+    const { blob } = await generateCoursePdf(
+      event, {} as HTMLImageElement, { courseIndex: 0 }, null,
+      { svg: untagged, width: 800, height: 600 },
+    );
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const doc = await PDFDocument.load(bytes);
+    const content = pageContentText(doc, 0);
+    expect([...content.matchAll(/\/\S+ Do/g)].length).toBe(1); // base map only
+  });
+});
