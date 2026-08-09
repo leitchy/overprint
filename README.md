@@ -14,8 +14,11 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 
 ### Map Support
 - **OCAD files** (.ocd) — the industry standard for orienteering maps
+- **OpenOrienteering Mapper** (.omap / .xmap)
 - **PDF maps** — rendered client-side via PDF.js
 - **Raster images** — PNG, JPEG, TIFF, GIF
+- **PurplePen `.ppen` import** — bring existing PurplePen events into the browser
+- **GPS-based control placement** — georeferenced OCAD/OMAP maps, live position, auto-follow
 
 ### Course Design
 - Place, move, and delete controls on the map
@@ -26,18 +29,29 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 - Automatic start/finish/control type derivation
 - Course length calculation
 
+### Course Design (more)
+- Score courses, crossing points and map-exchange symbols
+- Special items: text, lines, rectangles, description boxes, and IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route, map-issue)
+- Leg bend points and leg gaps (route legs around obstacles / hide uncrossable sections)
+- Event audit / validation (missing descriptions, duplicate codes, short/long legs, unused controls)
+
 ### Control Descriptions
 - Interactive IOF 8-column description sheet
 - Symbol picker with 180+ IOF symbols
 - **22 languages** for control descriptions
-- PDF export of description sheets
+- **Roboto / Roboto Condensed** typography matching PurplePen (PDF + on-screen)
+- PDF export of description sheets (paginated)
 
 ### Export & Import
 - **PDF course maps** — correct print scale, course-centered, title + scale bar
+- **True-vector map embedding** — OCAD/OMAP maps export as crisp PDF vectors (not raster), with true IOF colour-order (map black/brown/blue print over the purple overprint)
+- **Multi-page & batch PDF** — all courses in one PDF, or one PDF per course
 - **PDF description sheets** — IOF 8-column grid with SVG symbols
+- **OpenOrienteering Mapper (.omap)** — export a course's overprint for print-shop/mapper merge
 - **IOF XML v3** — export and import for data interchange
+- **GPX** — waypoint export for field checking
 - **PNG/JPEG** — screenshot export at 2x resolution
-- **`.overprint`** — native save/load format
+- **`.overprint`** — native save/load format (optionally with the map embedded)
 
 ### Print Settings
 - Paper size (A4, A3, Letter)
@@ -81,7 +95,7 @@ pnpm typecheck      # TypeScript type checking only
 - **React 19** + TypeScript + Vite
 - **Konva.js** (react-konva) for canvas rendering
 - **Zustand** + Immer for state management
-- **pdf-lib** for PDF generation
+- **pdf-lib** (+ @pdf-lib/fontkit) for PDF generation and font embedding
 - **PDF.js** for PDF map loading
 - **ocad2geojson** for OCAD file support
 - **Tailwind CSS v4** for UI styling
@@ -100,13 +114,11 @@ Overprint follows current International Orienteering Federation standards:
 
 ## Status
 
-Overprint is under active development. The core course setting workflow is functional — you can load maps, design courses, and export print-ready PDFs. See the [CLAUDE.md](CLAUDE.md) for a detailed feature list and project context.
+Overprint is under active development and deployed at [overprint.com.au](https://overprint.com.au). The core course-setting workflow is complete — load maps, design courses, and export print-ready, true-vector PDFs with standards-conformant overprint. See [CLAUDE.md](CLAUDE.md) for the detailed feature list and project context.
 
 ### Not yet implemented
-- OpenOrienteering Mapper (.omap/.xmap) file support
-- Multi-page PDF export
-- Crossing points and map exchange symbols
-- Score course support
+- Course variations / relay forks & loops
+- Native OCAD (.ocd) binary export (`.omap` export is available)
 
 ## Contributing
 
