@@ -146,7 +146,13 @@ overprint/
 - All-controls view (view all controls across courses without selecting a course)
 - GPS-based control placement (georef extraction from OCAD/OMAP, proj4 transforms, manual calibration, GPS UI, auto-follow, wake lock)
 - Save with embedded map images (self-contained .overprint files)
-- PurplePen .ppen file import (linked-list course parsing, IOF description mapping, OCAD viewBox coordinate conversion)
+- PurplePen .ppen file import (linked-list course parsing, IOF description mapping, OCAD viewBox coordinate conversion, text/line/rectangle appearance colour)
+- Vector PDF map export: OCAD/OMAP maps embedded as **true vectors** (crisp at any scale, small files) via an in-house SVG→pdf-lib walker (`svg-to-pdf.ts`); print-DPI raster fallback for unsupported SVG (D5)
+- True IOF colour-order in the vector PDF path: map black/brown/blue-100% linework redraws **above** the purple overprint, area screens stay below (four-pass draw; `ink-classification.ts` tags upper inks at load) (D2-true)
+- OpenOrienteering Mapper (.omap) course-overprint export — course as OOM map objects in the source coordinate frame, for print-shop/mapper merge (`export-omap.ts`, D6)
+- Unified overprint item-scaling model — None / RelativeToMap / RelativeTo15000, consistent between screen and PDF when print scale ≠ map scale; read from `.ppen` scale-sizes (A8)
+- Roboto / Roboto Condensed control-description typography (PDF + on-screen), embedded via @pdf-lib/fontkit with per-document glyph subsetting; graceful Helvetica fallback (C8)
+- Text/rectangle special items default to black (titles, borders); overprint symbols default to purple
 
 ## Getting Started
 
