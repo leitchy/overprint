@@ -133,7 +133,12 @@ Top-value gaps for a practising setter (full table in the vault brief `standards
 7. **White-out special item** (S) — mask stale map content; used at almost every event.
 8. **Custom course-length override + text macros** `$(CourseName)/$(CourseLength)` (S).
 9. **GPX + geo XML** (S) — see D7.
-10. **Course variations / relay forks & loops** (XL) — the largest structural gap; `Course.controls` is a flat array with no branch model. Blocks relay/Motala. No workaround exists.
+10. **Course variations / relay forks & loops** (XL) — **Phase 1 (forks/gaffling) DONE** (v0.25.0):
+    fork model on `Course.variations`, pure `variation-enumerator.ts` expanding forks into linear
+    variations reused by every consumer, variation-aware PDF/description/IOF/audit, and the fork
+    editing UI + canvas preview. See [ADR-017](../adrs/ADR-017-course-variations-forks.md). Remaining:
+    butterfly/phi **loops** (Phase 2, via the enumerator's generator seam + IOF fork XML round-trip)
+    and **relay team assignment** (Phase 3).
 
 ---
 
@@ -163,8 +168,10 @@ A5 crossing-point glyph.
   cleanup (removes/remaps an existing symbol — judgement call), **B3 out-of-bounds polygon
   tool (large — new drawing tool + hatch fill).**
 
-**Tier 4 — big/structural:** D2-true colour-order (Phase 2 of the vector pipeline) + **D5 true-vector base map DONE** / D6 OOM export, A8 item-scaling
-model, C7/C8 text mode + fonts, E10 course variations/relays, [ADR-015](../adrs/ADR-015-live-dom-svg-map-layer.md) DOM-SVG display.
+**Tier 4 — big/structural:** **DONE** — D5 true-vector base map, D2-true colour-order, D6 OMAP export,
+A8 item-scaling, C8 Roboto fonts, **E10 course forks (Phase 1)**. **Remaining:** C7/C8 text-mode
+fonts polish, E10 loops (Phase 2) + relay assignment (Phase 3),
+[ADR-015](../adrs/ADR-015-live-dom-svg-map-layer.md) DOM-SVG on-screen display.
 
 ---
 

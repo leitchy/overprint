@@ -98,8 +98,10 @@ A free, web-based orienteering course setting tool that runs on any device with 
 - [x] Shared controls across courses (same code, synced descriptions)
 - [x] All-controls map view
 - [x] Score/rogaine courses (unordered, with point values)
-- [x] Map exchange (butterfly loops, map swap points)
-- [ ] Relay variations / gaffling (basic)
+- [x] Map exchange / map-flip (multi-part courses, map swap points)
+- [x] Course forks / gaffling — variations auto-enumerated, per-variation export (E10 Phase 1)
+- [ ] Butterfly / phi loops (distinct from map exchange — repeated visits to a control in different orders) and relay team assignment (E10 Phases 2–3)
+- [ ] Competitor load calculation per control/leg
 - [ ] Competitor load calculation per control/leg
 
 ### Phase 5 — Map Format Support
