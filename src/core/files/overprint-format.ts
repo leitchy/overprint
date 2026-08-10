@@ -1,7 +1,37 @@
-import type { OverprintEvent, SpecialItem } from '@/core/models/types';
+import type { OverprintEvent, SpecialItem, CourseControl, CourseFork } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
-import { asControlId, asCourseId, asEventId, asSpecialItemId } from '@/utils/id';
+import {
+  asControlId, asCourseId, asEventId, asSpecialItemId,
+  asCourseControlId, asForkId, asBranchId, generateCourseControlId,
+} from '@/utils/id';
 import { DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
+
+/** Restore branded ids on a CourseControl and backfill a stable courseControlId
+ *  for files saved before the fork feature existed. */
+function restoreCourseControl(cc: CourseControl): CourseControl {
+  return {
+    ...cc,
+    controlId: asControlId(cc.controlId as unknown as string),
+    courseControlId: cc.courseControlId != null
+      ? asCourseControlId(cc.courseControlId as unknown as string)
+      : generateCourseControlId(),
+  };
+}
+
+/** Restore branded ids on a course's fork/variation generators (Phase 1). */
+function restoreVariations(variations: CourseFork[] | undefined): CourseFork[] | undefined {
+  if (!Array.isArray(variations)) return undefined;
+  return variations.map((fork) => ({
+    ...fork,
+    id: asForkId(fork.id as unknown as string),
+    anchorCourseControlId: asCourseControlId(fork.anchorCourseControlId as unknown as string),
+    branches: (fork.branches ?? []).map((branch) => ({
+      ...branch,
+      id: asBranchId(branch.id as unknown as string),
+      controls: (branch.controls ?? []).map(restoreCourseControl),
+    })),
+  }));
+}
 
 const FORMAT_ID = 'overprint';
 const SUPPORTED_MAJOR_VERSION = 0; // 0.x.x
@@ -119,15 +149,13 @@ function restoreBrandedIds(raw: OverprintEvent): OverprintEvent {
   }
   event.controls = controls;
 
-  // Restore course IDs and CourseControl controlIds
+  // Restore course IDs, CourseControl ids (incl. backfilled courseControlId), and forks
   event.courses = raw.courses.map((course) => ({
     ...course,
     id: asCourseId(course.id as unknown as string),
-    controls: course.controls.map((cc) => ({
-      ...cc,
-      controlId: asControlId(cc.controlId as unknown as string),
-    })),
+    controls: course.controls.map(restoreCourseControl),
     settings: course.settings ?? {},
+    variations: restoreVariations(course.variations),
   }));
 
   // Restore special items with branded IDs (default to [] for files saved before this feature)

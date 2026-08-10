@@ -2,16 +2,32 @@ import type {
   Control,
   ControlDescription,
   Course,
+  CourseControl,
+  CourseControlType,
   EventSettings,
   MapPoint,
   OverprintEvent,
   PageSetup,
 } from './types';
+import type { ControlId } from '@/utils/id';
 import {
   generateControlId,
+  generateCourseControlId,
   generateCourseId,
   generateEventId,
 } from '@/utils/id';
+
+/**
+ * Create a CourseControl with a fresh stable courseControlId.
+ * Use this at every site that adds a control to a course sequence or branch.
+ */
+export function makeCourseControl(
+  controlId: ControlId,
+  type: CourseControlType,
+  extra?: Partial<Omit<CourseControl, 'courseControlId' | 'controlId' | 'type'>>,
+): CourseControl {
+  return { courseControlId: generateCourseControlId(), controlId, type, ...extra };
+}
 
 const FILE_FORMAT_VERSION = '0.1.0';
 

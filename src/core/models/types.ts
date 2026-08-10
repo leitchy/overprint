@@ -1,4 +1,4 @@
-import type { ControlId, CourseId, EventId, SpecialItemId } from '@/utils/id';
+import type { ControlId, CourseId, EventId, SpecialItemId, CourseControlId, ForkId, BranchId } from '@/utils/id';
 
 export interface MapPoint {
   x: number; // Pixels from left of map image
@@ -97,6 +97,11 @@ export type CourseControlType =
   | 'mapFlip';
 
 export interface CourseControl {
+  /** Stable per-occurrence id (see CourseControlId). Forks anchor by this.
+   *  Optional at the type level, but the store and load-migration GUARANTEE every
+   *  stored trunk/branch CourseControl has one; only ephemeral synthetic sequences
+   *  (all-controls view, flattened variations) may omit it. */
+  courseControlId?: CourseControlId;
   controlId: ControlId;
   type: CourseControlType;
   // sequenceNumber is derived from array index — not stored
@@ -142,6 +147,38 @@ export interface PartOptions {
   showFinish?: boolean;
 }
 
+/**
+ * A course variation generator attached to the trunk. Phase 1 supports `fork`
+ * (gaffling: pick one branch); `loop` (butterfly/phi order permutations) is a
+ * Phase-2 addition via the same union so the enumerator/export/UI extend rather
+ * than reimplement.
+ */
+export interface CourseFork {
+  id: ForkId;
+  kind: 'fork';
+  /** Trunk occurrence where branches diverge (anchor by CourseControlId, not
+   *  ControlId — a control may recur). Runners take one branch then rejoin at the
+   *  NEXT trunk control. */
+  anchorCourseControlId: CourseControlId;
+  branches: ForkBranch[];
+}
+
+export interface ForkBranch {
+  id: BranchId;
+  /** Sticky, auto-assigned ('A','B',…). Variation codes derive from this, not the
+   *  array position, so a stored assignment survives branch reordering. */
+  label: string;
+  /** Geometry of the anchor→branch[0] leg. Held on the branch (not the shared
+   *  anchor control) because each branch leaves the anchor differently; the
+   *  enumerator copies it onto a fresh anchor copy per variation. */
+  entryBendPoints?: MapPoint[];
+  entryLegGaps?: LegGap[];
+  /** Controls unique to this branch, in order. Reference SHARED Control records
+   *  (same model as shared-controls-across-courses); internal legs follow the
+   *  normal leg-on-source convention. */
+  controls: CourseControl[];
+}
+
 export interface Course {
   id: CourseId;
   name: string;
@@ -151,6 +188,8 @@ export interface Course {
   settings: CourseSettings;
   /** Per-part options, indexed by 0-based part number. Only for multi-part courses. */
   partOptions?: PartOptions[];
+  /** Fork/loop variation generators. Absent for simple linear courses. */
+  variations?: CourseFork[];
 }
 
 export type PaperSize = 'A4' | 'A3' | 'Letter' | 'custom';
