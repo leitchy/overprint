@@ -39,6 +39,16 @@ function reprojectPoint(
   return { x: xPx, y: yPx };
 }
 
+/** Axis-aligned rectangle from two (possibly Y-flipped) opposite corners. */
+export function rectFromCorners(a: MapPoint, b: MapPoint): { minX: number; minY: number; maxX: number; maxY: number } {
+  return {
+    minX: Math.min(a.x, b.x),
+    minY: Math.min(a.y, b.y),
+    maxX: Math.max(a.x, b.x),
+    maxY: Math.max(a.y, b.y),
+  };
+}
+
 /**
  * Transform all coordinates in an event from identity-mm space to pixel space.
  *
@@ -70,12 +80,16 @@ export function reprojectPpenCoordinates(
     })),
     settings: {
       ...course.settings,
-      printArea: course.settings.printArea ? {
-        minX: rp({ x: course.settings.printArea.minX, y: course.settings.printArea.minY }).x,
-        minY: rp({ x: course.settings.printArea.minX, y: course.settings.printArea.minY }).y,
-        maxX: rp({ x: course.settings.printArea.maxX, y: course.settings.printArea.maxY }).x,
-        maxY: rp({ x: course.settings.printArea.maxX, y: course.settings.printArea.maxY }).y,
-      } : undefined,
+      // Reproject BOTH corners then re-derive min/max: the OMAP transform flips Y,
+      // so the mm-min-y corner becomes the larger pixel-y. Without re-min/maxing,
+      // minY/maxY come out inverted and the print-area framing (and the multi-course
+      // union bounds) is wrong.
+      printArea: course.settings.printArea
+        ? rectFromCorners(
+            rp({ x: course.settings.printArea.minX, y: course.settings.printArea.minY }),
+            rp({ x: course.settings.printArea.maxX, y: course.settings.printArea.maxY }),
+          )
+        : undefined,
     },
   }));
 
