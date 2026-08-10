@@ -12,7 +12,36 @@
 import { inflateSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import { PDFDocument, PDFArray, PDFRawStream } from 'pdf-lib';
-import { generateCoursePdf } from './pdf-course-map';
+import { generateCoursePdf, descBoxOrigin } from './pdf-course-map';
+import type { PageLayout } from './pdf-page-layout';
+
+describe('descBoxOrigin — description-box placement', () => {
+  const layout: PageLayout = {
+    pageWidth: 842, pageHeight: 595,
+    printableWidth: 802, printableHeight: 555,
+    marginLeft: 20, marginBottom: 20, marginTop: 20, marginRight: 20,
+  };
+  const blockWidth = 200;
+
+  it('anchors to the imported box top-left when a position is given', () => {
+    const { left, topY } = descBoxOrigin(layout, blockWidth, { overridePosition: { x: 123, y: 456 }, overrideTopY: 999 });
+    expect(left).toBe(123);
+    expect(topY).toBe(456); // position wins over overrideTopY
+  });
+
+  it('right-aligns to the printable area with no override', () => {
+    const { left, topY } = descBoxOrigin(layout, blockWidth, {});
+    // right edge = pageWidth - marginRight - 5mm offset; left = right - blockWidth
+    expect(left).toBeLessThan(layout.pageWidth - layout.marginRight - blockWidth);
+    expect(left).toBeGreaterThan(0);
+    expect(topY).toBeLessThan(layout.pageHeight - layout.marginTop); // below the top margin+offset
+  });
+
+  it('uses overrideTopY for the top when only a top (no full position) is given', () => {
+    const { topY } = descBoxOrigin(layout, blockWidth, { overrideTopY: 500 });
+    expect(topY).toBe(500);
+  });
+});
 import type { Control, Course, EventSettings, OverprintEvent, SpecialItem } from '@/core/models/types';
 import type { ControlId, CourseId, EventId, SpecialItemId } from '@/utils/id';
 

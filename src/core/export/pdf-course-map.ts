@@ -270,13 +270,13 @@ export async function generateCoursePdf(
           (si) => si.type === 'descriptionBox' && si.allControls,
         );
         const importedCols = (allControlsDescBox?.type === 'descriptionBox' && allControlsDescBox.columns) || undefined;
-        // Use only the Y from imported position (for vertical alignment below logo).
-        // X is auto-computed (right-aligned). Pass as overrideTopY.
-        const importedTopY = allControlsDescBox ? toPdf(allControlsDescBox.position).y : undefined;
-        descBoxTopY = importedTopY; // share with course pages
+        // Honour the setter's placed all-controls box (top-left) so it sits where
+        // they put it (e.g. below the logo) rather than auto right-aligning.
+        const importedPos = allControlsDescBox ? toPdf(allControlsDescBox.position) : undefined;
+        descBoxTopY = importedPos?.y; // share the top with course pages that have no own box
         await renderAutoDescriptionBox(
           page, pdfDoc, allControlsCourse, event.controls, event.settings, layout, descFonts,
-          event.name, undefined, undefined, importedCols, undefined, descBoxTopY, true,
+          event.name, undefined, undefined, importedCols, importedPos, descBoxTopY, true,
         );
 
         // Render other special items (text, images, etc.) — desc boxes are filtered out
@@ -379,8 +379,16 @@ export async function generateCoursePdf(
         );
 
         // Auto-generate description box (rendered before special items so
-        // images/logos from .ppen draw on top of the white background)
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, descFonts, event.name, partLabel, undefined, undefined, undefined, descBoxTopY);
+        // images/logos from .ppen draw on top of the white background).
+        // Honour the setter's placed box position (imported from .ppen) so it
+        // lands where they put it (e.g. below a logo) instead of auto right-aligning.
+        const courseDescBox = event.specialItems.find(
+          (si) => si.type === 'descriptionBox' && !si.allControls
+            && (!si.courseIds || si.courseIds.length === 0 || si.courseIds.includes(course.id)),
+        );
+        const descBoxPos = courseDescBox ? toPdf(courseDescBox.position) : undefined;
+        const descBoxCols = (courseDescBox?.type === 'descriptionBox' && courseDescBox.columns) || undefined;
+        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, descFonts, event.name, partLabel, undefined, descBoxCols, descBoxPos, descBoxTopY);
 
         // Draw special items (description boxes filtered out — auto-gen handles them)
         await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
@@ -973,6 +981,29 @@ const DESC_RIGHT_OFFSET_MM = 5; // offset from right margin
 const DESC_TEXT_COL_MULTIPLIER = 4.5; // text column is 4.5× wider than symbol columns
 
 /**
+ * Decide the top-left (PDF points) of the description box.
+ *
+ * With `overridePosition` (the setter's placed box, imported from .ppen) the box
+ * is anchored there. Otherwise it right-aligns to the printable area with the
+ * default offsets (`overrideTopY` sets only the top when no full position given).
+ * Exported for testing.
+ */
+export function descBoxOrigin(
+  layout: PageLayout,
+  totalBlockWidth: number,
+  opts: { overridePosition?: MapPoint; overrideTopY?: number },
+): { left: number; topY: number } {
+  if (opts.overridePosition) {
+    return { left: opts.overridePosition.x, topY: opts.overridePosition.y };
+  }
+  const blockRight = layout.pageWidth - layout.marginRight - mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
+  return {
+    left: blockRight - totalBlockWidth,
+    topY: opts.overrideTopY ?? (layout.pageHeight - layout.marginTop - mmToPdfPoints(DESC_TOP_OFFSET_MM)),
+  };
+}
+
+/**
  * Auto-generate and render a description box in the top-right corner of the page.
  * Splits into multiple columns if the description is taller than the page.
  * Header shows course name with optional part indicator.
@@ -989,7 +1020,7 @@ async function renderAutoDescriptionBox(
   partLabel?: string,
   overrideCellPt?: number,
   overrideColumns?: number,
-  _overridePosition?: MapPoint,
+  overridePosition?: MapPoint,
   overrideTopY?: number,
   isAllControls = false,
 ): Promise<void> {
@@ -1007,7 +1038,6 @@ async function renderAutoDescriptionBox(
   const gapPt = mmToPdfPoints(DESC_COL_GAP_MM);
   const bleedPt = mmToPdfPoints(DESC_BLEED_MM);
   const topOffsetPt = mmToPdfPoints(DESC_TOP_OFFSET_MM);
-  const rightOffsetPt = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
 
   // --- Step 1: Build explicit row list (shared builder — see desc-rows.ts) ---
   const { headerRows: headerRowList, bodyRows: bodyRowList } = buildDescRows(course, controls, {
@@ -1070,10 +1100,14 @@ async function renderAutoDescriptionBox(
 
   const totalBlockWidth = numDescCols * gridWidth + (numDescCols - 1) * gapPt;
 
-  // --- Positioning (UNCHANGED) ---
-  const blockRight = layout.pageWidth - layout.marginRight - rightOffsetPt;
-  const blockLeft = blockRight - totalBlockWidth;
-  const blockTopY = overrideTopY ?? (layout.pageHeight - layout.marginTop - topOffsetPt);
+  // --- Positioning ---
+  // When the setter placed the description box (imported from .ppen), honour its
+  // top-left so it lands where they intended (e.g. below a logo) instead of the
+  // auto right-aligned default — which can collide with header images.
+  const { left: blockLeft, topY: blockTopY } = descBoxOrigin(layout, totalBlockWidth, {
+    overridePosition,
+    overrideTopY,
+  });
 
   // Embed symbols cache (shared across all columns)
   const embeddedSymbols = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedPng>>>();
