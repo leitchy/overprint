@@ -5,6 +5,7 @@ import { useEventStore } from '@/stores/event-store';
 import { calculateCourseLength } from '@/core/geometry/course-length';
 import { countCourseParts, getPartControls } from '@/core/models/course-parts';
 import { CourseList } from './course-tabs';
+import { VariationsSection } from './variations-section';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
 import { SCALE_PRESETS } from '@/core/models/constants';
 import { useT } from '@/i18n/use-t';
@@ -385,6 +386,16 @@ export function CoursePanel({
             </ul>
           )}
         </>
+      )}
+
+      {/* Variations (course forks, E10) — normal courses only */}
+      {course && courseId && !isScoreCourse && (
+        <VariationsSection
+          course={course}
+          controls={controls}
+          courseId={courseId}
+          selectedControlId={selectedControlId}
+        />
       )}
 
       {/* Course Settings — collapsible section */}
