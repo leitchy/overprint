@@ -202,6 +202,14 @@ export function VariationsSection({
             <p className="text-[10px] italic text-gray-400">{t('addForkHint')}</p>
           )}
 
+          {/* Code-vs-sequence reminder — a novice trap: this panel lists controls by
+              CODE (#106), but the map circles are numbered by SEQUENCE (1, 2, 3…). */}
+          {forks.length > 0 && (
+            <p className="rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
+              ℹ {t('variationsCodeVsSequenceHint')}
+            </p>
+          )}
+
           {/* Fork list */}
           {forks.map((fork) => {
             const anchorCC = course.controls.find(
