@@ -148,17 +148,26 @@ export interface PartOptions {
 }
 
 /**
- * A course variation generator attached to the trunk. Phase 1 supports `fork`
- * (gaffling: pick one branch); `loop` (butterfly/phi order permutations) is a
- * Phase-2 addition via the same union so the enumerator/export/UI extend rather
- * than reimplement.
+ * A course variation generator attached to the trunk.
+ *
+ * - `kind:'fork'` (gaffling): the anchor's `branches` are alternatives; a runner
+ *   takes ONE branch then rejoins at the anchor's NEXT trunk control. Variations =
+ *   the cartesian choice of branches. `k` branches → `k` choices.
+ * - `kind:'loop'` (butterfly/phi): the anchor is a HUB visited multiple times;
+ *   `branches` ARE the loops and a runner runs ALL of them, returning to the hub
+ *   between each. Variations = the `k!` ORDERINGS of the loops. The hub therefore
+ *   appears `k+1` times in each flattened variation (arrive, between each pair of
+ *   loops, depart) and one physical circle carries `k+1` sequence numbers.
+ *
+ * Both kinds share `ForkBranch` and enumerate to flat `CourseControl[]` variations
+ * (see variation-enumerator.ts), so all linear consumers extend rather than fork.
  */
 export interface CourseFork {
   id: ForkId;
-  kind: 'fork';
-  /** Trunk occurrence where branches diverge (anchor by CourseControlId, not
-   *  ControlId — a control may recur). Runners take one branch then rejoin at the
-   *  NEXT trunk control. */
+  kind: 'fork' | 'loop';
+  /** Trunk occurrence where the generator attaches (anchor by CourseControlId, not
+   *  ControlId — a control may recur). For a fork this is the divergence point
+   *  (rejoin = next trunk control); for a loop it is the hub the loops radiate from. */
   anchorCourseControlId: CourseControlId;
   branches: ForkBranch[];
 }
@@ -166,14 +175,16 @@ export interface CourseFork {
 export interface ForkBranch {
   id: BranchId;
   /** Sticky, auto-assigned ('A','B',…). Variation codes derive from this, not the
-   *  array position, so a stored assignment survives branch reordering. */
+   *  array position, so a stored assignment survives branch/loop reordering. */
   label: string;
-  /** Geometry of the anchor→branch[0] leg. Held on the branch (not the shared
-   *  anchor control) because each branch leaves the anchor differently; the
-   *  enumerator copies it onto a fresh anchor copy per variation. */
+  /** Geometry of the anchor→branch[0] leg (for a loop: hub→loop[0], one petal's
+   *  outward line). Held on the branch (not the shared anchor control) because each
+   *  branch/loop leaves the anchor differently; the enumerator copies it onto a
+   *  fresh anchor copy per variation. The branch/loop's LAST control's outgoing
+   *  `bendPoints` is the rejoin leg (for a loop: the return line back to the hub). */
   entryBendPoints?: MapPoint[];
   entryLegGaps?: LegGap[];
-  /** Controls unique to this branch, in order. Reference SHARED Control records
+  /** Controls unique to this branch/loop, in order. Reference SHARED Control records
    *  (same model as shared-controls-across-courses); internal legs follow the
    *  normal leg-on-source convention. */
   controls: CourseControl[];

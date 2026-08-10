@@ -31,6 +31,7 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 
 ### Course Design (more)
 - **Course forks / gaffling** — define forks with alternative branches; variations are auto-enumerated and each exports its own map, description sheet and IOF course
+- **Butterfly / phi loops** — run all loops from a central hub in different orders (k loops → k! variations); the hub is visited multiple times with sequence numbers fanned around one circle
 - Score courses, crossing points and map-exchange symbols
 - Special items: text, lines, rectangles, description boxes, and IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route, map-issue)
 - Leg bend points and leg gaps (route legs around obstacles / hide uncrossable sections)
@@ -49,7 +50,7 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 - **Multi-page & batch PDF** — all courses in one PDF, or one PDF per course
 - **PDF description sheets** — IOF 8-column grid with SVG symbols
 - **OpenOrienteering Mapper (.omap)** — export a course's overprint for print-shop/mapper merge
-- **IOF XML v3** — export and import for data interchange
+- **IOF XML v3** — export and import; forked/looped courses export one course per variation grouped by `CourseFamily` (matching PurplePen)
 - **GPX** — waypoint export for field checking
 - **PNG/JPEG** — screenshot export at 2x resolution
 - **`.overprint`** — native save/load format (optionally with the map embedded)
@@ -118,7 +119,7 @@ Overprint follows current International Orienteering Federation standards:
 Overprint is under active development and deployed at [overprint.com.au](https://overprint.com.au). The core course-setting workflow is complete — load maps, design courses, and export print-ready, true-vector PDFs with standards-conformant overprint. See [CLAUDE.md](CLAUDE.md) for the detailed feature list and project context.
 
 ### Not yet implemented
-- Butterfly / phi **loops** and **relay team assignment** (course **forks / gaffling** are supported)
+- **Relay team assignment** (course **forks / gaffling** and butterfly / phi **loops** are supported)
 - Native OCAD (.ocd) binary export (`.omap` export is available)
 
 ## Contributing

@@ -2,10 +2,33 @@
 
 ## Status
 
-**Accepted** and implemented for **Phase 1 — forks/gaffling** (shipped v0.25.0). **Proposed**
-for Phase 2 (butterfly/phi loops + IOF fork XML round-trip) and Phase 3 (relay team assignment),
+**Accepted** and implemented for **Phase 1 — forks/gaffling** (v0.25.0) and **Phase 2 —
+butterfly/phi loops + IOF interop** (v0.26.0). **Proposed** for Phase 3 (relay team assignment),
 which the model is deliberately designed to accommodate. Resolves conformance-plan §6 item 10
 (the largest remaining structural gap).
+
+### Phase 2 (loops) — what the design predicted, and held
+
+The `kind:'loop'` seam slotted in with no pipeline rewrite, exactly as intended:
+
+- **Enumerator** — a loop's dimension is `k!` (permutations of loop order via `nthPermutation`,
+  a factorial-number-system unranker) instead of a fork's `k` branch choices. Flattening emits the
+  hub (anchor) **k+1 times** — before each loop and once on departure — so one physical circle
+  carries k+1 sequence numbers; `numberOffset`/`score` are stripped on hub copies so the renderer's
+  fan isn't defeated by a user's trunk-hub number drag. `courseControlId` is therefore **not unique
+  within a variation** (all hub copies share the trunk anchor's id) — codified as an invariant;
+  nothing keys a flattened variation by it.
+- **Renderers** — repeated hubs forced unique React keys (`${control.id}-${index}`, `leg-${i}`) and
+  a shared pure `computeNumberFanOffsets` (`core/geometry/number-fan.ts`) used by **both** the screen
+  and PDF renderers (map-pixel delta space → identical geometry). A pre-existing filtered-vs-unfiltered
+  leg-index bug was fixed at the same time by carrying the source `CourseControl` on each resolved entry.
+- **IOF interop** — IOF XML v3 has no native fork/loop element, so (matching PurplePen) each variation
+  exports as a separate `<Course>` grouped by `<CourseFamily>` (base course name), code in `<Name>`.
+  Import reads `CourseFamily` but keeps variations as separate flat courses (no reconstruction; the
+  `.overprint` format is the lossless round-trip). A 5-loop hub (5! = 120 > `MAX_VARIATIONS`) surfaces a
+  visible truncation toast on export rather than silently dropping team variations.
+- **Guards** — a loop needs ≥2 loops (`tooFewLoops`); >4 is a soft legibility warning (`tooManyLoops`);
+  at most one generator per anchor (`duplicateAnchor`, enforced in the store and the enumerator).
 
 ## Context
 
@@ -62,8 +85,16 @@ disabled there to avoid trunk corruption).
 
 ## Consequences
 
-- Forks work end-to-end (create, enumerate, preview, export) with zero change to unforked courses.
-- **Deferred:** variation-specific rejoin points (branches rejoining at *different* trunk
-  controls) are not expressible in Phase 1; loops and relay team assignment are Phase 2/3.
-- Two adversarial reviews (architecture + orienteering-domain) shaped the model up front — see the
-  plan and conformance-plan §6.10.
+- Forks and loops work end-to-end (create, enumerate, preview, export) with zero change to unforked courses.
+- **Deferred:** variation-specific rejoin points (branches rejoining at *different* trunk controls);
+  spider-from-start / finish-as-hub loops (the hub must be an interior *normal* control — a start
+  triangle or finish rendered k+1× would be wrong; workaround: place a normal control at the start as
+  the hub); a fork *inside* a loop (the model doesn't structurally forbid it); relay team assignment
+  (Phase 3). Map-exchange inside/at a loop is forbidden as an implementation simplification, **not** an
+  IOF rule. OMAP/GPX exports still emit only the trunk (they don't enumerate variations) — a documented
+  gap tracked for a follow-up.
+- **Phase-3 framing note (from domain review):** permuting loop order is for **anti-following /
+  hub-congestion**, not distance-balancing — with comparable loops the total distance/climb is equal by
+  construction. The real fairness check is a future loop-length-imbalance audit, not order assignment.
+- Adversarial reviews (architecture + orienteering-domain) shaped the model up front for both phases —
+  see the plan and conformance-plan §6.10.

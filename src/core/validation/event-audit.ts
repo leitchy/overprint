@@ -223,7 +223,8 @@ export function auditEvent(
     // so a half-built fork is caught before export.
     for (const issue of courseForkIssues(course)) {
       items.push({
-        severity: 'error',
+        // tooManyLoops is a legibility hint, not a blocker; everything else is structural.
+        severity: issue.kind === 'tooManyLoops' ? 'warning' : 'error',
         messageKey: FORK_ISSUE_MESSAGE_KEYS[issue.kind],
         messageParams: { name: course.name },
         courseId: course.id,
@@ -249,6 +250,9 @@ const FORK_ISSUE_MESSAGE_KEYS: Record<ForkIssueKind, string> = {
   scoreCourse: 'auditForkScoreCourse',
   duplicateLabel: 'auditForkDuplicateLabel',
   emptyBranch: 'auditForkEmptyBranch',
+  tooFewLoops: 'auditForkTooFewLoops',
+  duplicateAnchor: 'auditForkDuplicateAnchor',
+  tooManyLoops: 'auditForkTooManyLoops',
 };
 
 /**

@@ -3,11 +3,13 @@ import { cmyk, pushGraphicsState, popGraphicsState, setGraphicsState } from 'pdf
 import type {
   Control,
   Course,
+  CourseControl,
   CourseControlType,
   EventSettings,
   MapPoint,
 } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
+import { computeNumberFanOffsets } from '@/core/geometry/number-fan';
 import { shortenedLeg } from '@/core/geometry/leg-endpoints';
 import { buildLegPath, splitPathByGaps, mergeGaps } from '@/core/geometry/leg-path';
 import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
@@ -114,19 +116,22 @@ export function renderOverprint(
   const k = ctx.sizeMultiplier ?? 1;
   const lineWidth = mmToPdfPoints(settings.lineWidth) * k;
 
-  // Resolve controls with positions and per-course number offsets
+  // Resolve controls with positions and their source CourseControl. `index` is the
+  // position in `course.controls` (NOT in `resolved`) — leg geometry lookups must use
+  // the carried `courseControl`, since `resolved` skips any control missing from the pool.
   const resolved: Array<{
     control: Control;
     type: CourseControlType;
     index: number;
     numberOffset?: MapPoint;
+    courseControl: CourseControl;
   }> = [];
 
   for (let i = 0; i < course.controls.length; i++) {
     const cc = course.controls[i]!;
     const control = controls[cc.controlId];
     if (control) {
-      resolved.push({ control, type: cc.type, index: i, numberOffset: cc.numberOffset });
+      resolved.push({ control, type: cc.type, index: i, numberOffset: cc.numberOffset, courseControl: cc });
     }
   }
 
@@ -181,10 +186,10 @@ export function renderOverprint(
           : type === 'crossingPoint' ? crossingPointArm * Math.SQRT2
             : circleRadius;
     const autoGapsByLeg = computeCourseAutoLegGaps(
-      resolved.map((rc, idx): AutoGapControl => ({
+      resolved.map((rc): AutoGapControl => ({
         position: ctx.toPdf(rc.control.position),
         type: rc.type,
-        bendPoints: course.controls[idx]?.bendPoints?.map((bp) => ctx.toPdf(bp)),
+        bendPoints: rc.courseControl.bendPoints?.map((bp) => ctx.toPdf(bp)),
       })),
       pdfRadius,
       shapeOffset,
@@ -198,7 +203,7 @@ export function renderOverprint(
       const curr = resolved[i]!;
       const prevPdf = ctx.toPdf(prev.control.position);
       const currPdf = ctx.toPdf(curr.control.position);
-      const cc = course.controls[i - 1];
+      const cc = prev.courseControl; // leg geometry lives on the SOURCE control
       const bendPoints = cc?.bendPoints?.map((bp) => ctx.toPdf(bp));
       const hasBends = bendPoints && bendPoints.length > 0;
 
@@ -256,8 +261,19 @@ export function renderOverprint(
         })()
       : undefined;
 
+  // Fan the sequence numbers of any control that occurs more than once (loop hubs)
+  // so co-located numbers don't stack. Radius in MAP PIXELS (numberOffset units);
+  // the effectivePPP conversion below turns it into the same points as circleRadius.
+  const fanRadiusMapPx = (circleRadius + numberSize) / ctx.effectivePPP;
+  const fanOffsets = computeNumberFanOffsets(
+    resolved.map((r) => ({ controlId: r.control.id, numberOffset: r.numberOffset })),
+    fanRadiusMapPx,
+  );
+
   // Draw shapes and numbers
-  for (const { control, type, index, numberOffset } of resolved) {
+  for (let ri = 0; ri < resolved.length; ri++) {
+    const { control, type, index } = resolved[ri]!;
+    const numberOffset = fanOffsets[ri];
     const pt = ctx.toPdf(control.position);
 
     if (!drawShapes) {

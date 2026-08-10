@@ -19,6 +19,10 @@ function fork(anchor: CourseControlId, branches: ForkBranch[]): CourseFork {
   return { id: generateForkId(), kind: 'fork', anchorCourseControlId: anchor, branches };
 }
 
+function loop(anchor: CourseControlId, loops: ForkBranch[]): CourseFork {
+  return { id: generateForkId(), kind: 'loop', anchorCourseControlId: anchor, branches: loops };
+}
+
 function course(overrides: Partial<Course> = {}): Course {
   const trunk = [
     makeCourseControl(asControlId('c1'), 'start'),
@@ -110,5 +114,33 @@ describe('courseForkIssues', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]!.kind).toBe('emptyBranch');
     expect(issues[0]!.branchId).toBe(c.variations[0]!.branches[1]!.id);
+  });
+
+  it('accepts a well-formed 2-loop butterfly with no issues', () => {
+    const c = course();
+    c.variations = [loop(c.controls[1]!.courseControlId!, [branch('A'), branch('B')])];
+    expect(courseForkIssues(c)).toEqual([]);
+  });
+
+  it('flags a loop with fewer than 2 loops', () => {
+    const c = course();
+    c.variations = [loop(c.controls[1]!.courseControlId!, [branch('A')])];
+    expect(courseForkIssues(c).map((i) => i.kind)).toContain('tooFewLoops');
+  });
+
+  it('flags a loop with more than 4 loops (soft legibility warning)', () => {
+    const c = course();
+    c.variations = [loop(c.controls[1]!.courseControlId!, ['A', 'B', 'C', 'D', 'E'].map((l) => branch(l)))];
+    expect(courseForkIssues(c).map((i) => i.kind)).toContain('tooManyLoops');
+  });
+
+  it('flags a second generator anchored at the same control', () => {
+    const c = course();
+    const anchor = c.controls[1]!.courseControlId!;
+    c.variations = [
+      fork(anchor, [branch('A'), branch('B')]),
+      loop(anchor, [branch('P'), branch('Q')]),
+    ];
+    expect(courseForkIssues(c).map((i) => i.kind)).toContain('duplicateAnchor');
   });
 });

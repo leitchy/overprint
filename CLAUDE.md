@@ -154,11 +154,15 @@ overprint/
 - Unified overprint item-scaling model — None / RelativeToMap / RelativeTo15000, consistent between screen and PDF when print scale ≠ map scale; read from `.ppen` scale-sizes (A8)
 - Roboto / Roboto Condensed control-description typography (PDF + on-screen), embedded via @pdf-lib/fontkit with per-document glyph subsetting; graceful Helvetica fallback (C8)
 - Text/rectangle special items default to black (titles, borders); overprint symbols default to purple
-- Course variations — **forks / gaffling** (E10 Phase 1): define forks on a normal course (anchor
-  control + labelled branches), auto-enumerated variations, per-variation map / description / IOF
-  export and on-canvas preview. Fork model + pure enumerator (`variation-enumerator.ts`), see
-  [ADR-017](docs/adrs/ADR-017-course-variations-forks.md). Butterfly/phi **loops** and **relay team
-  assignment** are later phases (not yet built).
+- Course variations — **forks / gaffling** (E10 Phase 1) and butterfly / phi **loops** (E10 Phase 2)
+  on a normal course. `Course.variations: CourseFork[]` with `kind:'fork'|'loop'` expanded by a pure
+  enumerator (`variation-enumerator.ts`): forks = cartesian branch choices; loops = `k!` orderings of
+  the loops from a central hub (visited k+1× per variation, sequence numbers fanned around one circle
+  via `core/geometry/number-fan.ts`, shared by screen + PDF). Per-variation map / description / IOF
+  export + on-canvas preview. IOF export writes one `<Course>` per variation grouped by `<CourseFamily>`
+  (matches PurplePen; IOF XML v3 has no native fork/loop element). Hub must be an interior *normal*
+  control; ≥2 loops; ≤4 recommended. **Relay team assignment** is Phase 3 (not yet built). See
+  [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
 
 ## Getting Started
 

@@ -25,6 +25,7 @@ import { EventNameEditor } from './event-name-editor';
 import { AuditModal } from './audit-modal';
 import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
+import { useToastStore } from '@/stores/toast-store';
 
 import { MAP_FILE_ACCEPT } from '@/utils/platform';
 
@@ -403,7 +404,16 @@ export function Toolbar() {
     if (!currentEvent) return;
 
     try {
-      const { exportIofXml } = await import('@/core/iof/export-xml');
+      const [{ exportIofXml }, { enumerateVariations }] = await Promise.all([
+        import('@/core/iof/export-xml'),
+        import('@/core/models/variation-enumerator'),
+      ]);
+      // Loud warning if any forked/looped course overflows the variation cap —
+      // otherwise team variations would be dropped silently (found on race day).
+      if (currentEvent.courses.some((c) => enumerateVariations(c).truncated)) {
+        const { MAX_VARIATIONS } = await import('@/core/models/variation-enumerator');
+        useToastStore.getState().addToast(t('variationsTruncatedWarning', { max: MAX_VARIATIONS }), 5000);
+      }
       const xmlString = exportIofXml(currentEvent);
       const baseName = currentEvent.name.replace(/[^a-zA-Z0-9-_ ]/g, '');
       const suggestedName = `${baseName}.xml`;

@@ -125,6 +125,7 @@ function buildCourseElement(
   controls: Record<ControlId, Control>,
   dpi: number,
   scale: number,
+  family?: string,
 ): string {
   const isScore = course.courseType === 'score';
 
@@ -132,6 +133,11 @@ function buildCourseElement(
     `    <Course>`,
     `      <Name>${escapeXml(course.name)}</Name>`,
   ];
+  // CourseFamily groups the variations of one forked/looped course (PurplePen
+  // convention). IOF v3 element order: Name → CourseFamily → Length → Climb.
+  if (family != null) {
+    lines.push(`      <CourseFamily>${escapeXml(family)}</CourseFamily>`);
+  }
   // Length is the sum of ordered legs — meaningless for score courses, so omit it there.
   if (!isScore) {
     const lengthM = calculateCourseLength(course.controls, controls, scale, dpi);
@@ -216,16 +222,19 @@ export function exportIofXml(event: OverprintEvent): string {
   }
 
   const controlElements = Array.from(seen.values()).join('\n');
-  // Forked courses (E10 Phase 1): one flat <Course> per enumerated variation,
-  // named "<course> <code>" with its own <Length>. A no-fork course yields a
-  // single variation whose synthetic course IS the original — output unchanged.
-  // (The fork-native multi-<Control> CourseControl schema is Phase 2.)
+  // Forked/looped courses (E10): one flat <Course> per enumerated variation, named
+  // "<course> <code>" with its own <Length>, all grouped by a <CourseFamily> equal to
+  // the base course name — exactly how PurplePen exports forks and butterfly loops
+  // (IOF XML v3 has no native fork/loop element). A course with a single variation
+  // (unforked) IS the original object and gets no CourseFamily — output unchanged.
   const courseElements = event.courses
-    .flatMap((c) =>
-      enumerateVariations(c).variations.map((v) =>
-        buildCourseElement(variationCourse(c, v), event.controls, dpi, scale),
-      ),
-    )
+    .flatMap((c) => {
+      const variations = enumerateVariations(c).variations;
+      const family = variations.length > 1 ? c.name : undefined;
+      return variations.map((v) =>
+        buildCourseElement(variationCourse(c, v), event.controls, dpi, scale, family),
+      );
+    })
     .join('\n');
 
   return [
