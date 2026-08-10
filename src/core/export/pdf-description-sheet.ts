@@ -14,8 +14,9 @@
 import { PDFDocument, rgb } from 'pdf-lib';
 import type { PDFFont } from 'pdf-lib';
 import { embedDescriptionFonts } from './description-fonts';
-import type { Course, OverprintEvent } from '@/core/models/types';
+import type { Course, CourseControl, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
+import { enumerateVariations, variationCourse } from '@/core/models/variation-enumerator';
 import { computePageLayout, mmToPdfPoints } from './pdf-page-layout';
 import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { generateTextDescription } from '@/core/iof/text-descriptions';
@@ -265,26 +266,6 @@ export async function generateDescriptionSheetPdf(
 
   const isScore = course.courseType === 'score';
 
-  // ---------------------------------------------------------------------------
-  // Build the canonical rows (shared with the course-map description box).
-  // Score courses are code-sorted for display.
-  // ---------------------------------------------------------------------------
-
-  const sheetControls = isScore
-    ? sortControlsByCode(course.controls, event.controls)
-    : course.controls;
-  const sheetCourse: Course = { ...course, controls: sheetControls };
-  const { headerRows, bodyRows } = buildDescRows(sheetCourse, event.controls, {
-    eventName: event.name,
-    scale,
-    dpi,
-    isScore,
-    headerFontSize: HEADER_FONT_SIZE,
-  });
-  // Title + split-info repeat at the top of every page; directives + controls flow.
-  const repeatHeaderRows = headerRows.filter((r) => r.kind === 'header' || r.kind === 'splitInfo');
-  const flowRows: DescRow[] = [...headerRows.filter((r) => r.kind === 'directive'), ...bodyRows];
-
   // --- Row painters (each advances currentY down by one cell) ---
 
   // Split-info row: name / length / climb (or count), divided proportionally.
@@ -340,7 +321,7 @@ export async function generateDescriptionSheetPdf(
   }
 
   // Control row: the 8-column A–H cells (shares the existing drawRow painter).
-  async function drawControlRow(cc: typeof sheetControls[number], seqNumber: number | null): Promise<void> {
+  async function drawControlRow(cc: CourseControl, seqNumber: number | null): Promise<void> {
     const ctrl = event.controls[cc.controlId as ControlId];
     if (!ctrl) return;
     const isStart = cc.type === 'start';
@@ -387,72 +368,106 @@ export async function generateDescriptionSheetPdf(
     ]);
   }
 
-  let gridTopY = currentY; // top of the current page's body block (outer frame)
-  let controlRowIndex = 0;
-  let rowsOnPage = 0;
+  // ---------------------------------------------------------------------------
+  // One sheet per fork variation (E10) — a no-fork course yields exactly one
+  // variation whose synthetic course IS the original, so its output is
+  // unchanged. Each additional variation starts on a fresh page and carries
+  // the variation code in its title (via the synthetic course name).
+  // ---------------------------------------------------------------------------
 
-  const closeFrame = (): void => {
-    if (rowsOnPage > 0) {
-      page.drawRectangle({
-        x: startX, y: currentY, width: gridWidth, height: gridTopY - currentY,
-        borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH * 3,
-      });
-    }
-  };
+  const { variations } = enumerateVariations(course);
 
-  async function drawHeaders(): Promise<void> {
-    for (const row of repeatHeaderRows) {
-      if (row.kind === 'header') {
-        const isPrimary = row === repeatHeaderRows[0];
-        await drawRow([row.text], {
-          headerSpan: true,
-          bold: isPrimary,
-          fontSize: row.fontSize,
-          font: isPrimary ? boldFont : headerFont,
-        });
-      } else if (row.kind === 'splitInfo') {
-        drawSplitInfoRow(row.sections);
-      }
-    }
-  }
-
-  await drawHeaders();
-  gridTopY = currentY;
-
-  for (const row of flowRows) {
-    // Paginate: if the next row would fall below the bottom margin, close the
-    // current page's frame, start a new page, and repeat the header rows.
-    if (currentY - cellPt < layout.marginBottom) {
-      closeFrame();
+  for (let vi = 0; vi < variations.length; vi++) {
+    const vCourse = variationCourse(course, variations[vi]!);
+    if (vi > 0) {
       page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
       currentY = startY;
-      await drawHeaders();
-      gridTopY = currentY;
-      rowsOnPage = 0;
     }
 
-    if (row.kind === 'splitInfo') {
-      drawSplitInfoRow(row.sections);
-    } else if (row.kind === 'directive') {
-      drawDirectiveRow(row.leftSymbol, row.distanceText);
-    } else if (row.kind === 'control') {
-      await drawControlRow(row.cc, row.seqNumber);
-      // IOF convention: a heavier horizontal line after every 3rd control row.
-      controlRowIndex += 1;
-      if (controlRowIndex % 3 === 0) {
-        page.drawLine({
-          start: { x: startX, y: currentY },
-          end: { x: startX + gridWidth, y: currentY },
-          thickness: BORDER_WIDTH * 3,
-          color: BORDER_COLOR,
+    // Build the canonical rows (shared with the course-map description box).
+    // Score courses are code-sorted for display.
+    const sheetControls = isScore
+      ? sortControlsByCode(vCourse.controls, event.controls)
+      : vCourse.controls;
+    const sheetCourse: Course = { ...vCourse, controls: sheetControls };
+    const { headerRows, bodyRows } = buildDescRows(sheetCourse, event.controls, {
+      eventName: event.name,
+      scale,
+      dpi,
+      isScore,
+      headerFontSize: HEADER_FONT_SIZE,
+    });
+    // Title + split-info repeat at the top of every page; directives + controls flow.
+    const repeatHeaderRows = headerRows.filter((r) => r.kind === 'header' || r.kind === 'splitInfo');
+    const flowRows: DescRow[] = [...headerRows.filter((r) => r.kind === 'directive'), ...bodyRows];
+
+    let gridTopY = currentY; // top of the current page's body block (outer frame)
+    let controlRowIndex = 0;
+    let rowsOnPage = 0;
+
+    const closeFrame = (): void => {
+      if (rowsOnPage > 0) {
+        page.drawRectangle({
+          x: startX, y: currentY, width: gridWidth, height: gridTopY - currentY,
+          borderColor: BORDER_COLOR, borderWidth: BORDER_WIDTH * 3,
         });
       }
-    }
-    rowsOnPage += 1;
-  }
+    };
 
-  // Thicker outer frame around the body block on the final page.
-  closeFrame();
+    async function drawHeaders(): Promise<void> {
+      for (const row of repeatHeaderRows) {
+        if (row.kind === 'header') {
+          const isPrimary = row === repeatHeaderRows[0];
+          await drawRow([row.text], {
+            headerSpan: true,
+            bold: isPrimary,
+            fontSize: row.fontSize,
+            font: isPrimary ? boldFont : headerFont,
+          });
+        } else if (row.kind === 'splitInfo') {
+          drawSplitInfoRow(row.sections);
+        }
+      }
+    }
+
+    await drawHeaders();
+    gridTopY = currentY;
+
+    for (const row of flowRows) {
+      // Paginate: if the next row would fall below the bottom margin, close the
+      // current page's frame, start a new page, and repeat the header rows.
+      if (currentY - cellPt < layout.marginBottom) {
+        closeFrame();
+        page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
+        currentY = startY;
+        await drawHeaders();
+        gridTopY = currentY;
+        rowsOnPage = 0;
+      }
+
+      if (row.kind === 'splitInfo') {
+        drawSplitInfoRow(row.sections);
+      } else if (row.kind === 'directive') {
+        drawDirectiveRow(row.leftSymbol, row.distanceText);
+      } else if (row.kind === 'control') {
+        await drawControlRow(row.cc, row.seqNumber);
+        // IOF convention: a heavier horizontal line after every 3rd control row.
+        controlRowIndex += 1;
+        if (controlRowIndex % 3 === 0) {
+          page.drawLine({
+            start: { x: startX, y: currentY },
+            end: { x: startX + gridWidth, y: currentY },
+            thickness: BORDER_WIDTH * 3,
+            color: BORDER_COLOR,
+          });
+        }
+      }
+      rowsOnPage += 1;
+    }
+
+    // Thicker outer frame around the body block on the final page.
+    closeFrame();
+  }
 
   // ---------------------------------------------------------------------------
   // Serialise

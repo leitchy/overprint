@@ -42,8 +42,9 @@ describe('descBoxOrigin — description-box placement', () => {
     expect(topY).toBe(500);
   });
 });
-import type { Control, Course, EventSettings, OverprintEvent, SpecialItem } from '@/core/models/types';
+import type { Control, Course, CourseControl, EventSettings, OverprintEvent, SpecialItem } from '@/core/models/types';
 import type { ControlId, CourseId, EventId, SpecialItemId } from '@/utils/id';
+import { asBranchId, asControlId, asCourseControlId, asForkId } from '@/utils/id';
 
 // A map with one tagged (upper-ink) black line and one untagged yellow line,
 // mimicking what the OCAD/OMAP loaders emit after ink classification.
@@ -204,6 +205,17 @@ describe('generateCoursePdf true colour-order (vector path)', () => {
     expect(before).toMatch(/W\*/);
   });
 
+  it('exports a no-fork course as a single page and reports no truncation', async () => {
+    const event = makeEvent('ISOM2017');
+    const { blob, truncatedVariationCourses } = await generateCoursePdf(
+      event, {} as HTMLImageElement, { courseIndex: 0 }, null,
+      { svg: TAGGED_SVG, width: 800, height: 600 },
+    );
+    const doc = await PDFDocument.load(new Uint8Array(await blob.arrayBuffer()));
+    expect(doc.getPageCount()).toBe(1);
+    expect(truncatedVariationCourses).toEqual([]);
+  });
+
   it('renders a single purple pass when the map has no tagged inks', async () => {
     const event = makeEvent('ISSprOM2019');
     const untagged = TAGGED_SVG.replace(/ data-ink="upper"/g, '');
@@ -215,5 +227,82 @@ describe('generateCoursePdf true colour-order (vector path)', () => {
     const doc = await PDFDocument.load(bytes);
     const content = pageContentText(doc, 0);
     expect([...content.matchAll(/\/\S+ Do/g)].length).toBe(1); // base map only
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E10.4 — fork-variation-aware export
+// ---------------------------------------------------------------------------
+
+/**
+ * Event with one course "Relay": trunk S → anchor → (M → exchange →) F, plus a
+ * 2-branch fork (A/B) anchored on the interior control.
+ */
+function makeForkEvent(opts: { withExchange?: boolean } = {}): OverprintEvent {
+  const event = makeEvent('ISOM2017');
+  const addCtrl = (id: string, code: number, x: number, y: number): void => {
+    event.controls[asControlId(id)] = {
+      id: asControlId(id), code, position: { x, y }, description: { columnD: '' },
+    };
+  };
+  addCtrl('b1', 41, 300, 150); // branch A control
+  addCtrl('b2', 42, 300, 450); // branch B control
+  const trunk: CourseControl[] = [
+    { courseControlId: asCourseControlId('cc-s'), controlId: asControlId('s1'), type: 'start' },
+    { courseControlId: asCourseControlId('cc-a'), controlId: asControlId('c1'), type: 'control' },
+  ];
+  if (opts.withExchange) {
+    addCtrl('m1', 43, 500, 300);
+    trunk.push({ courseControlId: asCourseControlId('cc-m'), controlId: asControlId('m1'), type: 'control' });
+    trunk.push({ courseControlId: asCourseControlId('cc-x'), controlId: asControlId('m1'), type: 'mapExchange' });
+  }
+  trunk.push({ courseControlId: asCourseControlId('cc-f'), controlId: asControlId('f1'), type: 'finish' });
+
+  const course: Course = {
+    ...event.courses[0]!,
+    name: 'Relay',
+    controls: trunk,
+    variations: [{
+      id: asForkId('fk1'),
+      kind: 'fork',
+      anchorCourseControlId: asCourseControlId('cc-a'),
+      branches: [
+        { id: asBranchId('br1'), label: 'A', controls: [{ courseControlId: asCourseControlId('cc-b1'), controlId: asControlId('b1'), type: 'control' }] },
+        { id: asBranchId('br2'), label: 'B', controls: [{ courseControlId: asCourseControlId('cc-b2'), controlId: asControlId('b2'), type: 'control' }] },
+      ],
+    }],
+  };
+  event.courses = [course];
+  return event;
+}
+
+async function loadPdf(event: OverprintEvent): Promise<PDFDocument> {
+  const { blob } = await generateCoursePdf(
+    event, {} as HTMLImageElement, { courseIndex: 0 }, null,
+    { svg: TAGGED_SVG, width: 800, height: 600 },
+  );
+  return PDFDocument.load(new Uint8Array(await blob.arrayBuffer()));
+}
+
+/** pdf-lib hex-encodes drawText strings: 'Relay A' → '<52656C61792041>'. */
+function pdfHexText(text: string): string {
+  return `<${Buffer.from(text, 'latin1').toString('hex').toUpperCase()}>`;
+}
+
+describe('generateCoursePdf — fork variations (E10.4)', () => {
+  it('exports one page per variation, with the variation code in the page title', async () => {
+    const doc = await loadPdf(makeForkEvent());
+    expect(doc.getPageCount()).toBe(2); // 2× the no-fork single page
+    expect(pageContentText(doc, 0)).toContain(pdfHexText('Relay A'));
+    expect(pageContentText(doc, 1)).toContain(pdfHexText('Relay B'));
+  });
+
+  it('exports variations × parts pages for a fork + map exchange', async () => {
+    const doc = await loadPdf(makeForkEvent({ withExchange: true }));
+    expect(doc.getPageCount()).toBe(4); // 2 variations × 2 parts
+    expect(pageContentText(doc, 0)).toContain(pdfHexText('Relay A-1'));
+    expect(pageContentText(doc, 1)).toContain(pdfHexText('Relay A-2'));
+    expect(pageContentText(doc, 2)).toContain(pdfHexText('Relay B-1'));
+    expect(pageContentText(doc, 3)).toContain(pdfHexText('Relay B-2'));
   });
 });

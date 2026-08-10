@@ -15,6 +15,8 @@
  */
 import type { Control, Course, CourseControl, GeoReference, OverprintEvent } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
+import { forEachCourseControl } from '@/core/models/course-controls';
+import { enumerateVariations, variationCourse } from '@/core/models/variation-enumerator';
 import { mapDistanceMetres } from '@/core/geometry/distance';
 import { calculateCourseLength } from '@/core/geometry/course-length';
 import { mapPixelsToGps } from '@/core/geometry/geo-transform';
@@ -201,19 +203,29 @@ export function exportIofXml(event: OverprintEvent): string {
   // Start/Finish get synthetic IDs (S1/F1) so we key on the iofId string.
   const seen = new Map<string, string>(); // iofId → element string
   for (const course of event.courses) {
-    for (const cc of course.controls) {
+    // Walk trunk AND fork-branch controls so branch-only controls get a
+    // <Control> definition too.
+    forEachCourseControl(course, (cc) => {
       const ctrl = event.controls[cc.controlId];
-      if (!ctrl) continue;
+      if (!ctrl) return;
       const iofId = controlIofId(ctrl, cc.type);
       if (!seen.has(iofId)) {
         seen.set(iofId, buildControlElement(ctrl, cc.type, dpi, georef));
       }
-    }
+    });
   }
 
   const controlElements = Array.from(seen.values()).join('\n');
+  // Forked courses (E10 Phase 1): one flat <Course> per enumerated variation,
+  // named "<course> <code>" with its own <Length>. A no-fork course yields a
+  // single variation whose synthetic course IS the original — output unchanged.
+  // (The fork-native multi-<Control> CourseControl schema is Phase 2.)
   const courseElements = event.courses
-    .map((c) => buildCourseElement(c, event.controls, dpi, scale))
+    .flatMap((c) =>
+      enumerateVariations(c).variations.map((v) =>
+        buildCourseElement(variationCourse(c, v), event.controls, dpi, scale),
+      ),
+    )
     .join('\n');
 
   return [

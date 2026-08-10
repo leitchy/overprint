@@ -51,6 +51,26 @@ export function hasVariations(course: Course): boolean {
   return enumerateVariations(course).variations.length > 1;
 }
 
+/**
+ * Synthetic linear course for one variation — the exact reuse pattern the
+ * multi-part exporters use (`{ ...course, controls: <slice> }`).
+ *
+ * For the no-fork case (`code === ''`) the ORIGINAL course object is returned
+ * unchanged, guaranteeing single-variation consumers behave byte-identically
+ * to a course without forks. Otherwise the variation code is appended to the
+ * course name (e.g. "Course 1 AB") and `variations` is stripped so downstream
+ * consumers never re-expand.
+ */
+export function variationCourse(course: Course, v: Variation): Course {
+  if (v.code === '') return course;
+  return {
+    ...course,
+    name: `${course.name} ${v.code}`,
+    controls: v.controls,
+    variations: undefined,
+  };
+}
+
 interface ResolvedFork {
   fork: CourseFork;
   anchorIndex: number;

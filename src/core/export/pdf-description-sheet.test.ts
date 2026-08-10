@@ -3,6 +3,7 @@ import { PDFDocument } from 'pdf-lib';
 import { generateDescriptionSheetPdf } from './pdf-description-sheet';
 import type { OverprintEvent } from '@/core/models/types';
 import { createEvent, createCourse, createControl } from '@/core/models/defaults';
+import { asBranchId, asCourseControlId, asForkId } from '@/utils/id';
 
 /**
  * Build an event whose single course has `n` controls. Descriptions are left
@@ -54,5 +55,40 @@ describe('generateDescriptionSheetPdf — text mode (C7)', () => {
     // Valid PDF
     const bytes = new Uint8Array(await blob.arrayBuffer());
     expect(new TextDecoder('latin1').decode(bytes).startsWith('%PDF')).toBe(true);
+  });
+});
+
+describe('generateDescriptionSheetPdf — fork variations (E10.4)', () => {
+  /** Adds a 2-branch fork (A/B) anchored on the second control of makeEvent's course. */
+  function addFork(event: OverprintEvent): void {
+    const course = event.courses[0]!;
+    course.controls.forEach((cc, i) => {
+      cc.courseControlId = asCourseControlId(`cc-${i}`);
+    });
+    const bA = createControl(91, { x: 500, y: 100 });
+    const bB = createControl(92, { x: 500, y: 400 });
+    event.controls[bA.id] = bA;
+    event.controls[bB.id] = bB;
+    course.variations = [{
+      id: asForkId('fk1'),
+      kind: 'fork',
+      anchorCourseControlId: asCourseControlId('cc-1'),
+      branches: [
+        { id: asBranchId('brA'), label: 'A', controls: [{ courseControlId: asCourseControlId('cc-bA'), controlId: bA.id, type: 'control' }] },
+        { id: asBranchId('brB'), label: 'B', controls: [{ courseControlId: asCourseControlId('cc-bB'), controlId: bB.id, type: 'control' }] },
+      ],
+    }];
+  }
+
+  it('emits one sheet per variation (2 pages for a 2-branch fork)', async () => {
+    const event = makeEvent(8);
+    addFork(event);
+    const { blob } = await generateDescriptionSheetPdf(event);
+    expect(await pageCount(blob)).toBe(2);
+  });
+
+  it('keeps a no-fork course on a single sheet', async () => {
+    const { blob } = await generateDescriptionSheetPdf(makeEvent(8));
+    expect(await pageCount(blob)).toBe(1);
   });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { exportIofXml } from './export-xml';
 import type { OverprintEvent } from '@/core/models/types';
 import { createEvent, createCourse, createControl } from '@/core/models/defaults';
+import { asBranchId, asCourseControlId, asForkId } from '@/utils/id';
 
 // ---------------------------------------------------------------------------
 // Fixture builder helpers
@@ -289,5 +290,65 @@ describe('exportIofXml — IOF v3 conformance', () => {
     expect(names.indexOf('Control')).toBeLessThan(names.indexOf('Score'));
     // score courses have no ordered legs
     expect(doc.getElementsByTagNameNS(NS, 'LegLength').length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E10.4 — fork variations
+// ---------------------------------------------------------------------------
+
+describe('exportIofXml — fork variations (E10.4)', () => {
+  function makeForkEvent(): OverprintEvent {
+    const event = makeEvent();
+    const course = event.courses[0]!;
+    course.controls.forEach((cc, i) => {
+      cc.courseControlId = asCourseControlId(`cc-${i}`);
+    });
+    // Branch controls at very different distances from the anchor so the two
+    // variations have distinct lengths.
+    const near = createControl(51, { x: 320, y: 620 });
+    const far = createControl(52, { x: 300, y: 2600 });
+    event.controls[near.id] = near;
+    event.controls[far.id] = far;
+    course.variations = [{
+      id: asForkId('fk1'),
+      kind: 'fork',
+      anchorCourseControlId: asCourseControlId('cc-1'),
+      branches: [
+        { id: asBranchId('brA'), label: 'A', controls: [{ courseControlId: asCourseControlId('cc-nA'), controlId: near.id, type: 'control' }] },
+        { id: asBranchId('brB'), label: 'B', controls: [{ courseControlId: asCourseControlId('cc-nB'), controlId: far.id, type: 'control' }] },
+      ],
+    }];
+    return event;
+  }
+
+  it('emits one Course per variation with the code in the name and differing lengths', () => {
+    const doc = parse(exportIofXml(makeForkEvent()));
+    const courses = doc.getElementsByTagNameNS(NS, 'Course');
+    expect(courses.length).toBe(2);
+
+    const names = Array.from(courses).map(
+      (c) => c.getElementsByTagNameNS(NS, 'Name')[0]?.textContent,
+    );
+    expect(names).toEqual(['Course A A', 'Course A B']);
+
+    const lengths = Array.from(courses).map((c) =>
+      Number(c.getElementsByTagNameNS(NS, 'Length')[0]?.textContent),
+    );
+    expect(lengths[0]).toBeGreaterThan(0);
+    expect(lengths[1]).toBeGreaterThan(lengths[0]!); // far branch is longer
+  });
+
+  it('defines branch-only controls in RaceCourseData', () => {
+    const xml = exportIofXml(makeForkEvent());
+    expect(xml).toContain('<Id>51</Id>');
+    expect(xml).toContain('<Id>52</Id>');
+  });
+
+  it('leaves a no-fork course as a single Course element (unchanged)', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    const courses = doc.getElementsByTagNameNS(NS, 'Course');
+    expect(courses.length).toBe(1);
+    expect(courses[0]!.getElementsByTagNameNS(NS, 'Name')[0]?.textContent).toBe('Course A');
   });
 });
