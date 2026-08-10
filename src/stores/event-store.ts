@@ -74,6 +74,9 @@ interface EventState {
    *  Index into enumerateVariations(course).variations; 0 = first variation.
    *  Not undoable (excluded from partialize), mirrors activePartIndex. */
   activeVariationIndex: number;
+  /** When set, new controls placed on the map go into this fork/loop branch instead
+   *  of the trunk (E10 Phase 2 loop authoring). Not undoable. */
+  activeLoopTarget: { forkId: ForkId; branchId: BranchId } | null;
 }
 
 interface EventActions {
@@ -118,6 +121,10 @@ interface EventActions {
   setBranchEntryBendPoints: (courseId: CourseId, forkId: ForkId, branchId: BranchId, bendPoints: MapPoint[] | undefined) => void;
   setBranchEntryLegGaps: (courseId: CourseId, forkId: ForkId, branchId: BranchId, legGaps: LegGap[] | undefined) => void;
   setActiveVariationIndex: (index: number) => void;
+  /** Set/clear the branch that map clicks place new controls into (loop authoring). */
+  setActiveLoopTarget: (target: { forkId: ForkId; branchId: BranchId } | null) => void;
+  /** Create a NEW control at `position` and append it to a fork/loop branch. */
+  placeControlInBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, position: MapPoint) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -268,6 +275,7 @@ export const useEventStore = create<EventState & EventActions>()(
       showNonCurrentControls: false,
       activePartIndex: null,
       activeVariationIndex: 0,
+      activeLoopTarget: null,
 
       newEvent: (name: string) => {
         set((state) => {
@@ -281,6 +289,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.showNonCurrentControls = false;
           state.activePartIndex = null;
           state.activeVariationIndex = 0;
+          state.activeLoopTarget = null;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -398,6 +407,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.activeCourseId = newId;
           state.viewMode = 'course';
           state.activeVariationIndex = 0;
+          state.activeLoopTarget = null;
         });
       },
 
@@ -431,6 +441,7 @@ export const useEventStore = create<EventState & EventActions>()(
             state.selectedControlId = null;
             state.activePartIndex = null;
             state.activeVariationIndex = 0;
+          state.activeLoopTarget = null;
             // If no courses remain, switch to all-controls view
             if (!state.activeCourseId) {
               state.viewMode = 'allControls';
@@ -446,6 +457,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.viewMode = 'course';
           state.activePartIndex = null;
           state.activeVariationIndex = 0;
+          state.activeLoopTarget = null;
         });
       },
 
@@ -466,6 +478,27 @@ export const useEventStore = create<EventState & EventActions>()(
       setActiveVariationIndex: (index: number) => {
         set((state) => {
           state.activeVariationIndex = Math.max(0, index);
+        });
+      },
+
+      setActiveLoopTarget: (target) => {
+        set((state) => {
+          state.activeLoopTarget = target;
+        });
+      },
+
+      placeControlInBranch: (courseId, forkId, branchId, position) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          if (!branch) return;
+          // New control with an auto-incremented code, added to the shared pool.
+          const control = createControl(nextControlCode(state.event), position);
+          state.event.controls[control.id] = control;
+          branch.controls.push(makeCourseControl(control.id, 'control'));
+          state.selectedControlId = control.id;
         });
       },
 
@@ -522,6 +555,7 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!course?.variations) return;
           course.variations = course.variations.filter((f) => f.id !== forkId);
           if (course.variations.length === 0) course.variations = undefined;
+          if (state.activeLoopTarget?.forkId === forkId) state.activeLoopTarget = null;
         });
       },
 
@@ -552,6 +586,7 @@ export const useEventStore = create<EventState & EventActions>()(
             course.variations = course.variations.filter((f) => f.id !== forkId);
             if (course.variations.length === 0) course.variations = undefined;
           }
+          if (state.activeLoopTarget?.branchId === branchId) state.activeLoopTarget = null;
         });
       },
 
@@ -914,6 +949,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.showNonCurrentControls = false;
           state.activePartIndex = null;
           state.activeVariationIndex = 0;
+          state.activeLoopTarget = null;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());

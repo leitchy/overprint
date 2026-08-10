@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
+import { useToolStore } from '@/stores/tool-store';
 import { enumerateVariations, factorial, MAX_VARIATIONS } from '@/core/models/variation-enumerator';
 import { courseForkIssues, type ForkIssue, type ForkIssueKind } from '@/core/models/fork-validation';
 import { calculateCourseLength, courseLengthRange } from '@/core/geometry/course-length';
@@ -60,6 +61,10 @@ export function VariationsSection({
   const setBranchLabel = useEventStore((s) => s.setBranchLabel);
   const addControlToBranch = useEventStore((s) => s.addControlToBranch);
   const removeControlFromBranch = useEventStore((s) => s.removeControlFromBranch);
+  const allCourses = useEventStore((s) => s.event?.courses);
+  const activeLoopTarget = useEventStore((s) => s.activeLoopTarget);
+  const setActiveLoopTarget = useEventStore((s) => s.setActiveLoopTarget);
+  const setTool = useToolStore((s) => s.setTool);
 
   const forks = course.variations ?? [];
   const enumeration = useMemo(() => enumerateVariations(course), [course]);
@@ -83,10 +88,39 @@ export function VariationsSection({
       ? selectedCC.courseControlId
       : null;
 
-  // Pool controls for the per-branch "add control" picker, sorted by code
+  // ControlIds used as start / finish / map-exchange anywhere in the event — these
+  // are never sensible branch/loop members, so they're excluded from the picker.
+  const specialControlIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const co of allCourses ?? []) {
+      for (const cc of co.controls) {
+        if (cc.type === 'start' || cc.type === 'finish' || cc.type === 'mapExchange' || cc.type === 'mapFlip') {
+          s.add(String(cc.controlId));
+        }
+      }
+    }
+    return s;
+  }, [allCourses]);
+
+  // ControlIds already on THIS course's trunk — listed first in the picker.
+  const currentCourseControlIds = useMemo(
+    () => new Set(course.controls.map((cc) => String(cc.controlId))),
+    [course.controls],
+  );
+
+  // Pool for the per-branch "add control" picker: every real control in the event
+  // (start/finish/exchange excluded), this course's controls first, then by code.
   const poolControls = useMemo(
-    () => Object.values(controls).sort((a, b) => a.code - b.code),
-    [controls],
+    () =>
+      Object.values(controls)
+        .filter((c) => !specialControlIds.has(String(c.id)))
+        .sort((a, b) => {
+          const aHere = currentCourseControlIds.has(String(a.id)) ? 0 : 1;
+          const bHere = currentCourseControlIds.has(String(b.id)) ? 0 : 1;
+          if (aHere !== bHere) return aHere - bHere;
+          return a.code - b.code;
+        }),
+    [controls, specialControlIds, currentCourseControlIds],
   );
 
   const lengthRange =
@@ -188,8 +222,14 @@ export function VariationsSection({
                 )}
 
                 {/* Branches */}
-                {fork.branches.map((branch) => (
-                  <div key={branch.id} className="border-t border-gray-100 px-2 py-1">
+                {fork.branches.map((branch) => {
+                  const isActiveTarget =
+                    activeLoopTarget?.forkId === fork.id && activeLoopTarget?.branchId === branch.id;
+                  return (
+                  <div
+                    key={branch.id}
+                    className={`border-t border-gray-100 px-2 py-1 ${isActiveTarget ? 'bg-violet-50 ring-1 ring-inset ring-violet-300' : ''}`}
+                  >
                     <div className="flex items-center gap-1">
                       <input
                         key={`${branch.id}-${branch.label}`}
@@ -236,12 +276,30 @@ export function VariationsSection({
                           className="rounded border border-gray-200 px-0.5 py-0.5 text-[10px] text-gray-500 outline-none focus:border-violet-400"
                         >
                           <option value="">{t('addControlToBranchPlaceholder')}</option>
-                          {poolControls.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              #{c.code}
-                            </option>
-                          ))}
+                          {poolControls
+                            .filter((c) => c.id !== anchorCC?.controlId)
+                            .map((c) => (
+                              <option key={c.id} value={c.id}>
+                                #{c.code}
+                              </option>
+                            ))}
                         </select>
+
+                        {/* Place a NEW control on the map, straight into this branch */}
+                        <button
+                          onClick={() => {
+                            if (isActiveTarget) {
+                              setActiveLoopTarget(null);
+                            } else {
+                              setActiveLoopTarget({ forkId: fork.id, branchId: branch.id });
+                              setTool({ type: 'addControl' });
+                            }
+                          }}
+                          className={`rounded px-1 py-0.5 text-[10px] font-medium ${isActiveTarget ? 'bg-violet-600 text-white' : 'text-violet-600 hover:bg-violet-50'}`}
+                          title={t('placeOnMapHint')}
+                        >
+                          {isActiveTarget ? t('placingOnMap') : t('placeOnMap')}
+                        </button>
                       </div>
 
                       <button
@@ -253,7 +311,8 @@ export function VariationsSection({
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 <div className="border-t border-gray-100 px-2 py-1">
                   <button
