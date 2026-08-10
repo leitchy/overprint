@@ -155,7 +155,14 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
         e.evt.preventDefault();
         const pos = stage.getRelativePointerPosition();
         if (pos) {
-          useEventStore.getState().addControlToCourse({ x: pos.x, y: pos.y });
+          const store = useEventStore.getState();
+          const target = store.activeLoopTarget;
+          if (target && store.activeCourseId) {
+            // Loop authoring: place the new control into the active branch, not the trunk.
+            store.placeControlInBranch(store.activeCourseId, target.forkId, target.branchId, { x: pos.x, y: pos.y });
+          } else {
+            store.addControlToCourse({ x: pos.x, y: pos.y });
+          }
         }
       } else if (activeTool.type === 'addSpecialItem') {
         // Place a special item at click position

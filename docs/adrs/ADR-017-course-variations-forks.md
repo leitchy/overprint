@@ -29,6 +29,11 @@ The `kind:'loop'` seam slotted in with no pipeline rewrite, exactly as intended:
   visible truncation toast on export rather than silently dropping team variations.
 - **Guards** — a loop needs ≥2 loops (`tooFewLoops`); >4 is a soft legibility warning (`tooManyLoops`);
   at most one generator per anchor (`duplicateAnchor`, enforced in the store and the enumerator).
+- **Authoring (v0.26.1)** — the branch/loop "+ control" picker offers every *real* control in the event
+  (start/finish/exchange and the hub excluded), this course's controls first. A per-branch **＋ map**
+  button sets a non-undoable `activeLoopTarget` and switches to the Add-Control tool so a map click
+  places a brand-new control straight into that branch (`placeControlInBranch`) instead of the trunk —
+  the reuse-existing-control dropdown alone was unusable in events with a large shared control pool.
 
 ## Context
 
