@@ -1,4 +1,5 @@
 import type { OverprintEvent } from '@/core/models/types';
+import { forEachCourseControl } from '@/core/models/course-controls';
 import type { ControlId, CourseId } from '@/utils/id';
 import { mapDistanceMetres } from '@/core/geometry/distance';
 import { AMBIGUOUS_PAIRS, SELF_AMBIGUOUS_CODES } from './ambiguous-codes';
@@ -117,9 +118,11 @@ export function auditEvent(
 
   const usedControlIds = new Set<ControlId>();
   for (const course of courses) {
-    for (const cc of course.controls) {
+    // Walk trunk AND fork-branch controls — a control used only inside a
+    // branch is still used (no false "unused control" warning).
+    forEachCourseControl(course, (cc) => {
       usedControlIds.add(cc.controlId);
-    }
+    });
   }
   for (const control of Object.values(controls)) {
     if (!usedControlIds.has(control.id)) {

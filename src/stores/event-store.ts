@@ -9,6 +9,7 @@ import type {
   Course,
   CourseControl,
   CourseControlType,
+  CourseFork,
   CourseSettings,
   EventSettings,
   MapFile,
@@ -20,9 +21,10 @@ import type {
 } from '@/core/models/types';
 import { addGap, simplifyGaps } from '@/core/geometry/circle-gaps';
 import { DEFAULT_CIRCLE_GAP_DEG } from '@/core/models/constants';
-import type { ControlId, CourseId, SpecialItemId } from '@/utils/id';
-import { generateCourseId } from '@/utils/id';
-import { createEvent, createCourse, createControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
+import type { BranchId, ControlId, CourseControlId, CourseId, ForkId, SpecialItemId } from '@/utils/id';
+import { generateBranchId, generateCourseControlId, generateCourseId, generateForkId } from '@/utils/id';
+import { createEvent, createCourse, createControl, makeCourseControl, DEFAULT_EVENT_SETTINGS } from '@/core/models/defaults';
+import { forEachCourseControl } from '@/core/models/course-controls';
 import { useAppSettingsStore } from './app-settings-store';
 import { SUPPORTED_IOF_LANGUAGES } from '@/i18n/languages';
 
@@ -68,6 +70,10 @@ interface EventState {
   showNonCurrentControls: boolean;
   /** Which part of the active multi-part course is selected. null = all parts. */
   activePartIndex: number | null;
+  /** Which enumerated variation of the active forked course is shown (E10).
+   *  Index into enumerateVariations(course).variations; 0 = first variation.
+   *  Not undoable (excluded from partialize), mirrors activePartIndex. */
+  activeVariationIndex: number;
 }
 
 interface EventActions {
@@ -89,6 +95,27 @@ interface EventActions {
   // Course parts
   setActivePartIndex: (index: number | null) => void;
   setPartShowFinish: (courseId: CourseId, partIndex: number, showFinish: boolean) => void;
+
+  // Course forks / variations (E10)
+  /** Attach a fork at an interior trunk control. Creates two empty branches
+   *  ('A'/'B') — the fork is "in progress" until each branch has ≥1 control
+   *  (courseForkIssues reports emptyBranch; enumeration/export are gated on it). */
+  addFork: (courseId: CourseId, anchorCourseControlId: CourseControlId) => void;
+  removeFork: (courseId: CourseId, forkId: ForkId) => void;
+  /** Append a branch with the next free letter label ('C', 'D', …). */
+  addBranch: (courseId: CourseId, forkId: ForkId) => void;
+  /** Remove a branch. Removing the last branch removes the whole fork. */
+  removeBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId) => void;
+  setBranchLabel: (courseId: CourseId, forkId: ForkId, branchId: BranchId, label: string) => void;
+  /** Append an existing pool control to a branch. */
+  addControlToBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, controlId: ControlId) => void;
+  /** Remove one occurrence (by CourseControlId) from a branch. Pool controls no
+   *  longer referenced anywhere are cleaned up, like removeControlFromCourse. */
+  removeControlFromBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, courseControlId: CourseControlId) => void;
+  /** Geometry of the anchor→branch[0] entry leg (held on the branch). */
+  setBranchEntryBendPoints: (courseId: CourseId, forkId: ForkId, branchId: BranchId, bendPoints: MapPoint[] | undefined) => void;
+  setBranchEntryLegGaps: (courseId: CourseId, forkId: ForkId, branchId: BranchId, legGaps: LegGap[] | undefined) => void;
+  setActiveVariationIndex: (index: number) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -175,6 +202,51 @@ function findCourse(event: OverprintEvent, courseId: CourseId): Course | undefin
   return event.courses.find((c) => c.id === courseId);
 }
 
+function findFork(course: Course, forkId: ForkId): CourseFork | undefined {
+  return course.variations?.find((f) => f.id === forkId);
+}
+
+/** Anchor must resolve to an INTERIOR trunk control (matches the enumerator's
+ *  drop rule in variation-enumerator.ts and courseForkIssues). */
+function isForkAnchorResolvable(course: Course, anchorCourseControlId: CourseControlId): boolean {
+  const idx = course.controls.findIndex((cc) => cc.courseControlId === anchorCourseControlId);
+  return idx > 0 && idx < course.controls.length - 1;
+}
+
+/** After any trunk mutation: drop forks whose anchor no longer resolves to an
+ *  interior trunk control (deleted, or pushed to first/last position). */
+function dropOrphanedForks(course: Course): void {
+  if (!course.variations) return;
+  course.variations = course.variations.filter((f) =>
+    isForkAnchorResolvable(course, f.anchorCourseControlId),
+  );
+  if (course.variations.length === 0) course.variations = undefined;
+}
+
+/** True when any course (trunk or fork branch) still references the control. */
+function controlStillReferenced(event: OverprintEvent, controlId: ControlId): boolean {
+  for (const course of event.courses) {
+    let found = false;
+    forEachCourseControl(course, (cc) => {
+      if (cc.controlId === controlId) found = true;
+    });
+    if (found) return true;
+  }
+  return false;
+}
+
+/** Next free single-letter branch label: 'A', 'B', … 'Z', then 'AA', 'AB', …. */
+function nextBranchLabel(fork: CourseFork): string {
+  const used = new Set(fork.branches.map((b) => b.label));
+  for (let i = 0; ; i++) {
+    const label =
+      i < 26
+        ? String.fromCharCode(65 + i)
+        : String.fromCharCode(65 + Math.floor(i / 26) - 1) + String.fromCharCode(65 + (i % 26));
+    if (!used.has(label)) return label;
+  }
+}
+
 // --- Store ---
 
 export const useEventStore = create<EventState & EventActions>()(
@@ -187,6 +259,7 @@ export const useEventStore = create<EventState & EventActions>()(
       visibleCourseIds: {},
       showNonCurrentControls: false,
       activePartIndex: null,
+      activeVariationIndex: 0,
 
       newEvent: (name: string) => {
         set((state) => {
@@ -199,6 +272,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.visibleCourseIds = {};
           state.showNonCurrentControls = false;
           state.activePartIndex = null;
+          state.activeVariationIndex = 0;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -258,20 +332,64 @@ export const useEventStore = create<EventState & EventActions>()(
           const source = state.event.courses.find((c) => c.id === id);
           if (!source) return;
           const newId = generateCourseId();
+
+          // Regenerate every per-occurrence id so the copy never shares
+          // CourseControlIds / ForkIds / BranchIds with the source (fork
+          // addressing is by these ids — collisions would cross-wire courses).
+          const idMap = new Map<CourseControlId, CourseControlId>();
+          const cloneCourseControl = (cc: CourseControl): CourseControl => {
+            const copy: CourseControl = JSON.parse(JSON.stringify(cc));
+            copy.courseControlId = generateCourseControlId();
+            if (cc.courseControlId) idMap.set(cc.courseControlId, copy.courseControlId);
+            return copy;
+          };
+          const controls = source.controls.map(cloneCourseControl);
+
+          // Copy forks, remapping each anchor onto the NEW trunk copy's id.
+          // A fork whose anchor doesn't resolve in the source trunk is dropped
+          // (same rule the enumerator applies to stale data).
+          let variations: CourseFork[] | undefined;
+          if (source.variations) {
+            variations = [];
+            for (const fork of source.variations) {
+              const newAnchor = idMap.get(fork.anchorCourseControlId);
+              if (!newAnchor) continue;
+              variations.push({
+                id: generateForkId(),
+                kind: 'fork',
+                anchorCourseControlId: newAnchor,
+                branches: fork.branches.map((b) => ({
+                  id: generateBranchId(),
+                  label: b.label,
+                  entryBendPoints: b.entryBendPoints
+                    ? JSON.parse(JSON.stringify(b.entryBendPoints))
+                    : undefined,
+                  entryLegGaps: b.entryLegGaps
+                    ? JSON.parse(JSON.stringify(b.entryLegGaps))
+                    : undefined,
+                  controls: b.controls.map(cloneCourseControl),
+                })),
+              });
+            }
+            if (variations.length === 0) variations = undefined;
+          }
+
           const clone: Course = {
             id: newId,
             name: `${source.name} (copy)`,
             courseType: source.courseType,
-            controls: source.controls.map((cc) => ({ ...cc })),
+            controls,
             climb: source.climb,
             settings: JSON.parse(JSON.stringify(source.settings)),
             partOptions: source.partOptions ? JSON.parse(JSON.stringify(source.partOptions)) : undefined,
+            variations,
           };
           // Insert after the source course
           const index = state.event.courses.findIndex((c) => c.id === id);
           state.event.courses.splice(index + 1, 0, clone);
           state.activeCourseId = newId;
           state.viewMode = 'course';
+          state.activeVariationIndex = 0;
         });
       },
 
@@ -304,6 +422,7 @@ export const useEventStore = create<EventState & EventActions>()(
             state.activeCourseId = next?.id ?? null;
             state.selectedControlId = null;
             state.activePartIndex = null;
+            state.activeVariationIndex = 0;
             // If no courses remain, switch to all-controls view
             if (!state.activeCourseId) {
               state.viewMode = 'allControls';
@@ -318,6 +437,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.selectedControlId = null;
           state.viewMode = 'course';
           state.activePartIndex = null;
+          state.activeVariationIndex = 0;
         });
       },
 
@@ -332,6 +452,133 @@ export const useEventStore = create<EventState & EventActions>()(
       setActivePartIndex: (index: number | null) => {
         set((state) => {
           state.activePartIndex = index;
+        });
+      },
+
+      setActiveVariationIndex: (index: number) => {
+        set((state) => {
+          state.activeVariationIndex = Math.max(0, index);
+        });
+      },
+
+      // --- Course forks / variations (E10) ---
+
+      addFork: (courseId: CourseId, anchorCourseControlId: CourseControlId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          // Anchor must be an interior trunk control (entry leg + rejoin exist)
+          if (!isForkAnchorResolvable(course, anchorCourseControlId)) return;
+          if (!course.variations) course.variations = [];
+          course.variations.push({
+            id: generateForkId(),
+            kind: 'fork',
+            anchorCourseControlId,
+            branches: [
+              { id: generateBranchId(), label: 'A', controls: [] },
+              { id: generateBranchId(), label: 'B', controls: [] },
+            ],
+          });
+        });
+      },
+
+      removeFork: (courseId: CourseId, forkId: ForkId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course?.variations) return;
+          course.variations = course.variations.filter((f) => f.id !== forkId);
+          if (course.variations.length === 0) course.variations = undefined;
+        });
+      },
+
+      addBranch: (courseId: CourseId, forkId: ForkId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          if (!fork) return;
+          fork.branches.push({
+            id: generateBranchId(),
+            label: nextBranchLabel(fork),
+            controls: [],
+          });
+        });
+      },
+
+      removeBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course?.variations) return;
+          const fork = findFork(course, forkId);
+          if (!fork) return;
+          fork.branches = fork.branches.filter((b) => b.id !== branchId);
+          // A fork with no branches is meaningless — remove it entirely
+          if (fork.branches.length === 0) {
+            course.variations = course.variations.filter((f) => f.id !== forkId);
+            if (course.variations.length === 0) course.variations = undefined;
+          }
+        });
+      },
+
+      setBranchLabel: (courseId: CourseId, forkId: ForkId, branchId: BranchId, label: string) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          const trimmed = label.trim();
+          if (branch && trimmed !== '') branch.label = trimmed;
+        });
+      },
+
+      addControlToBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, controlId: ControlId) => {
+        set((state) => {
+          if (!state.event?.controls[controlId]) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          if (!branch) return;
+          branch.controls.push(makeCourseControl(controlId, 'control'));
+        });
+      },
+
+      removeControlFromBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, courseControlId: CourseControlId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          if (!branch) return;
+          const removed = branch.controls.find((cc) => cc.courseControlId === courseControlId);
+          if (!removed) return;
+          branch.controls = branch.controls.filter((cc) => cc.courseControlId !== courseControlId);
+          // Same pool cleanup as removeControlFromCourse
+          if (!controlStillReferenced(state.event, removed.controlId)) {
+            delete state.event.controls[removed.controlId];
+          }
+        });
+      },
+
+      setBranchEntryBendPoints: (courseId: CourseId, forkId: ForkId, branchId: BranchId, bendPoints: MapPoint[] | undefined) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          if (branch) branch.entryBendPoints = bendPoints;
+        });
+      },
+
+      setBranchEntryLegGaps: (courseId: CourseId, forkId: ForkId, branchId: BranchId, legGaps: LegGap[] | undefined) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          const fork = course && findFork(course, forkId);
+          const branch = fork?.branches.find((b) => b.id === branchId);
+          if (branch) branch.entryLegGaps = legGaps;
         });
       },
 
@@ -416,12 +663,8 @@ export const useEventStore = create<EventState & EventActions>()(
           // Add to controls pool
           state.event.controls[control.id] = control;
 
-          // Append to course
-          const courseControl: CourseControl = {
-            controlId: control.id,
-            type: 'control',
-          };
-          course.controls.push(courseControl);
+          // Append to course (makeCourseControl assigns a stable courseControlId)
+          course.controls.push(makeCourseControl(control.id, 'control'));
 
           // Auto-derive start/finish types
           deriveCourseControlTypes(course.controls);
@@ -441,16 +684,16 @@ export const useEventStore = create<EventState & EventActions>()(
             (cc) => cc.controlId !== controlId,
           );
           deriveCourseControlTypes(course.controls);
+          dropOrphanedForks(course);
 
           if (state.selectedControlId === controlId) {
             state.selectedControlId = null;
           }
 
-          // Auto-cleanup: if control is no longer referenced by any course, remove it
-          const stillReferenced = state.event.courses.some((c) =>
-            c.controls.some((cc) => cc.controlId === controlId),
-          );
-          if (!stillReferenced) {
+          // Auto-cleanup: if control is no longer referenced by any course
+          // (trunk OR fork branch), remove it from the pool. Branch references
+          // count — deleting the pool record would dangle the branch.
+          if (!controlStillReferenced(state.event, controlId)) {
             delete state.event.controls[controlId];
           }
         });
@@ -460,12 +703,20 @@ export const useEventStore = create<EventState & EventActions>()(
         set((state) => {
           if (!state.event) return;
 
-          // Remove from all courses
+          // Remove from all courses — trunks AND fork branches
           for (const course of state.event.courses) {
             course.controls = course.controls.filter(
               (cc) => cc.controlId !== controlId,
             );
             deriveCourseControlTypes(course.controls);
+            for (const fork of course.variations ?? []) {
+              for (const branch of fork.branches) {
+                branch.controls = branch.controls.filter(
+                  (cc) => cc.controlId !== controlId,
+                );
+              }
+            }
+            dropOrphanedForks(course);
           }
 
           // Remove from controls pool
@@ -511,6 +762,8 @@ export const useEventStore = create<EventState & EventActions>()(
               if (prev) { prev.bendPoints = undefined; prev.legGaps = undefined; }
             }
             deriveCourseControlTypes(course.controls);
+            // A reorder can push a fork anchor to first/last (no rejoin)
+            dropOrphanedForks(course);
           }
         });
       },
@@ -555,13 +808,13 @@ export const useEventStore = create<EventState & EventActions>()(
             prevCC.legGaps = undefined;
           }
 
-          const courseControl: CourseControl = {
-            controlId,
-            type: 'control',
+          const courseControl = makeCourseControl(controlId, 'control', {
             bendPoints: typeof newCCBendPoints !== 'undefined' ? newCCBendPoints : undefined,
-          };
+          });
           course.controls.splice(atIndex, 0, courseControl);
           deriveCourseControlTypes(course.controls);
+          // Keep the fork invariant after any trunk mutation
+          dropOrphanedForks(course);
         });
       },
 
@@ -628,6 +881,7 @@ export const useEventStore = create<EventState & EventActions>()(
           state.visibleCourseIds = {};
           state.showNonCurrentControls = false;
           state.activePartIndex = null;
+          state.activeVariationIndex = 0;
         });
         // Clear undo history after temporal middleware finishes processing
         queueMicrotask(() => useEventStore.temporal.getState().clear());
@@ -640,6 +894,10 @@ export const useEventStore = create<EventState & EventActions>()(
             state.event.controls[ctrl.id] = ctrl;
           }
           for (const course of courses) {
+            // Guarantee the courseControlId invariant on imported sequences
+            forEachCourseControl(course, (cc) => {
+              if (!cc.courseControlId) cc.courseControlId = generateCourseControlId();
+            });
             state.event.courses.push(course);
           }
           // Set the first imported course as active if none selected
@@ -807,11 +1065,23 @@ export const useEventStore = create<EventState & EventActions>()(
             ctrl.position.y += dy;
           }
           for (const course of state.event.courses) {
-            for (const cc of course.controls) {
+            // Trunk AND fork-branch leg geometry move with the map
+            forEachCourseControl(course, (cc) => {
               if (cc.bendPoints) {
                 for (const bp of cc.bendPoints) {
                   bp.x += dx;
                   bp.y += dy;
+                }
+              }
+            });
+            // Branch entry legs live on the branch, not on a CourseControl
+            for (const fork of course.variations ?? []) {
+              for (const branch of fork.branches) {
+                if (branch.entryBendPoints) {
+                  for (const bp of branch.entryBendPoints) {
+                    bp.x += dx;
+                    bp.y += dy;
+                  }
                 }
               }
             }
