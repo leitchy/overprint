@@ -10,7 +10,7 @@
 import type { Course, CourseControl } from './types';
 
 /** Returns true when the control type marks a part boundary. */
-function isExchangeType(type: string): boolean {
+export function isExchangeType(type: string): boolean {
   return type === 'mapExchange' || type === 'mapFlip';
 }
 

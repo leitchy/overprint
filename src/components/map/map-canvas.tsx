@@ -14,6 +14,7 @@ import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, NON_CURRENT_COLOR, SCREEN_LINE_MULTIPLIER, COURSE_COLORS } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
+import { enumerateVariations, variationCourse } from '@/core/models/variation-enumerator';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { Course } from '@/core/models/types';
 import { CourseRenderer } from '@/components/course/course-renderer';
@@ -90,6 +91,7 @@ export function MapCanvas() {
   const visibleCourseIds = useEventStore((s) => s.visibleCourseIds);
   const showNonCurrentControls = useEventStore((s) => s.showNonCurrentControls);
   const activePartIndex = useEventStore((s) => s.activePartIndex);
+  const activeVariationIndex = useEventStore((s) => s.activeVariationIndex);
 
   const {
     handleWheel,
@@ -307,20 +309,35 @@ export function MapCanvas() {
     () => (settings ? overprintPixelDimensions(settings, dpi, mapScale, activePrintScale) : null),
     [settings, dpi, mapScale, activePrintScale],
   );
+  // Active-variation flattening (E10.5) — compose variation → part, exactly as the
+  // exporter does: flatten the active fork variation into a linear sequence FIRST,
+  // then apply the existing part slicing to the flattened controls. Courses without
+  // forks skip this entirely (variationBase === activeCourse, behaviour unchanged).
+  const variationResult = useMemo(
+    () => (activeCourse?.variations?.length ? enumerateVariations(activeCourse) : null),
+    [activeCourse],
+  );
+  const isVariationView = (variationResult?.variations.length ?? 0) > 1;
+  const variationBase = useMemo((): Course | null => {
+    if (!activeCourse || !variationResult || !isVariationView) return activeCourse;
+    const idx = Math.min(Math.max(activeVariationIndex, 0), variationResult.variations.length - 1);
+    return variationCourse(activeCourse, variationResult.variations[idx]!);
+  }, [activeCourse, variationResult, isVariationView, activeVariationIndex]);
+
   // Part-filtered active course — when viewing a specific part, slice the controls
   const displayCourse = useMemo((): Course | null => {
-    if (!activeCourse || activePartIndex === null) return activeCourse;
+    if (!variationBase || activePartIndex === null) return variationBase;
     return {
-      ...activeCourse,
-      controls: getPartControls(activeCourse, activePartIndex),
+      ...variationBase,
+      controls: getPartControls(variationBase, activePartIndex),
     };
-  }, [activeCourse, activePartIndex]);
+  }, [variationBase, activePartIndex]);
 
   // Sequence offset for part numbering — controls keep their full-course index on the map
   const sequenceOffset = useMemo(() => {
-    if (!activeCourse || activePartIndex === null) return 0;
-    return getPartBounds(activeCourse.controls, activePartIndex).start;
-  }, [activeCourse, activePartIndex]);
+    if (!variationBase || activePartIndex === null) return 0;
+    return getPartBounds(variationBase.controls, activePartIndex).start;
+  }, [variationBase, activePartIndex]);
 
   // Part count for canvas chip
   const totalParts = useMemo(
@@ -496,6 +513,13 @@ export function MapCanvas() {
                  Background controls render AFTER active course so they get hit
                  priority for shared control reuse in addControl mode. */
               <>
+                {/* When a flattened fork variation is displayed (isVariationView), all
+                    INDEX-based edits are disabled — flattened-array indices don't map
+                    back to trunk indices, so number drags, bend/gap edits and leg
+                    inserts would corrupt the trunk. Control-position dragging stays
+                    enabled: it is keyed by ControlId and moves the SHARED Control
+                    record, which is correct for trunk and branch controls alike.
+                    Circle gaps are also ControlId-keyed, so they stay enabled too. */}
                 {displayCourse && dimensions && controls && activeCourseId && (
                   <CourseRenderer
                     course={displayCourse}
@@ -504,12 +528,12 @@ export function MapCanvas() {
                     dimensions={dimensions}
                     selectedControlId={selectedControlId}
                     draggable={activeTool.type === 'pan'}
-                    allowLegInsert={activeTool.type === 'addControl'}
+                    allowLegInsert={activeTool.type === 'addControl' && !isVariationView}
                     courseId={activeCourseId}
                     onSelectControl={handleSelectControl}
                     onDragControlEnd={handleDragControlEnd}
                     onLongPressControl={isTouch ? handleLongPressControl : undefined}
-                    onNumberDragEnd={(controlIndex, offset) => {
+                    onNumberDragEnd={isVariationView ? undefined : (controlIndex, offset) => {
                       if (activeCourseId) {
                         useEventStore.getState().setNumberOffset(activeCourseId, controlIndex, offset);
                       }
@@ -533,13 +557,13 @@ export function MapCanvas() {
                         afterIndex,
                       );
                     }}
-                    editLegs={activeTool.type === 'pan'}
-                    onAddBendPoint={(controlIndex, position, insertAt) => {
+                    editLegs={activeTool.type === 'pan' && !isVariationView}
+                    onAddBendPoint={isVariationView ? undefined : (controlIndex, position, insertAt) => {
                       if (activeCourseId) {
                         useEventStore.getState().addBendPoint(activeCourseId, controlIndex, insertAt, position);
                       }
                     }}
-                    onBendPointDragEnd={(controlIndex, bendIndex, position) => {
+                    onBendPointDragEnd={isVariationView ? undefined : (controlIndex, bendIndex, position) => {
                       if (activeCourseId) {
                         const store = useEventStore.getState();
                         const course = store.event?.courses.find((c) => c.id === activeCourseId);
@@ -551,12 +575,12 @@ export function MapCanvas() {
                         }
                       }
                     }}
-                    onRemoveBendPoint={(controlIndex, bendIndex) => {
+                    onRemoveBendPoint={isVariationView ? undefined : (controlIndex, bendIndex) => {
                       if (activeCourseId) {
                         useEventStore.getState().removeBendPoint(activeCourseId, controlIndex, bendIndex);
                       }
                     }}
-                    onGapDragEnd={(controlIndex, gapIndex, gap) => {
+                    onGapDragEnd={isVariationView ? undefined : (controlIndex, gapIndex, gap) => {
                       if (activeCourseId) {
                         useEventStore.getState().updateLegGap(activeCourseId, controlIndex, gapIndex, gap);
                       }

@@ -3,6 +3,7 @@ import { auditEvent } from './event-audit';
 import { createEvent, createCourse, createControl } from '@/core/models/defaults';
 import type { OverprintEvent, Course, Control } from '@/core/models/types';
 import type { ControlId } from '@/utils/id';
+import { asBranchId, asCourseControlId, asForkId } from '@/utils/id';
 
 /** Build a minimal event for testing. */
 function buildEvent(
@@ -257,5 +258,86 @@ describe('auditEvent', () => {
     const dup = items.find((i) => i.messageKey === 'auditConsecutiveDuplicate');
     expect(dup).toBeDefined();
     expect(dup?.severity).toBe('error');
+  });
+});
+
+describe('auditEvent — fork variations (E10.4)', () => {
+  /** Fork course "Relay": S(0,0) → anchor(300,0) → M(600,0) → F(900,0), branches A/B. */
+  function buildForkEvent(opts: {
+    branchAPos?: { x: number; y: number };
+    emptyBranchB?: boolean;
+    dropFinish?: boolean;
+  } = {}): OverprintEvent {
+    const { course, controls } = buildCourseWithControls('Relay', [
+      { code: 31, x: 0, y: 0, type: 'start' },
+      { code: 32, x: 300, y: 0 },
+      { code: 33, x: 600, y: 0 },
+      { code: 34, x: 900, y: 0, type: 'finish' },
+    ]);
+    if (opts.dropFinish) course.controls.pop();
+    course.controls.forEach((cc, i) => {
+      cc.courseControlId = asCourseControlId(`cc-${i}`);
+    });
+    const bA = createControl(41, opts.branchAPos ?? { x: 300, y: 300 }, { columnD: '2.1' });
+    const bB = createControl(42, { x: 300, y: -300 }, { columnD: '3.1' });
+    const controlsAll = { ...controls, [bA.id]: bA, [bB.id]: bB };
+    course.variations = [{
+      id: asForkId('fk1'),
+      kind: 'fork',
+      anchorCourseControlId: asCourseControlId('cc-1'),
+      branches: [
+        { id: asBranchId('brA'), label: 'A', controls: [{ courseControlId: asCourseControlId('cc-bA'), controlId: bA.id, type: 'control' }] },
+        {
+          id: asBranchId('brB'), label: 'B',
+          controls: opts.emptyBranchB
+            ? []
+            : [{ courseControlId: asCourseControlId('cc-bB'), controlId: bB.id, type: 'control' }],
+        },
+      ],
+    }];
+    return buildEvent({
+      courses: [course],
+      controls: controlsAll,
+      mapFile: { name: 'test.pdf', type: 'pdf', scale: 10000, dpi: 150 },
+    });
+  }
+
+  it('labels a branch-specific short leg with the variation code', () => {
+    // Branch A control 10px (~17m) from the anchor → short leg only in variation A.
+    const event = buildForkEvent({ branchAPos: { x: 310, y: 0 } });
+    const items = auditEvent(event);
+    const shortLegs = items.filter((i) => i.messageKey === 'auditShortLeg');
+    expect(shortLegs).toHaveLength(1);
+    expect(shortLegs[0]!.messageParams?.name).toBe('Relay A');
+  });
+
+  it('reports a trunk-level finding once, under the plain course name', () => {
+    const event = buildForkEvent({ dropFinish: true });
+    const items = auditEvent(event);
+    const missing = items.filter((i) => i.messageKey === 'auditMissingFinish');
+    expect(missing).toHaveLength(1);
+    expect(missing[0]!.messageParams?.name).toBe('Relay');
+  });
+
+  it('surfaces structural fork issues (empty branch) as errors', () => {
+    const event = buildForkEvent({ emptyBranchB: true });
+    const items = auditEvent(event);
+    const forkIssue = items.find((i) => i.messageKey === 'auditForkEmptyBranch');
+    expect(forkIssue).toBeDefined();
+    expect(forkIssue?.severity).toBe('error');
+  });
+
+  it('produces no fork findings for a fork-free course', () => {
+    const { course, controls } = buildCourseWithControls('Plain', [
+      { code: 31, x: 0, y: 0, type: 'start' },
+      { code: 32, x: 300, y: 0 },
+      { code: 33, x: 600, y: 0, type: 'finish' },
+    ]);
+    const event = buildEvent({
+      courses: [course],
+      controls,
+      mapFile: { name: 'test.pdf', type: 'pdf', scale: 10000, dpi: 150 },
+    });
+    expect(auditEvent(event)).toEqual([]);
   });
 });

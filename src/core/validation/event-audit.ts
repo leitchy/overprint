@@ -1,4 +1,7 @@
-import type { OverprintEvent } from '@/core/models/types';
+import type { Control, Course, CourseControl, OverprintEvent } from '@/core/models/types';
+import { forEachCourseControl } from '@/core/models/course-controls';
+import { enumerateVariations } from '@/core/models/variation-enumerator';
+import { courseForkIssues, type ForkIssueKind } from '@/core/models/fork-validation';
 import type { ControlId, CourseId } from '@/utils/id';
 import { mapDistanceMetres } from '@/core/geometry/distance';
 import { AMBIGUOUS_PAIRS, SELF_AMBIGUOUS_CODES } from './ambiguous-codes';
@@ -117,9 +120,11 @@ export function auditEvent(
 
   const usedControlIds = new Set<ControlId>();
   for (const course of courses) {
-    for (const cc of course.controls) {
+    // Walk trunk AND fork-branch controls — a control used only inside a
+    // branch is still used (no false "unused control" warning).
+    forEachCourseControl(course, (cc) => {
       usedControlIds.add(cc.controlId);
-    }
+    });
   }
   for (const control of Object.values(controls)) {
     if (!usedControlIds.has(control.id)) {
@@ -183,116 +188,46 @@ export function auditEvent(
     }
   }
 
-  // --- Per-course checks ---
+  // --- Per-course checks, run per enumerated fork variation (E10) ---
+  // A no-fork course yields one variation over its own controls, so the checks
+  // (and their output) are exactly the pre-fork behaviour. For forked courses,
+  // every branch combination is checked; a finding that appears in EVERY
+  // variation is trunk-level and reported once under the plain course name,
+  // while a branch-specific finding keeps the variation-coded name.
 
   for (const course of courses) {
-    const courseId = course.id;
-    const courseName = course.name;
+    const { variations } = enumerateVariations(course);
+    const grouped = new Map<string, { item: AuditItem; count: number }>();
 
-    // Consecutive duplicate controls (zero-length leg — a planning error)
-    for (let i = 1; i < course.controls.length; i++) {
-      if (course.controls[i]!.controlId === course.controls[i - 1]!.controlId) {
-        const c = controls[course.controls[i]!.controlId];
-        items.push({
-          severity: 'error',
-          messageKey: 'auditConsecutiveDuplicate',
-          messageParams: { name: courseName, code: c ? c.code : 0 },
-          courseId,
-          controlId: course.controls[i]!.controlId,
-        });
+    for (const v of variations) {
+      const name = v.code ? `${course.name} ${v.code}` : course.name;
+      const vItems = auditCourseControls(v.controls, course, name, controls, mapFile);
+      for (const item of vItems) {
+        // Dedupe across variations on everything EXCEPT the (coded) name.
+        const { name: _name, ...rest } = item.messageParams ?? {};
+        const key = `${item.messageKey}|${item.controlId ?? ''}|${JSON.stringify(rest)}`;
+        const g = grouped.get(key);
+        if (g) g.count += 1;
+        else grouped.set(key, { item, count: 1 });
       }
     }
 
-    // Empty course
-    if (course.controls.length === 0) {
+    for (const { item, count } of grouped.values()) {
+      if (count === variations.length && item.messageParams?.name != null) {
+        item.messageParams = { ...item.messageParams, name: course.name };
+      }
+      items.push(item);
+    }
+
+    // Structural fork issues (incomplete/invalid forks) — surfaced as errors
+    // so a half-built fork is caught before export.
+    for (const issue of courseForkIssues(course)) {
       items.push({
         severity: 'error',
-        messageKey: 'auditEmptyCourse',
-        messageParams: { name: courseName },
-        courseId,
+        messageKey: FORK_ISSUE_MESSAGE_KEYS[issue.kind],
+        messageParams: { name: course.name },
+        courseId: course.id,
       });
-      continue;
-    }
-
-    // Missing start/finish (normal courses only)
-    if (course.courseType === 'normal') {
-      const hasStart = course.controls.some((cc) => cc.type === 'start');
-      const hasFinish = course.controls.some((cc) => cc.type === 'finish');
-      if (!hasStart) {
-        items.push({
-          severity: 'error',
-          messageKey: 'auditMissingStart',
-          messageParams: { name: courseName },
-          courseId,
-        });
-      }
-      if (!hasFinish) {
-        items.push({
-          severity: 'error',
-          messageKey: 'auditMissingFinish',
-          messageParams: { name: courseName },
-          courseId,
-        });
-      }
-    }
-
-    // Score course without scores
-    if (course.courseType === 'score') {
-      const missingScores = course.controls.some(
-        (cc) => cc.type === 'control' && cc.score === undefined,
-      );
-      if (missingScores) {
-        items.push({
-          severity: 'warning',
-          messageKey: 'auditScoreNoPoints',
-          messageParams: { name: courseName },
-          courseId,
-        });
-      }
-    }
-
-    // Leg length checks (need mapFile for distance calculation)
-    if (mapFile && course.courseType === 'normal') {
-      for (let i = 1; i < course.controls.length; i++) {
-        const prevCtrl = controls[course.controls[i - 1]!.controlId];
-        const currCtrl = controls[course.controls[i]!.controlId];
-        if (!prevCtrl || !currCtrl) continue;
-
-        const dist = mapDistanceMetres(
-          prevCtrl.position,
-          currCtrl.position,
-          mapFile.scale,
-          mapFile.dpi,
-        );
-
-        if (dist < SHORT_LEG_THRESHOLD) {
-          items.push({
-            severity: 'warning',
-            messageKey: 'auditShortLeg',
-            messageParams: {
-              length: Math.round(dist),
-              name: courseName,
-              from: prevCtrl.code,
-              to: currCtrl.code,
-            },
-            courseId,
-            controlId: currCtrl.id,
-          });
-        } else if (dist > LONG_LEG_THRESHOLD) {
-          items.push({
-            severity: 'warning',
-            messageKey: 'auditLongLeg',
-            messageParams: {
-              length: Math.round(dist),
-              name: courseName,
-              from: prevCtrl.code,
-              to: currCtrl.code,
-            },
-            courseId,
-            controlId: currCtrl.id,
-          });
-        }
-      }
     }
   }
 
@@ -301,6 +236,141 @@ export function auditEvent(
     if (a.severity === b.severity) return 0;
     return a.severity === 'error' ? -1 : 1;
   });
+
+  return items;
+}
+
+/** Audit messageKey for each structural fork issue kind. */
+const FORK_ISSUE_MESSAGE_KEYS: Record<ForkIssueKind, string> = {
+  anchorUnresolved: 'auditForkAnchorUnresolved',
+  anchorIsExchange: 'auditForkAnchorIsExchange',
+  rejoinAcrossExchange: 'auditForkRejoinAcrossExchange',
+  exchangeInBranch: 'auditForkExchangeInBranch',
+  scoreCourse: 'auditForkScoreCourse',
+  duplicateLabel: 'auditForkDuplicateLabel',
+  emptyBranch: 'auditForkEmptyBranch',
+};
+
+/**
+ * The per-course checks, over ONE linear control sequence (a single enumerated
+ * variation — or the course's own controls when it has no forks).
+ * `courseName` already carries the variation code where applicable.
+ */
+function auditCourseControls(
+  courseControls: CourseControl[],
+  course: Course,
+  courseName: string,
+  controls: Record<ControlId, Control>,
+  mapFile: OverprintEvent['mapFile'],
+): AuditItem[] {
+  const items: AuditItem[] = [];
+  const courseId = course.id;
+
+  // Consecutive duplicate controls (zero-length leg — a planning error)
+  for (let i = 1; i < courseControls.length; i++) {
+    if (courseControls[i]!.controlId === courseControls[i - 1]!.controlId) {
+      const c = controls[courseControls[i]!.controlId];
+      items.push({
+        severity: 'error',
+        messageKey: 'auditConsecutiveDuplicate',
+        messageParams: { name: courseName, code: c ? c.code : 0 },
+        courseId,
+        controlId: courseControls[i]!.controlId,
+      });
+    }
+  }
+
+  // Empty course
+  if (courseControls.length === 0) {
+    items.push({
+      severity: 'error',
+      messageKey: 'auditEmptyCourse',
+      messageParams: { name: courseName },
+      courseId,
+    });
+    return items;
+  }
+
+  // Missing start/finish (normal courses only)
+  if (course.courseType === 'normal') {
+    const hasStart = courseControls.some((cc) => cc.type === 'start');
+    const hasFinish = courseControls.some((cc) => cc.type === 'finish');
+    if (!hasStart) {
+      items.push({
+        severity: 'error',
+        messageKey: 'auditMissingStart',
+        messageParams: { name: courseName },
+        courseId,
+      });
+    }
+    if (!hasFinish) {
+      items.push({
+        severity: 'error',
+        messageKey: 'auditMissingFinish',
+        messageParams: { name: courseName },
+        courseId,
+      });
+    }
+  }
+
+  // Score course without scores
+  if (course.courseType === 'score') {
+    const missingScores = courseControls.some(
+      (cc) => cc.type === 'control' && cc.score === undefined,
+    );
+    if (missingScores) {
+      items.push({
+        severity: 'warning',
+        messageKey: 'auditScoreNoPoints',
+        messageParams: { name: courseName },
+        courseId,
+      });
+    }
+  }
+
+  // Leg length checks (need mapFile for distance calculation)
+  if (mapFile && course.courseType === 'normal') {
+    for (let i = 1; i < courseControls.length; i++) {
+      const prevCtrl = controls[courseControls[i - 1]!.controlId];
+      const currCtrl = controls[courseControls[i]!.controlId];
+      if (!prevCtrl || !currCtrl) continue;
+
+      const dist = mapDistanceMetres(
+        prevCtrl.position,
+        currCtrl.position,
+        mapFile.scale,
+        mapFile.dpi,
+      );
+
+      if (dist < SHORT_LEG_THRESHOLD) {
+        items.push({
+          severity: 'warning',
+          messageKey: 'auditShortLeg',
+          messageParams: {
+            length: Math.round(dist),
+            name: courseName,
+            from: prevCtrl.code,
+            to: currCtrl.code,
+          },
+          courseId,
+          controlId: currCtrl.id,
+        });
+      } else if (dist > LONG_LEG_THRESHOLD) {
+        items.push({
+          severity: 'warning',
+          messageKey: 'auditLongLeg',
+          messageParams: {
+            length: Math.round(dist),
+            name: courseName,
+            from: prevCtrl.code,
+            to: currCtrl.code,
+          },
+          courseId,
+          controlId: currCtrl.id,
+        });
+      }
+    }
+  }
 
   return items;
 }

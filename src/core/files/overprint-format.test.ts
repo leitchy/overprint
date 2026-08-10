@@ -208,3 +208,71 @@ describe('deserializeEvent — legacy dangerous-area migration', () => {
     expect('vertices' in item && Array.isArray(item.vertices) && item.vertices.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('deserializeEvent — E10 fork/variation migration', () => {
+  it('backfills a stable courseControlId on legacy course controls', () => {
+    const legacy = JSON.stringify({
+      formatId: 'overprint',
+      version: '0.24.0',
+      event: {
+        id: 'e1', name: 'Legacy', mapFile: null,
+        controls: { c1: { id: 'c1', code: 31, position: { x: 0, y: 0 }, description: { columnD: '' } } },
+        courses: [{
+          id: 'co1', name: 'A', courseType: 'normal',
+          controls: [{ controlId: 'c1', type: 'start' }], // no courseControlId
+          settings: {},
+        }],
+        settings: {}, specialItems: [], version: '0.24.0',
+      },
+    });
+    const { event } = deserializeEvent(legacy);
+    const cc = event.courses[0]!.controls[0]!;
+    expect(cc.courseControlId).toBeDefined();
+    expect(typeof cc.courseControlId).toBe('string');
+  });
+
+  it('round-trips a course with a fork and restores nested ids', () => {
+    const withFork = JSON.stringify({
+      formatId: 'overprint',
+      version: '0.24.2',
+      event: {
+        id: 'e1', name: 'Forked', mapFile: null,
+        controls: {
+          c1: { id: 'c1', code: 31, position: { x: 0, y: 0 }, description: { columnD: '' } },
+          c2: { id: 'c2', code: 32, position: { x: 10, y: 0 }, description: { columnD: '' } },
+          c3: { id: 'c3', code: 33, position: { x: 20, y: 0 }, description: { columnD: '' } },
+        },
+        courses: [{
+          id: 'co1', name: 'A', courseType: 'normal',
+          controls: [
+            { courseControlId: 'cc-start', controlId: 'c1', type: 'start' },
+            { courseControlId: 'cc-anchor', controlId: 'c2', type: 'control' },
+            { courseControlId: 'cc-finish', controlId: 'c3', type: 'finish' },
+          ],
+          settings: {},
+          variations: [{
+            id: 'f1', kind: 'fork', anchorCourseControlId: 'cc-anchor',
+            branches: [
+              { id: 'b1', label: 'A', controls: [{ controlId: 'c1', type: 'control' }] },
+              { id: 'b2', label: 'B', controls: [{ controlId: 'c3', type: 'control' }] },
+            ],
+          }],
+        }],
+        settings: {}, specialItems: [], version: '0.24.2',
+      },
+    });
+    const { event } = deserializeEvent(withFork);
+    const fork = event.courses[0]!.variations![0]!;
+    expect(fork.id).toBe('f1');
+    expect(fork.anchorCourseControlId).toBe('cc-anchor');
+    expect(fork.branches).toHaveLength(2);
+    expect(fork.branches[0]!.label).toBe('A');
+    // branch controls get a backfilled courseControlId
+    expect(fork.branches[0]!.controls[0]!.courseControlId).toBeDefined();
+  });
+
+  it('leaves simple courses without a variations field', () => {
+    const { event } = deserializeEvent(serializeEvent(makeTestEvent()));
+    expect(event.courses[0]!.variations).toBeUndefined();
+  });
+});

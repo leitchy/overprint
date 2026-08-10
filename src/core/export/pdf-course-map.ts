@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, c
 import { rectangle as rectOp } from 'pdf-lib';
 import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
 import { embedDescriptionFonts, type DescriptionFonts } from './description-fonts';
-import type { OverprintEvent, Course, CourseControl, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
+import type { OverprintEvent, Course, CourseBounds, CourseControl, Control, EventSettings, PageSetup, SpecialItem } from '@/core/models/types';
 import type { MapPoint } from '@/core/models/types';
 import type { CourseId, ControlId } from '@/utils/id';
 import type { PageLayout, MapViewport } from './pdf-page-layout';
@@ -14,6 +14,7 @@ import { buildDescRows, type DescRow } from '@/core/descriptions/desc-rows';
 import { crossHatchSegments } from '@/core/geometry/hatch';
 import { eventOverprintSizeMultiplier } from '@/core/geometry/overprint-dimensions';
 import { countCourseParts, getPartControls, getPartBounds } from '@/core/models/course-parts';
+import { enumerateVariations, variationCourse } from '@/core/models/variation-enumerator';
 import { maxRasterLongSide, printRasterLongSide } from '@/core/files/raster-config';
 import { rasterizeSvgToImage } from '@/core/files/rasterize-svg';
 import { OVERPRINT_PURPLE, IOF_SPECIAL_SYMBOL_MM, IOF_SPECIAL_SYMBOL_LINE_MM, MARKED_ROUTE_DASH_MM, MARKED_ROUTE_GAP_MM, OOB_HATCH_WIDTH_MM, OOB_HATCH_SPACING_MM } from '@/core/models/constants';
@@ -68,6 +69,11 @@ function mergePageSetup(eventSetup: PageSetup, courseOverride?: Partial<PageSetu
  *
  * When a single course is too large to fit on one page at the desired print
  * scale, multiple pages are generated automatically with 15mm overlap.
+ *
+ * Courses with forks (E10) export one page-set per enumerated variation
+ * (variation outer, map-exchange part inner), with the variation code in the
+ * page title. `truncatedVariationCourses` lists any course whose variation
+ * count exceeded the enumeration cap — the capped set is still exported.
  */
 export async function generateCoursePdf(
   event: OverprintEvent,
@@ -75,7 +81,7 @@ export async function generateCoursePdf(
   options: PdfExportOptions = {},
   pdfArrayBuffer?: ArrayBuffer | null,
   mapSource?: MapSource,
-): Promise<{ blob: Blob; suggestedName: string }> {
+): Promise<{ blob: Blob; suggestedName: string; truncatedVariationCourses: string[] }> {
   if (!event.mapFile) throw new Error('No map file loaded');
 
   // Determine which courses to export
@@ -159,17 +165,18 @@ export async function generateCoursePdf(
   }
 
   let lastCourseName = '';
+  const truncatedVariationCourses: string[] = [];
 
   // For multi-course export, compute a union bounding box so all courses
   // share a consistent map position (prevents the map from shifting between pages).
   // Prefer union of print areas (if set), otherwise union of control bounds.
-  let unionBounds: import('@/core/models/types').CourseBounds | null = null;
-  let unionPrintArea: import('@/core/models/types').CourseBounds | null = null;
+  let unionBounds: CourseBounds | null = null;
+  let unionPrintArea: CourseBounds | null = null;
   if (isMultiCourse) {
     for (const ci of indices) {
       const course = event.courses[ci];
       if (!course) continue;
-      const b = computeCourseBounds(course, event.controls);
+      const b = computeVariationUnionBounds(course, event.controls);
       if (!b) continue;
       if (!unionBounds) {
         unionBounds = { ...b };
@@ -299,8 +306,9 @@ export async function generateCoursePdf(
     const course: Course | undefined = event.courses[ci];
     if (!course) continue;
 
-    // Course bounding box — skip courses with no controls
-    const bounds = computeCourseBounds(course, event.controls);
+    // Course bounding box (union across fork variations, so branch controls
+    // count toward framing) — skip courses with no controls.
+    const bounds = computeVariationUnionBounds(course, event.controls);
     if (!bounds) {
       console.warn(`Skipping course "${course.name}": no controls`);
       continue;
@@ -314,7 +322,8 @@ export async function generateCoursePdf(
     const layout = computePageLayout(pageSetup);
 
     // Compute viewport — for multi-course, use union bounds/print area
-    // so every page shares the same map position.
+    // so every page shares the same map position. Within a course, `bounds`
+    // already unions its variations, so variation pages never shift either.
     const printAreaOverride = isMultiCourse ? unionPrintArea : course.settings.printArea;
     const effectiveBounds = unionBounds ?? bounds;
     const multiPage = computeMultiPageViewports(
@@ -322,97 +331,112 @@ export async function generateCoursePdf(
       30, 15, printAreaOverride ?? undefined,
     );
 
-    // Multi-part courses: one page per part. Single-part: one page for the whole course.
-    const totalParts = countCourseParts(course.controls);
-    const partIterations = totalParts > 1
-      ? Array.from({ length: totalParts }, (_, i) => i)
-      : [null]; // null = single-part (no filtering)
+    // Fork variations (E10): one page-set per enumerated variation, the
+    // map-exchange part loop nested inside. A no-fork course yields exactly
+    // one variation whose synthetic course IS the original course object.
+    const enumeration = enumerateVariations(course);
+    if (enumeration.truncated) {
+      truncatedVariationCourses.push(course.name);
+      console.warn(
+        `Course "${course.name}": ${enumeration.total} variations exceed the cap; exporting first ${enumeration.variations.length}`,
+      );
+    }
 
-    for (const partIdx of partIterations) {
-      // Build the course to render (full course or filtered to this part)
-      let renderCourse: Course;
-      let sequenceOffset = 0;
-      let partLabel: string | undefined;
+    for (const variation of enumeration.variations) {
+      const vCourse = variationCourse(course, variation);
 
-      if (partIdx !== null) {
-        const partControls = getPartControls(course, partIdx);
-        renderCourse = { ...course, controls: partControls };
-        sequenceOffset = getPartBounds(course.controls, partIdx).start;
-        partLabel = `(P${partIdx + 1}/${totalParts})`;
-      } else {
-        renderCourse = course;
-      }
+      // Multi-part courses: one page per part. Single-part: one page for the whole course.
+      const totalParts = countCourseParts(vCourse.controls);
+      const partIterations = totalParts > 1
+        ? Array.from({ length: totalParts }, (_, i) => i)
+        : [null]; // null = single-part (no filtering)
 
-      // For each viewport page (usually 1 unless course is too large for the page)
-      const coursePageCount = multiPage.viewports.length;
-      for (let pageIndex = 0; pageIndex < coursePageCount; pageIndex++) {
-        const viewport = multiPage.viewports[pageIndex]!;
-        const toPdf = viewportToPdf(layout, viewport);
+      for (const partIdx of partIterations) {
+        // Build the course to render (full variation or filtered to this part)
+        let renderCourse: Course;
+        let sequenceOffset = 0;
+        let partLabel: string | undefined;
 
-        const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
-
-        // Draw base map
-        if (embeddedPdfPage) {
-          drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
-        } else if (embeddedMap) {
-          drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
+        if (partIdx !== null) {
+          const partControls = getPartControls(vCourse, partIdx);
+          renderCourse = { ...vCourse, controls: partControls };
+          sequenceOffset = getPartBounds(vCourse.controls, partIdx).start;
+          partLabel = `(P${partIdx + 1}/${totalParts})`;
+        } else {
+          renderCourse = vCourse;
         }
 
-        // White-out masks — below the overprint
-        drawWhiteOuts(page, event.specialItems, course.id, toPdf);
+        // For each viewport page (usually 1 unless course is too large for the page)
+        const coursePageCount = multiPage.viewports.length;
+        for (let pageIndex = 0; pageIndex < coursePageCount; pageIndex++) {
+          const viewport = multiPage.viewports[pageIndex]!;
+          const toPdf = viewportToPdf(layout, viewport);
 
-        // Draw vector overprint (filtered to part if multi-part)
-        drawOverprintPasses(
-          {
-            page,
-            settings: event.settings,
-            toPdf,
-            effectivePPP: viewport.effectivePPP,
-            sequenceOffset,
-            sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
-          },
-          renderCourse,
-          event.controls,
-          font,
-          embeddedUpperInkPage,
-          { layout, imgWidth, imgHeight, specialItems: event.specialItems, courseId: course.id },
-        );
+          const page = pdfDoc.addPage([layout.pageWidth, layout.pageHeight]);
 
-        // Auto-generate description box (rendered before special items so
-        // images/logos from .ppen draw on top of the white background).
-        // Honour the setter's placed box position (imported from .ppen) so it
-        // lands where they put it (e.g. below a logo) instead of auto right-aligning.
-        const courseDescBox = event.specialItems.find(
-          (si) => si.type === 'descriptionBox' && !si.allControls
-            && (!si.courseIds || si.courseIds.length === 0 || si.courseIds.includes(course.id)),
-        );
-        const descBoxPos = courseDescBox ? toPdf(courseDescBox.position) : undefined;
-        const descBoxCols = (courseDescBox?.type === 'descriptionBox' && courseDescBox.columns) || undefined;
-        await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, descFonts, event.name, partLabel, undefined, descBoxCols, descBoxPos, descBoxTopY);
-
-        // Draw special items (description boxes filtered out — auto-gen handles them)
-        await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
-
-        // Page label
-        const totalPages = coursePageCount * partIterations.length;
-        if (isMultiCourse || totalPages > 1) {
-          let pageLabel: string;
-          if (partIdx !== null) {
-            pageLabel = coursePageCount > 1
-              ? `${course.name}-${partIdx + 1} (${pageIndex + 1}/${coursePageCount})`
-              : `${course.name}-${partIdx + 1}`;
-          } else {
-            pageLabel = coursePageCount > 1
-              ? `${course.name} (${pageIndex + 1}/${coursePageCount})`
-              : course.name;
+          // Draw base map
+          if (embeddedPdfPage) {
+            drawEmbeddedPdfPage(page, embeddedPdfPage, layout, toPdf, imgWidth, imgHeight);
+          } else if (embeddedMap) {
+            drawEmbeddedMap(page, embeddedMap.image, toPdf, imgWidth, imgHeight);
           }
-          page.drawText(pageLabel, {
-            x: layout.marginLeft + 4,
-            y: layout.pageHeight - layout.marginTop - 12,
-            size: 8,
+
+          // White-out masks — below the overprint
+          drawWhiteOuts(page, event.specialItems, course.id, toPdf);
+
+          // Draw vector overprint (filtered to part if multi-part)
+          drawOverprintPasses(
+            {
+              page,
+              settings: event.settings,
+              toPdf,
+              effectivePPP: viewport.effectivePPP,
+              sequenceOffset,
+              sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
+            },
+            renderCourse,
+            event.controls,
             font,
-            color: rgb(0.4, 0.4, 0.4),
-          });
+            embeddedUpperInkPage,
+            { layout, imgWidth, imgHeight, specialItems: event.specialItems, courseId: course.id },
+          );
+
+          // Auto-generate description box (rendered before special items so
+          // images/logos from .ppen draw on top of the white background).
+          // Honour the setter's placed box position (imported from .ppen) so it
+          // lands where they put it (e.g. below a logo) instead of auto right-aligning.
+          const courseDescBox = event.specialItems.find(
+            (si) => si.type === 'descriptionBox' && !si.allControls
+              && (!si.courseIds || si.courseIds.length === 0 || si.courseIds.includes(course.id)),
+          );
+          const descBoxPos = courseDescBox ? toPdf(courseDescBox.position) : undefined;
+          const descBoxCols = (courseDescBox?.type === 'descriptionBox' && courseDescBox.columns) || undefined;
+          await renderAutoDescriptionBox(page, pdfDoc, renderCourse, event.controls, event.settings, layout, descFonts, event.name, partLabel, undefined, descBoxCols, descBoxPos, descBoxTopY);
+
+          // Draw special items (description boxes filtered out — auto-gen handles them)
+          await renderSpecialItems(page, pdfDoc, event.specialItems, course.id, renderCourse, event.controls, event.settings, layout, toPdf, font, viewport.effectivePPP);
+
+          // Page label — vCourse.name carries the variation code (e.g. "Blue AB")
+          const totalPages = coursePageCount * partIterations.length * enumeration.variations.length;
+          if (isMultiCourse || totalPages > 1) {
+            let pageLabel: string;
+            if (partIdx !== null) {
+              pageLabel = coursePageCount > 1
+                ? `${vCourse.name}-${partIdx + 1} (${pageIndex + 1}/${coursePageCount})`
+                : `${vCourse.name}-${partIdx + 1}`;
+            } else {
+              pageLabel = coursePageCount > 1
+                ? `${vCourse.name} (${pageIndex + 1}/${coursePageCount})`
+                : vCourse.name;
+            }
+            page.drawText(pageLabel, {
+              x: layout.marginLeft + 4,
+              y: layout.pageHeight - layout.marginTop - 12,
+              size: 8,
+              font,
+              color: rgb(0.4, 0.4, 0.4),
+            });
+          }
         }
       }
     }
@@ -423,7 +447,33 @@ export async function generateCoursePdf(
   const suggestedName = isMultiCourse
     ? `${event.name} - All Courses.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '')
     : `${event.name} - ${lastCourseName}.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
-  return { blob, suggestedName };
+  return { blob, suggestedName, truncatedVariationCourses };
+}
+
+/**
+ * Union of `computeCourseBounds` across a course's enumerated fork variations,
+ * so branch controls count toward the map framing and every variation page of
+ * the course shares one viewport. Identical to `computeCourseBounds(course)`
+ * for a course without forks (single variation over the original controls).
+ */
+function computeVariationUnionBounds(
+  course: Course,
+  controls: Record<ControlId, Control>,
+): CourseBounds | null {
+  let union: CourseBounds | null = null;
+  for (const v of enumerateVariations(course).variations) {
+    const b = computeCourseBounds(variationCourse(course, v), controls);
+    if (!b) continue;
+    if (!union) {
+      union = { ...b };
+    } else {
+      union.minX = Math.min(union.minX, b.minX);
+      union.minY = Math.min(union.minY, b.minY);
+      union.maxX = Math.max(union.maxX, b.maxX);
+      union.maxY = Math.max(union.maxY, b.maxY);
+    }
+  }
+  return union;
 }
 
 /**
