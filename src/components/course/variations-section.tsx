@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Control, Course } from '@/core/models/types';
+import type { Control, Course, CourseControl, CourseFork, ForkBranch } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
@@ -128,6 +128,27 @@ export function VariationsSection({
       ? courseLengthRange(course, controls, mapFile.scale, mapFile.dpi)
       : null;
 
+  // Length of a single branch/loop, for balance vetting. A loop is a round trip
+  // hub→…→hub; a fork branch runs anchor→…→rejoin (the trunk control after the anchor).
+  // Uses the same leg-on-source geometry as the enumerator (entry leg on the hub copy).
+  const branchLengthM = (
+    fork: CourseFork,
+    anchorCC: CourseControl | undefined,
+    branch: ForkBranch,
+  ): number | null => {
+    if (!mapFile || !anchorCC || branch.controls.length === 0) return null;
+    const entryHub: CourseControl = { ...anchorCC, bendPoints: branch.entryBendPoints, legGaps: branch.entryLegGaps };
+    let seq: CourseControl[];
+    if (fork.kind === 'loop') {
+      seq = [entryHub, ...branch.controls, anchorCC]; // return to the hub
+    } else {
+      const idx = course.controls.findIndex((cc) => cc.courseControlId === fork.anchorCourseControlId);
+      const rejoin = idx >= 0 ? course.controls[idx + 1] : undefined;
+      seq = rejoin ? [entryHub, ...branch.controls, rejoin] : [entryHub, ...branch.controls];
+    }
+    return calculateCourseLength(seq, controls, mapFile.scale, mapFile.dpi);
+  };
+
   const clampedIndex = Math.min(
     Math.max(activeVariationIndex, 0),
     enumeration.variations.length - 1,
@@ -225,6 +246,7 @@ export function VariationsSection({
                 {fork.branches.map((branch) => {
                   const isActiveTarget =
                     activeLoopTarget?.forkId === fork.id && activeLoopTarget?.branchId === branch.id;
+                  const branchLen = branchLengthM(fork, anchorCC, branch);
                   return (
                   <div
                     key={branch.id}
@@ -247,6 +269,15 @@ export function VariationsSection({
                           setBranchLabel(courseId, fork.id, branch.id, e.target.value)
                         }
                       />
+
+                      {branchLen != null && (
+                        <span
+                          className="shrink-0 font-mono text-[10px] text-gray-400"
+                          title={t(isLoop ? 'loopLengthHint' : 'branchLengthHint')}
+                        >
+                          {km(branchLen)}&nbsp;{t('km')}
+                        </span>
+                      )}
 
                       {/* Branch controls as removable chips */}
                       <div className="flex flex-1 flex-wrap items-center gap-1">
