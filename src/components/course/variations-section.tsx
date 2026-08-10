@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Control, Course } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { useEventStore } from '@/stores/event-store';
-import { enumerateVariations, MAX_VARIATIONS } from '@/core/models/variation-enumerator';
+import { enumerateVariations, factorial, MAX_VARIATIONS } from '@/core/models/variation-enumerator';
 import { courseForkIssues, type ForkIssue, type ForkIssueKind } from '@/core/models/fork-validation';
 import { calculateCourseLength, courseLengthRange } from '@/core/geometry/course-length';
 import { useT } from '@/i18n/use-t';
@@ -24,6 +24,9 @@ const ISSUE_KEYS: Record<ForkIssueKind, TranslationKey> = {
   scoreCourse: 'forkIssueScoreCourse',
   duplicateLabel: 'forkIssueDuplicateLabel',
   emptyBranch: 'forkIssueEmptyBranch',
+  tooFewLoops: 'forkIssueTooFewLoops',
+  duplicateAnchor: 'forkIssueDuplicateAnchor',
+  tooManyLoops: 'forkIssueTooManyLoops',
 };
 
 /** Format metres as a one-decimal km string. */
@@ -50,6 +53,7 @@ export function VariationsSection({
   const activeVariationIndex = useEventStore((s) => s.activeVariationIndex);
   const setActiveVariationIndex = useEventStore((s) => s.setActiveVariationIndex);
   const addFork = useEventStore((s) => s.addFork);
+  const addLoop = useEventStore((s) => s.addLoop);
   const removeFork = useEventStore((s) => s.removeFork);
   const addBranch = useEventStore((s) => s.addBranch);
   const removeBranch = useEventStore((s) => s.removeBranch);
@@ -120,15 +124,25 @@ export function VariationsSection({
 
       {open && (
         <div className="px-3 pb-2 space-y-2">
-          {/* Add fork at the currently selected trunk control */}
-          <button
-            disabled={!anchorId}
-            onClick={() => anchorId && addFork(courseId, anchorId)}
-            className="w-full rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
-            title={anchorId ? undefined : t('addForkHint')}
-          >
-            {t('addForkAtSelected')}
-          </button>
+          {/* Add a fork or a loop at the currently selected trunk control */}
+          <div className="flex gap-1">
+            <button
+              disabled={!anchorId}
+              onClick={() => anchorId && addFork(courseId, anchorId)}
+              className="flex-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+              title={anchorId ? undefined : t('addForkHint')}
+            >
+              {t('addForkAtSelected')}
+            </button>
+            <button
+              disabled={!anchorId}
+              onClick={() => anchorId && addLoop(courseId, anchorId)}
+              className="flex-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+              title={anchorId ? undefined : t('addForkHint')}
+            >
+              {t('addLoopAtSelected')}
+            </button>
+          </div>
           {!anchorId && (
             <p className="text-[10px] italic text-gray-400">{t('addForkHint')}</p>
           )}
@@ -140,12 +154,18 @@ export function VariationsSection({
             );
             const anchorCode = anchorCC ? controls[anchorCC.controlId]?.code : undefined;
             const forkIssues = issues.filter((i) => i.forkId === fork.id);
+            const isLoop = fork.kind === 'loop';
 
             return (
               <div key={fork.id} className="rounded border border-gray-200">
                 <div className="flex items-center justify-between px-2 py-1">
                   <span className="text-xs font-medium text-gray-600">
-                    {t('forkAtControl', { code: anchorCode ?? '?' })}
+                    {t(isLoop ? 'loopAtControl' : 'forkAtControl', { code: anchorCode ?? '?' })}
+                    {isLoop && (
+                      <span className="ml-1 text-[10px] font-normal text-gray-400">
+                        {t('variationsLoopCount', { n: factorial(fork.branches.length) })}
+                      </span>
+                    )}
                   </span>
                   <button
                     onClick={() => removeFork(courseId, fork.id)}
@@ -240,7 +260,7 @@ export function VariationsSection({
                     onClick={() => addBranch(courseId, fork.id)}
                     className="rounded px-1 text-[10px] font-medium text-violet-600 hover:bg-violet-50"
                   >
-                    + {t('addBranchLabel')}
+                    + {t(isLoop ? 'addLoopLabel' : 'addBranchLabel')}
                   </button>
                 </div>
               </div>

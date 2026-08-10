@@ -27,12 +27,18 @@ export type ForkIssueKind =
   | 'rejoinAcrossExchange'
   /** A branch contains a mapExchange/mapFlip control. */
   | 'exchangeInBranch'
-  /** Forks are not supported on score courses. */
+  /** Forks/loops are not supported on score courses. */
   | 'scoreCourse'
-  /** Two branches of the same fork share a label. */
+  /** Two branches/loops of the same generator share a label. */
   | 'duplicateLabel'
-  /** Branch has no controls yet — the fork is incomplete. */
-  | 'emptyBranch';
+  /** Branch/loop has no controls yet — the generator is incomplete. */
+  | 'emptyBranch'
+  /** A loop needs ≥2 loops for a non-trivial ordering. */
+  | 'tooFewLoops'
+  /** More than one generator anchored at the same control (the second is dropped). */
+  | 'duplicateAnchor'
+  /** Soft: a loop has >4 loops — the hub circle carries too many numbers to read. */
+  | 'tooManyLoops';
 
 export interface ForkIssue {
   forkId: ForkId;
@@ -51,10 +57,20 @@ export function courseForkIssues(course: Course): ForkIssue[] {
   if (forks.length === 0) return issues;
 
   const trunk = course.controls;
+  const anchorSeen = new Set<string>();
 
   for (const fork of forks) {
     if (course.courseType === 'score') {
       issues.push({ forkId: fork.id, kind: 'scoreCourse' });
+    }
+
+    // A loop needs ≥2 loops; >4 is a soft legibility warning (hub number clutter).
+    if (fork.kind === 'loop') {
+      if (fork.branches.length < 2) {
+        issues.push({ forkId: fork.id, kind: 'tooFewLoops' });
+      } else if (fork.branches.length > 4) {
+        issues.push({ forkId: fork.id, kind: 'tooManyLoops' });
+      }
     }
 
     const anchorIndex = trunk.findIndex(
@@ -63,6 +79,12 @@ export function courseForkIssues(course: Course): ForkIssue[] {
     if (anchorIndex <= 0 || anchorIndex >= trunk.length - 1) {
       issues.push({ forkId: fork.id, kind: 'anchorUnresolved' });
     } else {
+      // Only one generator per anchor — a second is silently dropped by the enumerator.
+      const key = String(fork.anchorCourseControlId);
+      if (anchorSeen.has(key)) {
+        issues.push({ forkId: fork.id, kind: 'duplicateAnchor' });
+      }
+      anchorSeen.add(key);
       if (isExchangeType(trunk[anchorIndex]!.type)) {
         issues.push({ forkId: fork.id, kind: 'anchorIsExchange' });
       }

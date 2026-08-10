@@ -18,7 +18,10 @@ function restoreCourseControl(cc: CourseControl): CourseControl {
   };
 }
 
-/** Restore branded ids on a course's fork/variation generators (Phase 1). */
+/** Restore branded ids on a course's fork/loop variation generators. The `...fork`
+ *  spread preserves `kind` ('fork' | 'loop') and branch entry-leg geometry verbatim;
+ *  a generator with an unknown/missing `kind` is not repaired here but is dropped
+ *  defensively by the enumerator (variation-enumerator.ts), never corrupting the trunk. */
 function restoreVariations(variations: CourseFork[] | undefined): CourseFork[] | undefined {
   if (!Array.isArray(variations)) return undefined;
   return variations.map((fork) => ({

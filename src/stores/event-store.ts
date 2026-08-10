@@ -101,6 +101,8 @@ interface EventActions {
    *  ('A'/'B') — the fork is "in progress" until each branch has ≥1 control
    *  (courseForkIssues reports emptyBranch; enumeration/export are gated on it). */
   addFork: (courseId: CourseId, anchorCourseControlId: CourseControlId) => void;
+  /** Attach a butterfly/phi loop generator (hub) at an interior trunk control. */
+  addLoop: (courseId: CourseId, anchorCourseControlId: CourseControlId) => void;
   removeFork: (courseId: CourseId, forkId: ForkId) => void;
   /** Append a branch with the next free letter label ('C', 'D', …). */
   addBranch: (courseId: CourseId, forkId: ForkId) => void;
@@ -211,6 +213,12 @@ function findFork(course: Course, forkId: ForkId): CourseFork | undefined {
 function isForkAnchorResolvable(course: Course, anchorCourseControlId: CourseControlId): boolean {
   const idx = course.controls.findIndex((cc) => cc.courseControlId === anchorCourseControlId);
   return idx > 0 && idx < course.controls.length - 1;
+}
+
+/** True when a generator (fork or loop) already occupies this anchor — a second
+ *  would be dropped by the enumerator, so creation is refused. */
+function isAnchorOccupied(course: Course, anchorCourseControlId: CourseControlId): boolean {
+  return (course.variations ?? []).some((f) => f.anchorCourseControlId === anchorCourseControlId);
 }
 
 /** After any trunk mutation: drop forks whose anchor no longer resolves to an
@@ -356,7 +364,7 @@ export const useEventStore = create<EventState & EventActions>()(
               if (!newAnchor) continue;
               variations.push({
                 id: generateForkId(),
-                kind: 'fork',
+                kind: fork.kind,
                 anchorCourseControlId: newAnchor,
                 branches: fork.branches.map((b) => ({
                   id: generateBranchId(),
@@ -470,10 +478,34 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!course) return;
           // Anchor must be an interior trunk control (entry leg + rejoin exist)
           if (!isForkAnchorResolvable(course, anchorCourseControlId)) return;
+          // At most one generator per anchor.
+          if (isAnchorOccupied(course, anchorCourseControlId)) return;
           if (!course.variations) course.variations = [];
           course.variations.push({
             id: generateForkId(),
             kind: 'fork',
+            anchorCourseControlId,
+            branches: [
+              { id: generateBranchId(), label: 'A', controls: [] },
+              { id: generateBranchId(), label: 'B', controls: [] },
+            ],
+          });
+        });
+      },
+
+      addLoop: (courseId: CourseId, anchorCourseControlId: CourseControlId) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          // Hub must be an interior trunk control; at most one generator per anchor.
+          if (!isForkAnchorResolvable(course, anchorCourseControlId)) return;
+          if (isAnchorOccupied(course, anchorCourseControlId)) return;
+          if (!course.variations) course.variations = [];
+          // Seed two loops; the runner runs both, in either order (2! = 2 variations).
+          course.variations.push({
+            id: generateForkId(),
+            kind: 'loop',
             anchorCourseControlId,
             branches: [
               { id: generateBranchId(), label: 'A', controls: [] },

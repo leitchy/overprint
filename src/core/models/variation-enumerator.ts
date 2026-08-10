@@ -8,26 +8,62 @@
  * Pure and dependency-light (no geometry/store imports). Length/climb per variation
  * are a caller concern: `calculateCourseLength(v.controls, ...)`.
  *
- * Phase 1 handles `kind:'fork'` (gaffling: pick one branch). `kind:'loop'` (Phase 2)
- * slots in by adding to the per-fork choice set below.
+ * Handles both generator kinds:
+ * - `kind:'fork'` (gaffling: pick one branch) → dimension = `branches.length`;
+ *   `choice[f]` is the chosen branch index.
+ * - `kind:'loop'` (butterfly/phi) → dimension = `k!` where `k = branches.length`;
+ *   `choice[f]` is a permutation RANK, decoded by `nthPermutation` into the order the
+ *   loops are run. The hub (anchor) is emitted `k+1` times per variation.
  *
  * Determinism & safety:
- * - Forks are ordered by their anchor's trunk index; variation `code` concatenates
- *   the chosen branches' sticky labels in that order (stable under branch reorder).
- * - Combinations are a mixed-radix odometer (fork 0 most-significant), so the cap
- *   yields a deterministic first-N.
+ * - Generators are ordered by their anchor's trunk index; variation `code` concatenates
+ *   the chosen branches' / permuted loops' sticky labels in that order.
+ * - Combinations are a mixed-radix odometer (generator 0 most-significant), so the cap
+ *   yields a deterministic first-N. A loop rank is always `< k!` (its own radix), so
+ *   `nthPermutation` never receives an out-of-range rank.
  * - The anchor `CourseControl` is COPIED per variation (its outgoing-leg geometry
- *   replaced by the branch's entry-leg); all other controls are passed by reference
- *   and never mutated (store is Immer-frozen).
- * - A fork whose anchor can't be resolved (removed, or first/last — no rejoin) is
- *   DROPPED into `droppedForkIds`; the enumerator never throws or splices at -1, so
- *   a stale `variations` written by an older app degrades gracefully.
+ *   replaced by the branch's/loop's entry-leg); all other controls are passed by
+ *   reference and never mutated (store is Immer-frozen). INVARIANT: a variation's
+ *   `controls` are read-only, and `courseControlId` is NOT unique within a variation
+ *   (every hub copy shares the trunk anchor's id) — never key a flattened variation by it.
+ * - A generator is DROPPED into `droppedForkIds` when its anchor is unresolvable /
+ *   first / last, when it has no branches, when a loop has < 2 loops, when a second
+ *   generator lands on an anchor already taken, or when `kind` is unknown. The
+ *   enumerator never throws or splices at -1, so a stale `variations` written by an
+ *   older app degrades gracefully.
  */
 import type { Course, CourseControl, CourseFork } from './types';
 import type { ForkId } from '@/utils/id';
 
 /** Hard cap on enumerated variations; beyond this, `truncated` is set. */
 export const MAX_VARIATIONS = 100;
+
+/** n! for small n (loops in practice have k ≤ ~6). Guards n<0 / non-finite. */
+export function factorial(n: number): number {
+  if (!Number.isInteger(n) || n < 0) return 1;
+  let f = 1;
+  for (let i = 2; i <= n; i++) f *= i;
+  return f;
+}
+
+/**
+ * The `rank`-th permutation (lexicographic) of `[0..k-1]` via the factorial number
+ * system (Lehmer code). `nthPermutation(k, 0) === [0..k-1]`. Deterministic; `rank`
+ * is taken mod `k!` defensively so an out-of-range rank still yields a valid order.
+ */
+export function nthPermutation(k: number, rank: number): number[] {
+  const elements: number[] = [];
+  for (let i = 0; i < k; i++) elements.push(i);
+  const result: number[] = [];
+  let r = ((rank % factorial(k)) + factorial(k)) % factorial(k);
+  for (let i = k; i >= 1; i--) {
+    const f = factorial(i - 1);
+    const idx = Math.floor(r / f);
+    r %= f;
+    result.push(elements.splice(idx, 1)[0]!);
+  }
+  return result;
+}
 
 export interface Variation {
   index: number;
@@ -80,12 +116,21 @@ export function enumerateVariations(course: Course): EnumerationResult {
   const trunk = course.controls;
   const droppedForkIds: ForkId[] = [];
 
-  // Resolve fork anchors to trunk indices; drop anything unusable (defensive).
+  // Resolve generator anchors to trunk indices; drop anything unusable (defensive).
   const resolved: ResolvedFork[] = [];
+  const takenAnchorIndex = new Set<number>();
   for (const fork of course.variations ?? []) {
-    if (fork.kind !== 'fork' || !fork.branches?.length) {
-      // Phase 1: only forks. (loops handled in Phase 2.)
-      if (fork.kind !== 'fork') continue;
+    // Unknown kind (older/newer/hand-edited file) — drop, never silently ignore.
+    if (fork.kind !== 'fork' && fork.kind !== 'loop') {
+      droppedForkIds.push(fork.id);
+      continue;
+    }
+    if (!fork.branches?.length) {
+      droppedForkIds.push(fork.id);
+      continue;
+    }
+    // A loop needs ≥2 loops to have a non-trivial ordering.
+    if (fork.kind === 'loop' && fork.branches.length < 2) {
       droppedForkIds.push(fork.id);
       continue;
     }
@@ -95,6 +140,13 @@ export function enumerateVariations(course: Course): EnumerationResult {
       droppedForkIds.push(fork.id);
       continue;
     }
+    // At most one generator per anchor — a second would be shadowed by the
+    // anchor→generator map below and corrupt the dimension count. First wins.
+    if (takenAnchorIndex.has(anchorIndex)) {
+      droppedForkIds.push(fork.id);
+      continue;
+    }
+    takenAnchorIndex.add(anchorIndex);
     resolved.push({ fork, anchorIndex });
   }
 
@@ -111,7 +163,10 @@ export function enumerateVariations(course: Course): EnumerationResult {
   const anchorForkByIndex = new Map<number, ResolvedFork>();
   for (const rf of resolved) anchorForkByIndex.set(rf.anchorIndex, rf);
 
-  const dims = resolved.map((rf) => rf.fork.branches.length);
+  // Fork dimension = branch count; loop dimension = k! orderings.
+  const dims = resolved.map((rf) =>
+    rf.fork.kind === 'loop' ? factorial(rf.fork.branches.length) : rf.fork.branches.length,
+  );
   const total = dims.reduce((acc, d) => acc * d, 1);
   const count = Math.min(total, MAX_VARIATIONS);
 
@@ -130,7 +185,7 @@ export function enumerateVariations(course: Course): EnumerationResult {
     for (let i = 0; i < trunk.length; i++) {
       const rf = anchorForkByIndex.get(i);
       const anchorCC = trunk[i]!;
-      if (rf) {
+      if (rf && rf.fork.kind === 'fork') {
         const forkOrder = resolved.indexOf(rf);
         const branch = rf.fork.branches[choice[forkOrder]!]!;
         code += branch.label;
@@ -138,6 +193,28 @@ export function enumerateVariations(course: Course): EnumerationResult {
         controls.push({ ...anchorCC, bendPoints: branch.entryBendPoints, legGaps: branch.entryLegGaps });
         // Branch controls (read-only refs); branch-last.bendPoints is the rejoin leg.
         controls.push(...branch.controls);
+      } else if (rf && rf.fork.kind === 'loop') {
+        const forkOrder = resolved.indexOf(rf);
+        const order = nthPermutation(rf.fork.branches.length, choice[forkOrder]!);
+        code += order.map((li) => rf.fork.branches[li]!.label).join('');
+        // Run each loop in the chosen order, emitting a hub copy before each. Hub
+        // copies carry NO numberOffset/score so the renderer can fan the multiple
+        // sequence numbers (an explicit trunk offset would otherwise stack them).
+        for (const li of order) {
+          const loop = rf.fork.branches[li]!;
+          controls.push({
+            ...anchorCC,
+            numberOffset: undefined,
+            score: undefined,
+            bendPoints: loop.entryBendPoints,
+            legGaps: loop.entryLegGaps,
+          });
+          // Loop controls (read-only refs); loop-last.bendPoints is the return-to-hub leg.
+          controls.push(...loop.controls);
+        }
+        // Final departure hub: retains the ORIGINAL trunk hub's outgoing geometry
+        // (hub → next trunk control). This is the (k+1)th hub occurrence.
+        controls.push({ ...anchorCC, numberOffset: undefined, score: undefined });
       } else {
         controls.push(anchorCC);
       }

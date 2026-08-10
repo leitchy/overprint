@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { serializeEvent, deserializeEvent } from './overprint-format';
-import { createEvent, createControl, createCourse } from '@/core/models/defaults';
+import { createEvent, createControl, createCourse, makeCourseControl } from '@/core/models/defaults';
 import type { OverprintEvent } from '@/core/models/types';
+import { generateForkId, generateBranchId } from '@/utils/id';
 
 function makeTestEvent(): OverprintEvent {
   const event = createEvent('Test Event');
@@ -98,6 +99,41 @@ describe('deserializeEvent', () => {
     for (const cc of course.controls) {
       expect(restored.controls[cc.controlId]).toBeDefined();
     }
+  });
+
+  it('round-trips a loop generator (kind, entry geometry, ids)', () => {
+    const event = createEvent('Loop Event');
+    const course = createCourse('Butterfly');
+    const start = createControl(31, { x: 0, y: 0 });
+    const hub = createControl(32, { x: 100, y: 0 });
+    const finish = createControl(33, { x: 200, y: 0 });
+    const loopCtrl = createControl(34, { x: 100, y: 100 });
+    for (const c of [start, hub, finish, loopCtrl]) event.controls[c.id] = c;
+    const hubCC = makeCourseControl(hub.id, 'control');
+    course.controls.push(
+      makeCourseControl(start.id, 'start'),
+      hubCC,
+      makeCourseControl(finish.id, 'finish'),
+    );
+    course.variations = [{
+      id: generateForkId(),
+      kind: 'loop',
+      anchorCourseControlId: hubCC.courseControlId!,
+      branches: [
+        { id: generateBranchId(), label: 'A', entryBendPoints: [{ x: 50, y: 50 }], controls: [makeCourseControl(loopCtrl.id, 'control')] },
+        { id: generateBranchId(), label: 'B', controls: [makeCourseControl(loopCtrl.id, 'control')] },
+      ],
+    }];
+    event.courses.push(course);
+
+    const { event: restored } = deserializeEvent(serializeEvent(event));
+    const rv = restored.courses[0]!.variations!;
+    expect(rv).toHaveLength(1);
+    expect(rv[0]!.kind).toBe('loop');
+    expect(rv[0]!.branches.map((b) => b.label)).toEqual(['A', 'B']);
+    expect(rv[0]!.branches[0]!.entryBendPoints).toEqual([{ x: 50, y: 50 }]);
+    // Anchor id is re-branded but still resolves to a trunk control.
+    expect(restored.courses[0]!.controls.some((cc) => cc.courseControlId === rv[0]!.anchorCourseControlId)).toBe(true);
   });
 
   it('restores settings with defaults', () => {

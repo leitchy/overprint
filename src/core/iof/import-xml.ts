@@ -143,6 +143,13 @@ export function importIofXml(
 
   for (const courseEl of directChildren(raceCourseData, ns, 'Course')) {
     const name = getTextNS(courseEl, ns, 'Name');
+    // <CourseFamily> groups the variations of one forked/looped course (PurplePen
+    // convention). We keep each variation as a SEPARATE flat course (the full
+    // suffixed <Name>, e.g. "Course 1 AB", is preserved) and do NOT reconstruct a
+    // single forked course — PurplePen doesn't re-collapse them either, and our own
+    // .overprint format is the lossless fork/loop round-trip. Read but intentionally
+    // unused; kept as a marker for any future reconstruction.
+    void getTextNS(courseEl, ns, 'CourseFamily');
 
     // Real v3 uses <CourseControl>; the legacy dialect used bare <Control>.
     let ccEls = directChildren(courseEl, ns, 'CourseControl');
@@ -155,8 +162,10 @@ export function importIofXml(
     for (let i = 0; i < ccEls.length; i++) {
       const ccEl = ccEls[i]!;
 
-      // Control reference: real v3 nests <Control>id</Control> (first wins for
-      // fork variations); legacy used a <ControlId> child.
+      // Control reference: real v3 nests <Control>id</Control>. A CourseControl may
+      // hold MULTIPLE <Control> children, but per the IOF spec that means "punch one
+      // of these" (a control-code alternative), NOT a course fork — and PurplePen
+      // never emits it — so we take the first and ignore the rest. Legacy used <ControlId>.
       const refId = legacy
         ? getTextNS(ccEl, ns, 'ControlId')
         : (directChildren(ccEl, ns, 'Control')[0]?.textContent?.trim() ?? '');

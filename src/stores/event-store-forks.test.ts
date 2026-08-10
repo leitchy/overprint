@@ -36,6 +36,14 @@ function addForkAt(courseId: CourseId, anchorIndex: number) {
   return variations?.[variations.length - 1];
 }
 
+/** Add a loop anchored at trunk[anchorIndex]; returns the loop generator. */
+function addLoopAt(courseId: CourseId, anchorIndex: number) {
+  const anchor = getCourse(courseId).controls[anchorIndex]!.courseControlId!;
+  useEventStore.getState().addLoop(courseId, anchor);
+  const variations = getCourse(courseId).variations;
+  return variations?.[variations.length - 1];
+}
+
 describe('fork mutations', () => {
   it('addFork creates two empty branches labelled A and B', () => {
     const courseId = setupCourse();
@@ -125,6 +133,45 @@ describe('fork mutations', () => {
     const branch = getCourse(courseId).variations![0]!.branches[0]!;
     expect(branch.entryBendPoints).toEqual([{ x: 5, y: 6 }]);
     expect(branch.entryLegGaps).toEqual([{ startDist: 1, endDist: 2 }]);
+  });
+});
+
+describe('loop mutations', () => {
+  it('addLoop creates a kind:loop generator with two loops A and B', () => {
+    const courseId = setupCourse();
+    const generator = addLoopAt(courseId, 1)!;
+    expect(generator.kind).toBe('loop');
+    expect(generator.branches.map((b) => b.label)).toEqual(['A', 'B']);
+  });
+
+  it('addLoop and addFork refuse a second generator on the same anchor', () => {
+    const courseId = setupCourse();
+    addForkAt(courseId, 1);
+    const anchor = getCourse(courseId).controls[1]!.courseControlId!;
+    useEventStore.getState().addLoop(courseId, anchor);
+    expect(getCourse(courseId).variations).toHaveLength(1);
+    expect(getCourse(courseId).variations![0]!.kind).toBe('fork');
+  });
+
+  it('addBranch/removeBranch act as add/remove loop', () => {
+    const courseId = setupCourse();
+    const generator = addLoopAt(courseId, 1)!;
+    useEventStore.getState().addBranch(courseId, generator.id);
+    expect(getCourse(courseId).variations![0]!.branches.map((b) => b.label)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('duplicateCourse preserves kind:loop and entry geometry', () => {
+    const courseId = setupCourse(4);
+    const generator = addLoopAt(courseId, 2)!;
+    const branchId = generator.branches[0]!.id;
+    useEventStore.getState().addControlToBranch(courseId, generator.id, branchId, getCourse(courseId).controls[1]!.controlId);
+    useEventStore.getState().setBranchEntryBendPoints(courseId, generator.id, branchId, [{ x: 3, y: 4 }]);
+    useEventStore.getState().duplicateCourse(courseId);
+    const copy = useEventStore.getState().event!.courses[1]!;
+    expect(copy.variations![0]!.kind).toBe('loop');
+    expect(copy.variations![0]!.branches[0]!.entryBendPoints).toEqual([{ x: 3, y: 4 }]);
+    // ids regenerated
+    expect(copy.variations![0]!.id).not.toBe(generator.id);
   });
 });
 

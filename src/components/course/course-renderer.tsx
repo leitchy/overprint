@@ -1,10 +1,11 @@
 import { memo } from 'react';
-import type { Course, Control, CourseControlType, MapPoint, LegGap, CircleGap } from '@/core/models/types';
+import type { Course, Control, CourseControl, CourseControlType, MapPoint, LegGap, CircleGap } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import type { OverprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, SCREEN_LINE_MULTIPLIER } from '@/core/models/constants';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { computeCourseAutoLegGaps, type AutoGapControl } from '@/core/geometry/auto-leg-gaps';
+import { computeNumberFanOffsets } from '@/core/geometry/number-fan';
 import { ControlShape } from './control-shape';
 import { LegLine } from './leg-line';
 
@@ -109,13 +110,16 @@ export const CourseRenderer = memo(function CourseRenderer({
 }: CourseRendererProps) {
   const screenLineWidth = dimensions.lineWidth * SCREEN_LINE_MULTIPLIER;
 
-  // Resolve control positions for leg drawing — include numberOffset per-control
+  // Resolve control positions for leg drawing. `index` is the position in
+  // course.controls; leg geometry lookups use the carried `courseControl` (NOT the
+  // filtered position) so a control missing from the pool can't misalign later legs.
   const resolvedControls: Array<{
     control: Control;
     type: CourseControlType;
     index: number;
     numberOffset?: { x: number; y: number };
     score?: number;
+    courseControl: CourseControl;
   }> = [];
 
   for (let i = 0; i < course.controls.length; i++) {
@@ -128,19 +132,28 @@ export const CourseRenderer = memo(function CourseRenderer({
         index: i,
         numberOffset: cc.numberOffset,
         score: cc.score,
+        courseControl: cc,
       });
     }
   }
+
+  // Fan sequence numbers of any control that recurs (loop hubs) so co-located
+  // numbers don't stack. Radius in map pixels (numberOffset units).
+  const fanRadius = dimensions.circleRadius + dimensions.numberSize;
+  const fanOffsets = computeNumberFanOffsets(
+    resolvedControls.map((rc) => ({ controlId: rc.control.id, numberOffset: rc.numberOffset })),
+    fanRadius,
+  );
 
   // Auto leg-cut gaps (render-time, non-stored): cut where a leg passes through
   // another control's circle or crosses an earlier leg. Skipped for score courses.
   const autoGapsByLeg = course.courseType === 'score'
     ? ([] as (LegGap[] | undefined)[])
     : computeCourseAutoLegGaps(
-        resolvedControls.map((rc, idx): AutoGapControl => ({
+        resolvedControls.map((rc): AutoGapControl => ({
           position: rc.control.position,
           type: rc.type,
-          bendPoints: course.controls[idx]?.bendPoints,
+          bendPoints: rc.courseControl.bendPoints,
         })),
         (type) => controlRadius(type, dimensions),
         (type) => shapeOffset(type, dimensions),
@@ -172,15 +185,15 @@ export const CourseRenderer = memo(function CourseRenderer({
         const prev = resolvedControls[i - 1]!;
         return (
           <LegLine
-            key={`leg-${prev.control.id}-${curr.control.id}`}
+            key={`leg-${i}`}
             from={prev.control.position}
             to={curr.control.position}
             fromOffset={shapeOffset(prev.type, dimensions)}
             toOffset={shapeOffset(curr.type, dimensions)}
             lineWidth={screenLineWidth}
             color={color}
-            bendPoints={course.controls[i - 1]?.bendPoints}
-            legGaps={course.controls[i - 1]?.legGaps}
+            bendPoints={prev.courseControl.bendPoints}
+            legGaps={prev.courseControl.legGaps}
             autoGaps={autoGapsByLeg[i]}
             editable={editLegs}
             onInsert={
@@ -190,22 +203,22 @@ export const CourseRenderer = memo(function CourseRenderer({
             }
             onAddBendPoint={
               onAddBendPoint
-                ? (pos, insertAt) => onAddBendPoint(i - 1, pos, insertAt)
+                ? (pos, insertAt) => onAddBendPoint(prev.index, pos, insertAt)
                 : undefined
             }
             onBendPointDragEnd={
               onBendPointDragEnd
-                ? (bendIdx, pos) => onBendPointDragEnd(i - 1, bendIdx, pos)
+                ? (bendIdx, pos) => onBendPointDragEnd(prev.index, bendIdx, pos)
                 : undefined
             }
             onRemoveBendPoint={
               onRemoveBendPoint
-                ? (bendIdx) => onRemoveBendPoint(i - 1, bendIdx)
+                ? (bendIdx) => onRemoveBendPoint(prev.index, bendIdx)
                 : undefined
             }
             onGapDragEnd={
               onGapDragEnd
-                ? (gapIdx, gap) => onGapDragEnd(i - 1, gapIdx, gap)
+                ? (gapIdx, gap) => onGapDragEnd(prev.index, gapIdx, gap)
                 : undefined
             }
           />
@@ -213,8 +226,10 @@ export const CourseRenderer = memo(function CourseRenderer({
       })}
 
       {/* Control shapes — skip controls that are hidden (shared with active course) */}
-      {resolvedControls.map(({ control, type, index, numberOffset, score }) => {
+      {resolvedControls.map(({ control, type, index, score }, posIdx) => {
         if (hideControlIds?.has(control.id)) return null;
+        // Fanned offset for repeated controls (loop hubs); explicit user offset wins.
+        const numberOffset = fanOffsets[posIdx];
 
         // Compute label text from course labelMode setting
         const labelMode = course.settings.labelMode ?? 'sequence';
@@ -232,7 +247,7 @@ export const CourseRenderer = memo(function CourseRenderer({
 
         return (
         <ControlShape
-          key={control.id}
+          key={`${control.id}-${index}`}
           control={control}
           type={type}
           labelText={labelText}

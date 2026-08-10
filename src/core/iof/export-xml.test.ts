@@ -351,4 +351,68 @@ describe('exportIofXml — fork variations (E10.4)', () => {
     expect(courses.length).toBe(1);
     expect(courses[0]!.getElementsByTagNameNS(NS, 'Name')[0]?.textContent).toBe('Course A');
   });
+
+  it('groups fork variations under a shared CourseFamily (base course name)', () => {
+    const doc = parse(exportIofXml(makeForkEvent()));
+    const courses = Array.from(doc.getElementsByTagNameNS(NS, 'Course'));
+    const families = courses.map((c) => c.getElementsByTagNameNS(NS, 'CourseFamily')[0]?.textContent);
+    expect(families).toEqual(['Course A', 'Course A']);
+    // Element order: Name → CourseFamily → Length
+    const names = (el: Element) => Array.from(el.childNodes)
+      .filter((n): n is Element => n.nodeType === 1).map((n) => n.localName);
+    const order = names(courses[0]!);
+    expect(order.indexOf('Name')).toBeLessThan(order.indexOf('CourseFamily'));
+    expect(order.indexOf('CourseFamily')).toBeLessThan(order.indexOf('Length'));
+  });
+
+  it('does not emit CourseFamily for an unforked course', () => {
+    const doc = parse(exportIofXml(makeEvent()));
+    expect(doc.getElementsByTagNameNS(NS, 'CourseFamily').length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// E10 Phase 2 — loop (butterfly) variations
+// ---------------------------------------------------------------------------
+
+describe('exportIofXml — loop variations', () => {
+  function makeLoopEvent(): OverprintEvent {
+    const event = makeEvent();
+    const course = event.courses[0]!;
+    course.controls.forEach((cc, i) => { cc.courseControlId = asCourseControlId(`cc-${i}`); });
+    const la = createControl(61, { x: 340, y: 640 });
+    const lb = createControl(62, { x: 360, y: 660 });
+    event.controls[la.id] = la;
+    event.controls[lb.id] = lb;
+    // hub = trunk[1]; two loops A/B → 2! = 2 orderings
+    course.variations = [{
+      id: asForkId('lp1'),
+      kind: 'loop',
+      anchorCourseControlId: asCourseControlId('cc-1'),
+      branches: [
+        { id: asBranchId('lA'), label: 'A', controls: [{ courseControlId: asCourseControlId('cc-lA'), controlId: la.id, type: 'control' }] },
+        { id: asBranchId('lB'), label: 'B', controls: [{ courseControlId: asCourseControlId('cc-lB'), controlId: lb.id, type: 'control' }] },
+      ],
+    }];
+    return event;
+  }
+
+  it('emits k! courses named with permuted codes, grouped by CourseFamily', () => {
+    const doc = parse(exportIofXml(makeLoopEvent()));
+    const courses = Array.from(doc.getElementsByTagNameNS(NS, 'Course'));
+    expect(courses.length).toBe(2);
+    const names = courses.map((c) => c.getElementsByTagNameNS(NS, 'Name')[0]?.textContent);
+    expect(names).toEqual(['Course A AB', 'Course A BA']);
+    const families = courses.map((c) => c.getElementsByTagNameNS(NS, 'CourseFamily')[0]?.textContent);
+    expect(families).toEqual(['Course A', 'Course A']);
+  });
+
+  it('repeats the hub control (k+1 CourseControls reference it) in each variation', () => {
+    const doc = parse(exportIofXml(makeLoopEvent()));
+    const course = doc.getElementsByTagNameNS(NS, 'Course')[0]!;
+    const controlRefs = Array.from(course.getElementsByTagNameNS(NS, 'CourseControl'))
+      .map((cc) => cc.getElementsByTagNameNS(NS, 'Control')[0]?.textContent);
+    // hub is control code 42 (trunk[1]); butterfly with 2 loops → hub appears 3×
+    expect(controlRefs.filter((r) => r === '42').length).toBe(3);
+  });
 });
