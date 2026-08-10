@@ -30,6 +30,7 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 - Course length calculation
 
 ### Course Design (more)
+- **Course forks / gaffling** — define forks with alternative branches; variations are auto-enumerated and each exports its own map, description sheet and IOF course
 - Score courses, crossing points and map-exchange symbols
 - Special items: text, lines, rectangles, description boxes, and IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route, map-issue)
 - Leg bend points and leg gaps (route legs around obstacles / hide uncrossable sections)
@@ -117,7 +118,7 @@ Overprint follows current International Orienteering Federation standards:
 Overprint is under active development and deployed at [overprint.com.au](https://overprint.com.au). The core course-setting workflow is complete — load maps, design courses, and export print-ready, true-vector PDFs with standards-conformant overprint. See [CLAUDE.md](CLAUDE.md) for the detailed feature list and project context.
 
 ### Not yet implemented
-- Course variations / relay forks & loops
+- Butterfly / phi **loops** and **relay team assignment** (course **forks / gaffling** are supported)
 - Native OCAD (.ocd) binary export (`.omap` export is available)
 
 ## Contributing

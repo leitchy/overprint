@@ -101,6 +101,7 @@ overprint/
 - **Overprint**: The purple/violet layer drawn on top of the base map showing the course
 - **Start Triangle / Finish Circle**: Special symbols at course start/end (double circle for finish)
 - **Shared Controls**: Controls can be reused across multiple courses in an event
+- **Fork / Variation**: A fork (gaffling) lets runners take one of several **branches** at an anchor control, rejoining after. The set of **variations** is the combination of branch choices, enumerated into flat control sequences by `variation-enumerator.ts` (which every renderer/exporter reuses). Anchored by a stable `CourseControlId` (not `ControlId`). See [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
 
 ## IOF Standards We Follow
 
@@ -153,6 +154,11 @@ overprint/
 - Unified overprint item-scaling model — None / RelativeToMap / RelativeTo15000, consistent between screen and PDF when print scale ≠ map scale; read from `.ppen` scale-sizes (A8)
 - Roboto / Roboto Condensed control-description typography (PDF + on-screen), embedded via @pdf-lib/fontkit with per-document glyph subsetting; graceful Helvetica fallback (C8)
 - Text/rectangle special items default to black (titles, borders); overprint symbols default to purple
+- Course variations — **forks / gaffling** (E10 Phase 1): define forks on a normal course (anchor
+  control + labelled branches), auto-enumerated variations, per-variation map / description / IOF
+  export and on-canvas preview. Fork model + pure enumerator (`variation-enumerator.ts`), see
+  [ADR-017](docs/adrs/ADR-017-course-variations-forks.md). Butterfly/phi **loops** and **relay team
+  assignment** are later phases (not yet built).
 
 ## Getting Started
 
