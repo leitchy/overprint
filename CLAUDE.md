@@ -161,7 +161,12 @@ overprint/
   via `core/geometry/number-fan.ts`, shared by screen + PDF). Per-variation map / description / IOF
   export + on-canvas preview. IOF export writes one `<Course>` per variation grouped by `<CourseFamily>`
   (matches PurplePen; IOF XML v3 has no native fork/loop element). Hub must be an interior *normal*
-  control; ≥2 loops; ≤4 recommended. **Relay team assignment** is Phase 3 (not yet built). See
+  control; ≥2 loops; ≤4 recommended. **Relay team assignment (Phase 3, v0.27.0)**: `Course.relay
+  { firstTeamNumber, teams, legs }` drives an on-demand team×leg variation assignment — a faithful port
+  of PurplePen's `RelayVariations` greedy anti-following scrambler (`relay-assignment.ts`, seeded, over
+  the flat generator list; grid codes match the picker via shared enumerator helpers). A "Relay teams…"
+  modal previews the grid; exports as native IOF v3 `<TeamCourseAssignment>` (`export-relay-xml.ts`)
+  and a paginating PDF table (`pdf-relay-table.ts`). Fixed branch→leg pinning is still deferred. See
   [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
 
 ## Getting Started

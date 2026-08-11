@@ -2,10 +2,46 @@
 
 ## Status
 
-**Accepted** and implemented for **Phase 1 — forks/gaffling** (v0.25.0) and **Phase 2 —
-butterfly/phi loops + IOF interop** (v0.26.0). **Proposed** for Phase 3 (relay team assignment),
-which the model is deliberately designed to accommodate. Resolves conformance-plan §6 item 10
-(the largest remaining structural gap).
+**Accepted** and implemented for **Phase 1 — forks/gaffling** (v0.25.0), **Phase 2 —
+butterfly/phi loops + IOF interop** (v0.26.0), and **Phase 3 — relay team assignment** (v0.27.0).
+Resolves conformance-plan §6 item 10 (the largest remaining structural gap).
+
+### Phase 3 (relay team assignment) — what shipped
+
+A relay assigns each (team, leg) cell a specific variation so a mass-started field splits up and no
+team can follow another. `RelaySettings { firstTeamNumber, teams, legs }` lives on `Course.relay`
+(plain numbers → round-trips through the whole-event JSON with no branded-id restore; copied in
+`duplicateCourse`; auto-undoable via the `{ event }` temporal partialize). The assignment itself is
+**computed on demand**, never stored.
+
+- **Faithful port of PurplePen's `RelayVariations`** (`relay-assignment.ts`), adapted from PP's
+  recursive fork TREE to Overprint's FLAT generator list. PP's per-fork scoring has no cross-fork
+  interaction term, so a leg assignment is just a **choice vector** (branch index per fork,
+  permutation rank per loop) — identical to an enumerated `Variation`, so grid codes are byte-identical
+  to the Variations picker (shared `resolveGenerators` / `variationCode` / `choiceVectorToVariation`,
+  extracted from the enumerator). The greedy generator (seeded mulberry32, best-of-100 team selection,
+  budgeted best-of-N per leg, 3-part anti-following score) is ported verbatim, including these
+  **faithful quirks**: loops are excluded from cross-team branch-following (Check 1); the ×3
+  "first generator" boost is consumed even by a leading loop; per-fork branch usage within a team is a
+  hard multiset (`floor(L/k)` + bias to the first `L%k` branches). `minUniquePathsByLeg` collapses to
+  `totalVariations` — **provably exact** for the flat, unpinned model (must become per-leg if fixed
+  branch pinning ships).
+- **Determinism is within-Overprint only** — a fixed seed makes runs reproducible across
+  runs/platforms, but a different PRNG family means it is NOT bit-identical to PurplePen; a `.ppen` and
+  Overprint will never produce the same grid (they never could).
+- **Not bound by `MAX_VARIATIONS`** — the assignment builds choice vectors directly and the export
+  decodes them with the uncapped `choiceVectorToVariation`, so a course with > 100 combinations still
+  resolves every assigned cell's `<Course>`.
+- **UI** — a "Relay teams…" modal (`relay-modal.tsx`, launched from the Variations section via a
+  `tool-store` flag, mounted from the toolbar) with teams/legs inputs, a team × leg grid, uneven-division
+  warnings, a duplicate-teams note, and export buttons.
+- **Export** — a self-contained IOF XML v3 `CourseData` (`export-relay-xml.ts`): `Map` → `Control*` →
+  `Course*` (one per uncapped variation, `CourseFamily`-grouped) → `TeamCourseAssignment*` (native IOF
+  relay elements; `Leg` 1-based; `CourseName` = `"<course> <code>"` referencing the variation courses)
+  in strict schema order; plus a paginating team × leg PDF table (`pdf-relay-table.ts`).
+- **Deferred still**: fixed branch→leg pinning (PP `FixedBranchAssignments`, which is what makes
+  `minUniquePaths` leg-dependent); cross-team first-loop spreading at a butterfly hub (a gap PP shares);
+  drawing variation-code letters on the map.
 
 ### Phase 2 (loops) — what the design predicted, and held
 
@@ -94,9 +130,9 @@ disabled there to avoid trunk corruption).
 - **Deferred:** variation-specific rejoin points (branches rejoining at *different* trunk controls);
   spider-from-start / finish-as-hub loops (the hub must be an interior *normal* control — a start
   triangle or finish rendered k+1× would be wrong; workaround: place a normal control at the start as
-  the hub); a fork *inside* a loop (the model doesn't structurally forbid it); relay team assignment
-  (Phase 3). Map-exchange inside/at a loop is forbidden as an implementation simplification, **not** an
-  IOF rule.
+  the hub); a fork *inside* a loop (the model doesn't structurally forbid it). Relay team assignment
+  (Phase 3) shipped in v0.27.0 (see Status). Map-exchange inside/at a loop is forbidden as an
+  implementation simplification, **not** an IOF rule.
 - **OMAP & GPX exports enumerate variations (v0.26.5).** GPX walks trunk + branch controls
   (`forEachCourseControl`), so a branch/loop-only control still gets a waypoint. OMAP emits the **union**
   of all variations' geometry (circles + legs deduped by content) so a butterfly's loops and every gaffle

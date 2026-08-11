@@ -190,6 +190,21 @@ export interface ForkBranch {
   controls: CourseControl[];
 }
 
+/**
+ * Relay team-assignment settings (E10 Phase 3). Present only when a forked/looped
+ * course is used as a relay: N teams each run L legs, and each (team, leg) cell is
+ * handed a specific variation to split a mass-started field (anti-following). The
+ * assignment itself is computed on demand (see relay-assignment.ts), never stored.
+ */
+export interface RelaySettings {
+  /** Team number of the first team (default 1). */
+  firstTeamNumber: number;
+  /** Number of teams. 0 = "not configured yet" (clears `Course.relay`). */
+  teams: number;
+  /** Number of legs per team (default 1). */
+  legs: number;
+}
+
 export interface Course {
   id: CourseId;
   name: string;
@@ -201,6 +216,8 @@ export interface Course {
   partOptions?: PartOptions[];
   /** Fork/loop variation generators. Absent for simple linear courses. */
   variations?: CourseFork[];
+  /** Relay team-assignment settings. Absent for non-relay courses. */
+  relay?: RelaySettings;
 }
 
 export type PaperSize = 'A4' | 'A3' | 'Letter' | 'custom';

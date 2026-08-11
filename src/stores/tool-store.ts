@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { SpecialItemId } from '@/utils/id';
+import type { CourseId, SpecialItemId } from '@/utils/id';
 import type { SpecialItemType } from '@/core/models/types';
 
 export type Tool =
@@ -22,6 +22,8 @@ interface ToolState {
   editingTextItemId: SpecialItemId | null;
   /** On mobile/tablet, only one panel can be open at a time */
   mobilePanelOpen: MobilePanel;
+  /** Course whose Relay-teams modal is open (E10 Phase 3), or null when closed. */
+  relayModalCourseId: CourseId | null;
 }
 
 interface ToolActions {
@@ -34,6 +36,7 @@ interface ToolActions {
   setEditingTextItemId: (id: SpecialItemId | null) => void;
   setMobilePanelOpen: (panel: MobilePanel) => void;
   toggleMobilePanel: (panel: Exclude<MobilePanel, 'none'>) => void;
+  setRelayModalCourseId: (id: CourseId | null) => void;
 }
 
 export const useToolStore = create<ToolState & ToolActions>()((set) => ({
@@ -44,6 +47,7 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   selectedSpecialItemId: null,
   editingTextItemId: null,
   mobilePanelOpen: 'none',
+  relayModalCourseId: null,
 
   setTool: (tool) => {
     set({ activeTool: tool });
@@ -81,5 +85,9 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
     set((state) => ({
       mobilePanelOpen: state.mobilePanelOpen === panel ? 'none' : panel,
     }));
+  },
+
+  setRelayModalCourseId: (id) => {
+    set({ relayModalCourseId: id });
   },
 }));

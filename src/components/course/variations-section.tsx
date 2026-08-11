@@ -65,6 +65,7 @@ export function VariationsSection({
   const activeLoopTarget = useEventStore((s) => s.activeLoopTarget);
   const setActiveLoopTarget = useEventStore((s) => s.setActiveLoopTarget);
   const setTool = useToolStore((s) => s.setTool);
+  const setRelayModalCourseId = useToolStore((s) => s.setRelayModalCourseId);
 
   const forks = course.variations ?? [];
   const enumeration = useMemo(() => enumerateVariations(course), [course]);
@@ -398,6 +399,16 @@ export function VariationsSection({
                 })}
               </select>
             </div>
+          )}
+
+          {/* Relay team assignment (E10 Phase 3) — only meaningful with variations */}
+          {hasPicker && course.courseType === 'normal' && (
+            <button
+              onClick={() => setRelayModalCourseId(courseId)}
+              className="w-full rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+            >
+              {t('relayTeamsButton')}
+            </button>
           )}
         </div>
       )}

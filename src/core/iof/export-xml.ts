@@ -30,7 +30,7 @@ import { IOF_XML_NS, IOF_XML_VERSION } from './xml-constants';
  * Escape characters that are invalid in XML text content and attributes.
  * The ampersand MUST be replaced first to avoid double-escaping.
  */
-function escapeXml(raw: string): string {
+export function escapeXml(raw: string): string {
   return raw
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -120,7 +120,7 @@ function buildControlElement(
   return lines.join('\n');
 }
 
-function buildCourseElement(
+export function buildCourseElement(
   course: Course,
   controls: Record<ControlId, Control>,
   dpi: number,
@@ -179,6 +179,57 @@ function buildCourseElement(
   return lines.join('\n');
 }
 
+/**
+ * The `<Map>` element (Scale + top-left/bottom-right corners in mm). The extent
+ * comes from the control bounding box. Shared by the main and relay exports.
+ */
+export function buildMapElement(
+  controls: Record<ControlId, Control>,
+  dpi: number,
+  scale: number,
+): string {
+  let maxXpx = 0;
+  let maxYpx = 0;
+  for (const ctrl of Object.values(controls)) {
+    if (ctrl.position.x > maxXpx) maxXpx = ctrl.position.x;
+    if (ctrl.position.y > maxYpx) maxYpx = ctrl.position.y;
+  }
+  const brXmm = pxToMm(maxXpx, dpi).toFixed(3);
+  const brYmm = pxToMm(maxYpx, dpi).toFixed(3);
+  return [
+    `    <Map>`,
+    `      <Scale>${scale}</Scale>`,
+    `      <MapPositionTopLeft x="0" y="0" unit="mm"/>`,
+    `      <MapPositionBottomRight x="${brXmm}" y="${brYmm}" unit="mm"/>`,
+    `    </Map>`,
+  ].join('\n');
+}
+
+/**
+ * Deduped `<Control>` definitions for every unique (control, type) across the
+ * given courses (trunk AND fork-branch controls). One `<Control>` per unique IOF
+ * id, as the schema requires. Shared by the main and relay exports.
+ */
+export function collectControlElements(
+  courses: Course[],
+  controls: Record<ControlId, Control>,
+  dpi: number,
+  georef: GeoReference | undefined,
+): string {
+  const seen = new Map<string, string>(); // iofId → element string
+  for (const course of courses) {
+    forEachCourseControl(course, (cc) => {
+      const ctrl = controls[cc.controlId];
+      if (!ctrl) return;
+      const iofId = controlIofId(ctrl, cc.type);
+      if (!seen.has(iofId)) {
+        seen.set(iofId, buildControlElement(ctrl, cc.type, dpi, georef));
+      }
+    });
+  }
+  return Array.from(seen.values()).join('\n');
+}
+
 // ---------------------------------------------------------------------------
 // Main export function
 // ---------------------------------------------------------------------------
@@ -193,35 +244,8 @@ export function exportIofXml(event: OverprintEvent): string {
 
   const createTime = new Date().toISOString();
 
-  // Map extent (mm) from the control bounding box — the <Map> corners are
-  // required by the schema when a <Map> is emitted. Top-left origin, Y-down.
-  let maxXpx = 0;
-  let maxYpx = 0;
-  for (const ctrl of Object.values(event.controls)) {
-    if (ctrl.position.x > maxXpx) maxXpx = ctrl.position.x;
-    if (ctrl.position.y > maxYpx) maxYpx = ctrl.position.y;
-  }
-  const brXmm = pxToMm(maxXpx, dpi).toFixed(3);
-  const brYmm = pxToMm(maxYpx, dpi).toFixed(3);
-
-  // --- Collect unique (control, type) pairs across all courses ---
-  // IOF requires one <Control> element per unique ID in RaceCourseData.
-  // Start/Finish get synthetic IDs (S1/F1) so we key on the iofId string.
-  const seen = new Map<string, string>(); // iofId → element string
-  for (const course of event.courses) {
-    // Walk trunk AND fork-branch controls so branch-only controls get a
-    // <Control> definition too.
-    forEachCourseControl(course, (cc) => {
-      const ctrl = event.controls[cc.controlId];
-      if (!ctrl) return;
-      const iofId = controlIofId(ctrl, cc.type);
-      if (!seen.has(iofId)) {
-        seen.set(iofId, buildControlElement(ctrl, cc.type, dpi, georef));
-      }
-    });
-  }
-
-  const controlElements = Array.from(seen.values()).join('\n');
+  const mapElement = buildMapElement(event.controls, dpi, scale);
+  const controlElements = collectControlElements(event.courses, event.controls, dpi, georef);
   // Forked/looped courses (E10): one flat <Course> per enumerated variation, named
   // "<course> <code>" with its own <Length>, all grouped by a <CourseFamily> equal to
   // the base course name — exactly how PurplePen exports forks and butterfly loops
@@ -244,11 +268,7 @@ export function exportIofXml(event: OverprintEvent): string {
     `    <Name>${escapeXml(event.name)}</Name>`,
     `  </Event>`,
     `  <RaceCourseData>`,
-    `    <Map>`,
-    `      <Scale>${scale}</Scale>`,
-    `      <MapPositionTopLeft x="0" y="0" unit="mm"/>`,
-    `      <MapPositionBottomRight x="${brXmm}" y="${brYmm}" unit="mm"/>`,
-    `    </Map>`,
+    mapElement,
     controlElements,
     courseElements,
     `  </RaceCourseData>`,

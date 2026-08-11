@@ -1,0 +1,38 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`assignRelayTeams > (1) golden snapshot — 2-way fork, 8 teams × 3 legs 1`] = `
+[
+  "1: A B A",
+  "2: B A A",
+  "3: A A B",
+  "4: B A A",
+  "5: A B A",
+  "6: B A A",
+  "7: A B A",
+  "8: A A B",
+]
+`;
+
+exports[`assignRelayTeams > (1) golden snapshot — fork + loop combined, 8 teams × 4 legs 1`] = `
+[
+  "1: BCD ADC BDC ACD",
+  "2: ACD BDC ADC BCD",
+  "3: BDC ACD BCD ADC",
+  "4: ADC BCD ACD BDC",
+  "5: BDC BCD ADC ACD",
+  "6: ADC ACD BCD BDC",
+  "7: ACD ADC BDC BCD",
+  "8: BDC BCD ACD ADC",
+]
+`;
+
+exports[`assignRelayTeams > (1) golden snapshot — single 3-loop, 6 teams × 3 legs 1`] = `
+[
+  "1: ACB BAC CAB",
+  "2: BCA CAB ABC",
+  "3: CAB BCA ACB",
+  "4: CBA ACB BAC",
+  "5: ABC CBA BCA",
+  "6: BAC ABC CBA",
+]
+`;

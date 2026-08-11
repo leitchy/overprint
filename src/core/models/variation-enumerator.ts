@@ -73,6 +73,25 @@ export interface Variation {
   controls: CourseControl[];
 }
 
+/**
+ * A course fork/loop generator resolved to its trunk anchor and dimension.
+ * `dim` is the number of distinct choices at this generator: a fork's branch
+ * count, or a loop's `k!` orderings. Produced sorted by `anchorIndex` so the
+ * choice-vector indexing and code-string order are deterministic.
+ */
+export interface ResolvedGenerator {
+  fork: CourseFork;
+  anchorIndex: number;
+  dim: number;
+}
+
+export interface ResolveGeneratorsResult {
+  /** Usable generators, sorted by trunk anchor index (most-significant first). */
+  generators: ResolvedGenerator[];
+  /** Generators dropped as unresolvable/first/last/empty/duplicate-anchor/unknown-kind. */
+  droppedForkIds: ForkId[];
+}
+
 export interface EnumerationResult {
   variations: Variation[];
   /** Full combination count before the cap. */
@@ -107,18 +126,23 @@ export function variationCourse(course: Course, v: Variation): Course {
   };
 }
 
-interface ResolvedFork {
-  fork: CourseFork;
-  anchorIndex: number;
-}
-
-export function enumerateVariations(course: Course): EnumerationResult {
+/**
+ * Resolve a course's fork/loop generators to their trunk anchors, dropping any
+ * that are unusable (defensive — a stale `variations` from an older app degrades
+ * gracefully rather than throwing). Returned sorted by anchor index so both the
+ * choice-vector indexing (generator 0 = smallest anchor index = most-significant
+ * radix) and the concatenated code string are deterministic.
+ *
+ * Shared by {@link enumerateVariations}, {@link variationCode},
+ * {@link choiceVectorToVariation} and the relay-assignment module, so every
+ * consumer sees the SAME generator set / dimensions / order.
+ */
+export function resolveGenerators(course: Course): ResolveGeneratorsResult {
   const trunk = course.controls;
   const droppedForkIds: ForkId[] = [];
-
-  // Resolve generator anchors to trunk indices; drop anything unusable (defensive).
-  const resolved: ResolvedFork[] = [];
+  const generators: ResolvedGenerator[] = [];
   const takenAnchorIndex = new Set<number>();
+
   for (const fork of course.variations ?? []) {
     // Unknown kind (older/newer/hand-edited file) — drop, never silently ignore.
     if (fork.kind !== 'fork' && fork.kind !== 'loop') {
@@ -140,17 +164,123 @@ export function enumerateVariations(course: Course): EnumerationResult {
       droppedForkIds.push(fork.id);
       continue;
     }
-    // At most one generator per anchor — a second would be shadowed by the
-    // anchor→generator map below and corrupt the dimension count. First wins.
+    // At most one generator per anchor — a second would corrupt the dimension
+    // count / anchor map. First wins.
     if (takenAnchorIndex.has(anchorIndex)) {
       droppedForkIds.push(fork.id);
       continue;
     }
     takenAnchorIndex.add(anchorIndex);
-    resolved.push({ fork, anchorIndex });
+    // Fork dimension = branch count; loop dimension = k! orderings.
+    const dim = fork.kind === 'loop' ? factorial(fork.branches.length) : fork.branches.length;
+    generators.push({ fork, anchorIndex, dim });
   }
 
-  if (resolved.length === 0) {
+  generators.sort((a, b) => a.anchorIndex - b.anchorIndex);
+  return { generators, droppedForkIds };
+}
+
+/**
+ * Decode a flat variation index into a per-generator choice vector (mixed radix,
+ * generator 0 most-significant). `choice[g] ∈ [0, dims[g])`.
+ */
+export function decodeChoice(index: number, dims: number[]): number[] {
+  const choice = new Array<number>(dims.length);
+  let rem = index;
+  for (let g = dims.length - 1; g >= 0; g--) {
+    choice[g] = rem % dims[g]!;
+    rem = Math.floor(rem / dims[g]!);
+  }
+  return choice;
+}
+
+/**
+ * The variation code (e.g. 'AB') for a choice vector — the concatenation, in
+ * anchor order, of each fork's chosen branch label or each loop's permuted loop
+ * labels. `'' `when there are no generators. Byte-identical to the code
+ * `enumerateVariations` produces (both call this).
+ */
+export function variationCode(generators: ResolvedGenerator[], choice: number[]): string {
+  let code = '';
+  for (let g = 0; g < generators.length; g++) {
+    const { fork } = generators[g]!;
+    const c = choice[g]!;
+    if (fork.kind === 'loop') {
+      const order = nthPermutation(fork.branches.length, c);
+      code += order.map((li) => fork.branches[li]!.label).join('');
+    } else {
+      code += fork.branches[c]!.label;
+    }
+  }
+  return code;
+}
+
+/**
+ * Build the flat linear `CourseControl[]` for a single variation from its choice
+ * vector. UNCAPPED (unlike {@link enumerateVariations}, which stops at
+ * `MAX_VARIATIONS`), so relay export can resolve any assigned variation's
+ * controls even when a course has > 100 combinations.
+ *
+ * The anchor `CourseControl` is COPIED per occurrence (outgoing-leg geometry
+ * replaced by the branch's/loop's entry-leg); all other controls are read-only
+ * refs. INVARIANT (as in the enumerator): `courseControlId` is NOT unique within
+ * a variation — every loop-hub copy shares the trunk anchor's id.
+ */
+export function choiceVectorToVariation(
+  course: Course,
+  generators: ResolvedGenerator[],
+  choice: number[],
+): CourseControl[] {
+  const trunk = course.controls;
+  const generatorByAnchor = new Map<number, number>();
+  generators.forEach((g, order) => generatorByAnchor.set(g.anchorIndex, order));
+
+  const controls: CourseControl[] = [];
+  for (let i = 0; i < trunk.length; i++) {
+    const anchorCC = trunk[i]!;
+    const order = generatorByAnchor.get(i);
+    if (order === undefined) {
+      controls.push(anchorCC);
+      continue;
+    }
+    const { fork } = generators[order]!;
+    const c = choice[order]!;
+    if (fork.kind === 'fork') {
+      const branch = fork.branches[c]!;
+      // Anchor copy: outgoing leg becomes the branch's entry leg for this variation.
+      controls.push({ ...anchorCC, bendPoints: branch.entryBendPoints, legGaps: branch.entryLegGaps });
+      // Branch controls (read-only refs); branch-last.bendPoints is the rejoin leg.
+      controls.push(...branch.controls);
+    } else {
+      const loopOrder = nthPermutation(fork.branches.length, c);
+      // Run each loop in the chosen order, emitting a hub copy before each. Hub
+      // copies carry NO numberOffset/score so the renderer can fan the multiple
+      // sequence numbers (an explicit trunk offset would otherwise stack them).
+      for (const li of loopOrder) {
+        const loop = fork.branches[li]!;
+        controls.push({
+          ...anchorCC,
+          numberOffset: undefined,
+          score: undefined,
+          bendPoints: loop.entryBendPoints,
+          legGaps: loop.entryLegGaps,
+        });
+        // Loop controls (read-only refs); loop-last.bendPoints is the return-to-hub leg.
+        controls.push(...loop.controls);
+      }
+      // Final departure hub: retains the ORIGINAL trunk hub's outgoing geometry
+      // (hub → next trunk control). This is the (k+1)th hub occurrence.
+      controls.push({ ...anchorCC, numberOffset: undefined, score: undefined });
+    }
+  }
+  return controls;
+}
+
+export function enumerateVariations(course: Course): EnumerationResult {
+  const trunk = course.controls;
+  const { generators, droppedForkIds } = resolveGenerators(course);
+
+  if (generators.length === 0) {
     return {
       variations: [{ index: 0, code: '', controls: trunk }],
       total: 1,
@@ -159,68 +289,18 @@ export function enumerateVariations(course: Course): EnumerationResult {
     };
   }
 
-  resolved.sort((a, b) => a.anchorIndex - b.anchorIndex);
-  const anchorForkByIndex = new Map<number, ResolvedFork>();
-  for (const rf of resolved) anchorForkByIndex.set(rf.anchorIndex, rf);
-
-  // Fork dimension = branch count; loop dimension = k! orderings.
-  const dims = resolved.map((rf) =>
-    rf.fork.kind === 'loop' ? factorial(rf.fork.branches.length) : rf.fork.branches.length,
-  );
+  const dims = generators.map((g) => g.dim);
   const total = dims.reduce((acc, d) => acc * d, 1);
   const count = Math.min(total, MAX_VARIATIONS);
 
   const variations: Variation[] = [];
   for (let k = 0; k < count; k++) {
-    // Decode k → per-fork branch choice (mixed radix, fork 0 most-significant).
-    const choice = new Array<number>(resolved.length);
-    let rem = k;
-    for (let f = resolved.length - 1; f >= 0; f--) {
-      choice[f] = rem % dims[f]!;
-      rem = Math.floor(rem / dims[f]!);
-    }
-
-    const controls: CourseControl[] = [];
-    let code = '';
-    for (let i = 0; i < trunk.length; i++) {
-      const rf = anchorForkByIndex.get(i);
-      const anchorCC = trunk[i]!;
-      if (rf && rf.fork.kind === 'fork') {
-        const forkOrder = resolved.indexOf(rf);
-        const branch = rf.fork.branches[choice[forkOrder]!]!;
-        code += branch.label;
-        // Anchor copy: outgoing leg becomes the branch's entry leg for this variation.
-        controls.push({ ...anchorCC, bendPoints: branch.entryBendPoints, legGaps: branch.entryLegGaps });
-        // Branch controls (read-only refs); branch-last.bendPoints is the rejoin leg.
-        controls.push(...branch.controls);
-      } else if (rf && rf.fork.kind === 'loop') {
-        const forkOrder = resolved.indexOf(rf);
-        const order = nthPermutation(rf.fork.branches.length, choice[forkOrder]!);
-        code += order.map((li) => rf.fork.branches[li]!.label).join('');
-        // Run each loop in the chosen order, emitting a hub copy before each. Hub
-        // copies carry NO numberOffset/score so the renderer can fan the multiple
-        // sequence numbers (an explicit trunk offset would otherwise stack them).
-        for (const li of order) {
-          const loop = rf.fork.branches[li]!;
-          controls.push({
-            ...anchorCC,
-            numberOffset: undefined,
-            score: undefined,
-            bendPoints: loop.entryBendPoints,
-            legGaps: loop.entryLegGaps,
-          });
-          // Loop controls (read-only refs); loop-last.bendPoints is the return-to-hub leg.
-          controls.push(...loop.controls);
-        }
-        // Final departure hub: retains the ORIGINAL trunk hub's outgoing geometry
-        // (hub → next trunk control). This is the (k+1)th hub occurrence.
-        controls.push({ ...anchorCC, numberOffset: undefined, score: undefined });
-      } else {
-        controls.push(anchorCC);
-      }
-    }
-
-    variations.push({ index: k, code, controls });
+    const choice = decodeChoice(k, dims);
+    variations.push({
+      index: k,
+      code: variationCode(generators, choice),
+      controls: choiceVectorToVariation(course, generators, choice),
+    });
   }
 
   return { variations, total, truncated: total > count, droppedForkIds };
