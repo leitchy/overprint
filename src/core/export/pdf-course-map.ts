@@ -26,6 +26,36 @@ export interface PdfExportOptions {
   courseIndices?: number[];
 }
 
+/** Minimal font shape for text-fitting (satisfied by pdf-lib's PDFFont). */
+interface TextMeasurer {
+  widthOfTextAtSize(text: string, size: number): number;
+}
+
+/**
+ * Fit a title to `maxWidth`: shrink the font down to `minSize` first (titles read
+ * better small than truncated), then ellipsize if it's still too wide. Pure —
+ * prevents a long event/course name from overflowing the description-box grid and
+ * being clipped at the page edge. Exported for testing.
+ */
+export function fitHeaderText(
+  font: TextMeasurer,
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+  minSize = fontSize * 0.6,
+): { text: string; size: number } {
+  let size = fontSize;
+  // Shrink in 0.25pt steps but never below minSize (the `- 0.25 >=` guard avoids
+  // overshooting the floor).
+  while (size - 0.25 >= minSize && font.widthOfTextAtSize(text, size) > maxWidth) size -= 0.25;
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return { text, size };
+  let shown = text;
+  while (shown.length > 1 && font.widthOfTextAtSize(`${shown}…`, size) > maxWidth) {
+    shown = shown.slice(0, -1);
+  }
+  return { text: `${shown}…`, size };
+}
+
 /**
  * The base map, described in a way the exporter can render at print resolution.
  *
@@ -1262,10 +1292,13 @@ async function renderAutoDescriptionBox(
       x: gridX, y: rowY, width: gridWidth, height: cellPt,
       borderColor: DESC_BORDER_COLOR, borderWidth: DESC_BORDER_WIDTH,
     });
-    const textWidth = hFont.widthOfTextAtSize(text, fontSize);
-    page.drawText(text, {
-      x: gridX + (gridWidth - textWidth) / 2, y: rowY + (cellPt - fontSize) / 2,
-      size: fontSize, font: hFont, color: DESC_TEXT_COLOR,
+    // Fit the title to the grid so a long event/course name can't overflow past the
+    // page edge (it used to spill left over the map and get clipped on the right).
+    const { text: shown, size } = fitHeaderText(hFont, text, fontSize, gridWidth - cellPt * 0.16);
+    const textWidth = hFont.widthOfTextAtSize(shown, size);
+    page.drawText(shown, {
+      x: gridX + (gridWidth - textWidth) / 2, y: rowY + (cellPt - size) / 2,
+      size, font: hFont, color: DESC_TEXT_COLOR,
     });
   }
 
