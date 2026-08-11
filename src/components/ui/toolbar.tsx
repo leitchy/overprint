@@ -23,6 +23,7 @@ import { useIsCompact } from '@/hooks/use-breakpoint';
 import { MobileMenuDrawer } from './mobile-menu-drawer';
 import { EventNameEditor } from './event-name-editor';
 import { AuditModal } from './audit-modal';
+import { RelayModal } from './relay-modal';
 import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
 import { useToastStore } from '@/stores/toast-store';
@@ -105,6 +106,7 @@ export function Toolbar() {
   const toggleDescriptionsPanel = useToolStore((s) => s.toggleDescriptionsPanel);
   const shortcutsModalOpen = useToolStore((s) => s.shortcutsModalOpen);
   const gettingStartedOpen = useToolStore((s) => s.gettingStartedOpen);
+  const relayModalCourseId = useToolStore((s) => s.relayModalCourseId);
   const hasImage = useMapImageStore((s) => s.image !== null);
   const isCompact = useIsCompact();
   const [loading, setLoading] = useState(false);
@@ -867,6 +869,12 @@ export function Toolbar() {
       )}
       {auditOpen && (
         <AuditModal onClose={() => setAuditOpen(false)} />
+      )}
+      {relayModalCourseId && (
+        <RelayModal
+          courseId={relayModalCourseId}
+          onClose={() => useToolStore.getState().setRelayModalCourseId(null)}
+        />
       )}
 
       {/* Hidden file inputs (shared) */}

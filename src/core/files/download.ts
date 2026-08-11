@@ -1,4 +1,12 @@
 /**
+ * Sanitise a name into a safe filename base (strips characters outside
+ * `[A-Za-z0-9-_ ]` and trims), falling back to `fallback` when nothing remains.
+ */
+export function sanitizeFilename(name: string, fallback = 'export'): string {
+  return name.replace(/[^a-zA-Z0-9-_ ]/g, '').trim() || fallback;
+}
+
+/**
  * File type definitions for showSaveFilePicker.
  */
 export interface SaveFileType {

@@ -15,6 +15,7 @@ import type {
   MapFile,
   MapPoint,
   OverprintEvent,
+  RelaySettings,
   SpecialItem,
   LegGap,
   CircleGap,
@@ -125,6 +126,9 @@ interface EventActions {
   setActiveLoopTarget: (target: { forkId: ForkId; branchId: BranchId } | null) => void;
   /** Create a NEW control at `position` and append it to a fork/loop branch. */
   placeControlInBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, position: MapPoint) => void;
+  /** Set relay team-assignment settings on a course (E10 Phase 3). Clamps inputs
+   *  and clears `course.relay` when `teams` is 0. */
+  setRelaySettings: (courseId: CourseId, patch: Partial<RelaySettings>) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -400,6 +404,7 @@ export const useEventStore = create<EventState & EventActions>()(
             settings: JSON.parse(JSON.stringify(source.settings)),
             partOptions: source.partOptions ? JSON.parse(JSON.stringify(source.partOptions)) : undefined,
             variations,
+            relay: source.relay ? { ...source.relay } : undefined,
           };
           // Insert after the source course
           const index = state.event.courses.findIndex((c) => c.id === id);
@@ -499,6 +504,22 @@ export const useEventStore = create<EventState & EventActions>()(
           state.event.controls[control.id] = control;
           branch.controls.push(makeCourseControl(control.id, 'control'));
           state.selectedControlId = control.id;
+        });
+      },
+
+      setRelaySettings: (courseId: CourseId, patch: Partial<RelaySettings>) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course) return;
+          const current: RelaySettings = course.relay ?? { firstTeamNumber: 1, teams: 0, legs: 1 };
+          const next: RelaySettings = { ...current, ...patch };
+          // Clamp to sane integers.
+          next.firstTeamNumber = Math.max(0, Math.floor(next.firstTeamNumber) || 0);
+          next.teams = Math.max(0, Math.floor(next.teams) || 0);
+          next.legs = Math.max(1, Math.floor(next.legs) || 1);
+          // teams === 0 means "not configured" — drop the relay block entirely.
+          course.relay = next.teams === 0 ? undefined : next;
         });
       },
 
