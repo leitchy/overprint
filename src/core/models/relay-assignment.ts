@@ -19,12 +19,17 @@
  * produce the same grid (they never could). That is expected and fine.
  *
  * Faithful quirks reproduced from PP (see inline notes):
- * - Loops are EXCLUDED from cross-team branch-following (Check 1); their fairness
- *   comes from the within-team loop validation + the whole-leg duplicate penalty.
  * - The ×3 "first generator" boost is consumed even by a leading loop, so a fork
  *   after a leading loop does not get it.
  * - Per-fork branch usage within a team is a hard multiset (floor(L/k) + bias to
  *   the first L%k branches) — the same bias the uneven-division warning reports.
+ *
+ * Deliberate divergences from PP (documented improvements, not faithful quirks):
+ * - Cross-team FIRST-LOOP spreading (Check 1): PP leaves loops out of cross-team
+ *   scoring, so at a mass start many teams' leg-1 runners can enter the same first
+ *   loop together (hub following). We score the decoded first loop across teams
+ *   (dim = k), with the same ×3 mass-start boosts forks get. Within-team loop order
+ *   is still governed by validateLoop; whole-order duplication by Check 2.
  *
  * Pure and dependency-light (no store/geometry).
  *
@@ -372,14 +377,29 @@ function scoreLeg(
   let score = 0;
   const current = teamLegs[leg]!;
 
-  // Check 1: cross-team per-fork following. Loops are EXCLUDED (PP: numNonFixedBranches=0)
-  // but still consume the ×3 first-generator boost. A FIXED leg is skipped WITHOUT
-  // consuming the boost (PP skips before firstFork=false), so the next unfixed fork
-  // still gets it.
+  // Check 1: cross-team per-generator following, weighted heaviest at the mass start.
+  // - Forks: spread the chosen BRANCH across teams on this leg.
+  // - Loops: spread the decoded FIRST LOOP across teams (dim = k). This is a DELIBERATE
+  //   improvement over PurplePen, which leaves loops out of cross-team scoring entirely —
+  //   the biggest hub-following gap at a mass start (many leg-1 runners entering the same
+  //   first loop together). Whole-order duplication is still handled by Check 2.
+  // A FIXED leg is skipped WITHOUT consuming the ×3 first-generator boost (PP skips before
+  // firstFork=false), so the next unfixed generator still gets it.
   let firstGenerator = true;
   for (let g = 0; g < ctx.generators.length; g++) {
     const gen = ctx.generators[g]!;
     if (gen.fork.kind === 'loop') {
+      const k = gen.fork.branches.length;
+      const firstLoop = nthPermutation(k, current[g]!)[0];
+      const allowed = Math.floor((1.17 * accepted.length) / k);
+      let similar = 0;
+      for (const team of accepted) {
+        if (nthPermutation(k, team[leg]![g]!)[0] === firstLoop) similar++;
+      }
+      let penalty = Math.max(0, similar - allowed);
+      if (firstGenerator) penalty *= 3;
+      if (leg === 0) penalty *= 3;
+      score += penalty;
       firstGenerator = false;
       continue;
     }

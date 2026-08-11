@@ -1,9 +1,10 @@
 import type { Control, Course, CourseControl, OverprintEvent } from '@/core/models/types';
 import { forEachCourseControl } from '@/core/models/course-controls';
-import { enumerateVariations } from '@/core/models/variation-enumerator';
+import { enumerateVariations, resolveGenerators } from '@/core/models/variation-enumerator';
 import { courseForkIssues, type ForkIssueKind } from '@/core/models/fork-validation';
 import type { ControlId, CourseId } from '@/utils/id';
 import { mapDistanceMetres } from '@/core/geometry/distance';
+import { calculateCourseLength } from '@/core/geometry/course-length';
 import { AMBIGUOUS_PAIRS, SELF_AMBIGUOUS_CODES } from './ambiguous-codes';
 
 export type AuditSeverity = 'error' | 'warning';
@@ -24,6 +25,15 @@ export interface AuditContext {
 const SHORT_LEG_THRESHOLD = 30; // metres
 const LONG_LEG_THRESHOLD = 3000; // metres
 const CLOSE_CONTROL_THRESHOLD = 100; // metres — controls of the same feature closer than this
+// Butterfly/phi loops are run in permuted order. Per-leg TOTALS are equal by
+// construction (everyone runs every loop), so imbalance doesn't make a variation
+// longer — it defeats the anti-following PURPOSE: with a long loop A and short loop B,
+// B-first runners return to the hub minutes sooner and re-merge with the still-circulating
+// A-first wave, so packs re-form and the k! order permutation buys little. Equal-length
+// loops are what make the permutation actually separate the field. Warn past this ratio,
+// with an absolute floor so tiny loops aren't nagged. (Thresholds from domain review.)
+const LOOP_IMBALANCE_RATIO = 1.2; // longest loop >20% longer than shortest
+const LOOP_IMBALANCE_MIN_DIFF = 100; // metres — ignore differences below ~25–35 s of run time
 
 /**
  * Audit an event for common course setting errors and warnings.
@@ -219,6 +229,9 @@ export function auditEvent(
       items.push(item);
     }
 
+    // Loop-length imbalance (butterfly/phi fairness) — a warning, not a blocker.
+    for (const item of auditLoopBalance(course, controls, mapFile)) items.push(item);
+
     // Structural fork issues (incomplete/invalid forks) — surfaced as errors
     // so a half-built fork is caught before export.
     for (const issue of courseForkIssues(course)) {
@@ -238,6 +251,68 @@ export function auditEvent(
     return a.severity === 'error' ? -1 : 1;
   });
 
+  return items;
+}
+
+/**
+ * Warn when a course's butterfly/phi loops differ too much in length. The loops of
+ * one hub are run in permuted order (anti-following), so their lengths should be
+ * comparable — otherwise the short-loop-first runners return to the hub sooner and the
+ * permutation stops separating the field. Fork (gaffle) branches are out of scope for
+ * v1 of this check (a scoping call — gaffle branches SHOULD also be near-equal in length,
+ * but they differ in route and their per-team totals partly self-correct via the leg
+ * multiset). A loop's length is the round trip hub→loop.controls→hub, using the loop's
+ * own entry-leg geometry (same convention as the Variations panel). Climb imbalance is
+ * out of scope — Overprint has no elevation model.
+ */
+function auditLoopBalance(
+  course: Course,
+  controls: Record<ControlId, Control>,
+  mapFile: OverprintEvent['mapFile'],
+): AuditItem[] {
+  if (!mapFile) return [];
+  const items: AuditItem[] = [];
+  const { generators } = resolveGenerators(course);
+  for (const gen of generators) {
+    if (gen.fork.kind !== 'loop') continue;
+    const anchorCC = course.controls[gen.anchorIndex];
+    if (!anchorCC) continue;
+
+    const lengths: number[] = [];
+    let incomplete = false;
+    for (const loop of gen.fork.branches) {
+      if (loop.controls.length === 0) {
+        incomplete = true; // emptyBranch is a separate structural error; don't double-report.
+        break;
+      }
+      const entryHub: CourseControl = {
+        ...anchorCC,
+        bendPoints: loop.entryBendPoints,
+        legGaps: loop.entryLegGaps,
+      };
+      lengths.push(
+        calculateCourseLength([entryHub, ...loop.controls, anchorCC], controls, mapFile.scale, mapFile.dpi),
+      );
+    }
+    if (incomplete || lengths.length < 2) continue;
+
+    const min = Math.min(...lengths);
+    const max = Math.max(...lengths);
+    if (min <= 0 || max - min < LOOP_IMBALANCE_MIN_DIFF || max / min <= LOOP_IMBALANCE_RATIO) continue;
+
+    items.push({
+      severity: 'warning',
+      messageKey: 'auditLoopImbalance',
+      messageParams: {
+        name: course.name,
+        code: controls[anchorCC.controlId]?.code ?? 0,
+        min: Math.round(min),
+        max: Math.round(max),
+      },
+      courseId: course.id,
+      controlId: anchorCC.controlId,
+    });
+  }
   return items;
 }
 

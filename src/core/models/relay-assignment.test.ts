@@ -171,6 +171,30 @@ describe('assignRelayTeams', () => {
     }
   });
 
+  it('(4b) cross-team first-loop spreading at the mass start (leg 0)', () => {
+    // k=3 butterfly, 12 teams: leg-0 first loops must be spread across teams so a mass
+    // start doesn't funnel packs into one loop. Bound = floor(1.17·T/k)+1 (soft term).
+    const { course, controls } = build(trunk(), [
+      loop('l1', 'cc-a', [
+        { label: 'A', controls: ['x'] },
+        { label: 'B', controls: ['y'] },
+        { label: 'C', controls: ['z'] },
+      ]),
+    ]);
+    const teams = 12;
+    const result = assignRelayTeams(course, controls, settings(teams, 3));
+    const counts = new Map<string, number>();
+    for (const team of result.teams) {
+      const first = team.legs[0]![0]!;
+      counts.set(first, (counts.get(first) ?? 0) + 1);
+    }
+    const values = [...counts.values()];
+    const bound = Math.floor((1.17 * teams) / 3) + 1; // = 5
+    expect(Math.max(...values)).toBeLessThanOrEqual(bound);
+    expect(counts.size).toBe(3); // all three first loops used
+    expect(Math.max(...values) - Math.min(...values)).toBeLessThanOrEqual(2);
+  });
+
   it('(6) no duplicate teams when teams ≤ totalVariations', () => {
     // Two 2-way forks → 4 variations. 4 teams × 2 legs.
     const { course, controls } = build(trunk(), [

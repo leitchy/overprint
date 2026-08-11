@@ -65,8 +65,28 @@ flat model). Round-trips verbatim.
   pins on a legs-reduce as a *stored* mutation (no reduce→increase resurrection); `removeBranch`/`removeFork`
   eager-clean orphaned pins.
 
-- **Deferred still**: cross-team first-loop spreading at a butterfly hub (a gap PP shares); importing
-  `.ppen` relay/fixed-branch settings; drawing variation-code letters on the map.
+- **Deferred still**: importing `.ppen` relay/fixed-branch settings; drawing variation-code letters
+  on the map; extending the loop-length audit (below) to fork branches; climb-based imbalance (no
+  elevation model exists).
+
+### E10 finishing (v0.29.0) — loop fairness
+
+Two domain-reviewed additions closing the last E10 gaps:
+
+- **Loop-length-imbalance audit** (`event-audit.ts`) — a per-loop-generator **warning** when a
+  butterfly/phi hub's loops differ in length past a ratio (`LOOP_IMBALANCE_RATIO = 1.2`) with a
+  `100 m` absolute floor. Per-leg totals are equal by construction (everyone runs every loop), so the
+  fairness lever is length *equality*: with a long loop A and short loop B, B-first runners return to
+  the hub minutes sooner and re-merge with the still-circulating A-first wave, so packs re-form and the
+  order permutation buys little — this is the "real fairness check" the Phase-3 framing note flagged.
+  Fork (gaffle) branches are out of scope for v1 (a scoping call, not because they may differ in
+  length).
+- **Cross-team first-loop spreading** (`relay-assignment.ts` `scoreLeg` Check 1) — a **deliberate
+  divergence from PurplePen**, which leaves loops out of cross-team scoring. At a mass start, many
+  leg-1 runners can enter the same first loop together (hub following); we now score the decoded first
+  loop across teams (dim = k) with the same ×3 mass-start boosts forks get. Within-team order stays
+  governed by `validateLoop`; whole-order duplication by Check 2. Loop / fork+loop golden snapshots
+  re-baselined; fork-only output is byte-identical (the change is loop-scoped).
 
 ### Phase 2 (loops) — what the design predicted, and held
 
@@ -164,8 +184,9 @@ disabled there to avoid trunk corruption).
   branch appear; each control is numbered from the first variation it appears in (a hub's repeated numbers
   within that variation are kept and fanned via `computeNumberFanOffsets`). Previously both emitted only
   the trunk, silently dropping loops/branches.
-- **Phase-3 framing note (from domain review):** permuting loop order is for **anti-following /
+- **Phase-3 framing note (from domain review), now resolved in v0.29.0:** permuting loop order is for **anti-following /
   hub-congestion**, not distance-balancing — with comparable loops the total distance/climb is equal by
-  construction. The real fairness check is a future loop-length-imbalance audit, not order assignment.
+  construction. The real fairness check is the loop-length-imbalance audit (shipped v0.29.0), not order
+  assignment. (Cross-team first-loop spreading, v0.29.0, additionally reduces mass-start hub following.)
 - Adversarial reviews (architecture + orienteering-domain) shaped the model up front for both phases —
   see the plan and conformance-plan §6.10.
