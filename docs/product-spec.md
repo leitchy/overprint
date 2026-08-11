@@ -101,7 +101,10 @@ A free, web-based orienteering course setting tool that runs on any device with 
 - [x] Map exchange / map-flip (multi-part courses, map swap points)
 - [x] Course forks / gaffling — variations auto-enumerated, per-variation export (E10 Phase 1)
 - [x] Butterfly / phi loops — run all loops from a central hub in different orders (k loops → k! variations); hub visited k+1 times with fanned sequence numbers; per-variation PDF/description/IOF export (E10 Phase 2)
-- [ ] Relay team assignment — distribute variations across team legs for anti-following (E10 Phase 3)
+- [x] Relay team assignment — distribute variations across N teams × L legs with an anti-following scrambler (ported from PurplePen); IOF XML `TeamCourseAssignment` + team×leg PDF export (E10 Phase 3)
+- [x] Fixed branch→leg pinning — force specific legs onto a branch; per-leg fairness, defensive validation (E10 Phase 3b)
+- [x] Loop-length-imbalance audit — warn when butterfly/phi loops differ too much in length (E10)
+- [x] Cross-team first-loop spreading — spread the mass-start first loop across relay teams (E10, improves on PurplePen)
 - [ ] Competitor load calculation per control/leg
 
 ### Phase 5 — Map Format Support

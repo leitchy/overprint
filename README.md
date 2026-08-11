@@ -32,10 +32,11 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 ### Course Design (more)
 - **Course forks / gaffling** — define forks with alternative branches; variations are auto-enumerated and each exports its own map, description sheet and IOF course
 - **Butterfly / phi loops** — run all loops from a central hub in different orders (k loops → k! variations); the hub is visited multiple times with sequence numbers fanned around one circle
+- **Relay team assignment** — distribute variations across N teams × L legs with an anti-following scrambler (ported from PurplePen), including fixed branch→leg pinning; export as IOF XML `TeamCourseAssignment` or a printable team×leg PDF
 - Score courses, crossing points and map-exchange symbols
 - Special items: text, lines, rectangles, description boxes, and IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route, map-issue)
 - Leg bend points and leg gaps (route legs around obstacles / hide uncrossable sections)
-- Event audit / validation (missing descriptions, duplicate codes, short/long legs, unused controls)
+- Event audit / validation (missing descriptions, duplicate codes, short/long legs, unused controls, uneven butterfly loops)
 
 ### Control Descriptions
 - Interactive IOF 8-column description sheet
@@ -119,7 +120,6 @@ Overprint follows current International Orienteering Federation standards:
 Overprint is under active development and deployed at [overprint.com.au](https://overprint.com.au). The core course-setting workflow is complete — load maps, design courses, and export print-ready, true-vector PDFs with standards-conformant overprint. See [CLAUDE.md](CLAUDE.md) for the detailed feature list and project context.
 
 ### Not yet implemented
-- **Relay team assignment** (course **forks / gaffling** and butterfly / phi **loops** are supported)
 - Native OCAD (.ocd) binary export (`.omap` export is available)
 
 ## Contributing
