@@ -341,3 +341,67 @@ describe('auditEvent — fork variations (E10.4)', () => {
     expect(auditEvent(event)).toEqual([]);
   });
 });
+
+describe('auditEvent — loop-length imbalance (E10)', () => {
+  /** Course: start, hub (interior), finish, plus a loop generator with two loops
+   *  whose controls sit at `loopADist` / `loopBDist` pixels from the hub. */
+  function butterflyEvent(loopADist: number, loopBDist: number): OverprintEvent {
+    const start = createControl(31, { x: 1000, y: 500 }, { columnD: '1.1' });
+    const hub = createControl(32, { x: 1000, y: 1000 }, { columnD: '1.1' });
+    const finish = createControl(33, { x: 1000, y: 3000 }, { columnD: '1.1' });
+    const la = createControl(41, { x: 1000, y: 1000 + loopADist }, { columnD: '1.1' });
+    const lb = createControl(42, { x: 1000 - loopBDist, y: 1000 }, { columnD: '1.1' });
+    const controls: Record<ControlId, Control> = {
+      [start.id]: start, [hub.id]: hub, [finish.id]: finish, [la.id]: la, [lb.id]: lb,
+    };
+    const course = createCourse('Butterfly');
+    course.controls = [
+      { controlId: start.id, type: 'start', courseControlId: asCourseControlId('cc-s') },
+      { controlId: hub.id, type: 'control', courseControlId: asCourseControlId('cc-h') },
+      { controlId: finish.id, type: 'finish', courseControlId: asCourseControlId('cc-f') },
+    ];
+    course.variations = [
+      {
+        id: asForkId('l1'),
+        kind: 'loop',
+        anchorCourseControlId: asCourseControlId('cc-h'),
+        branches: [
+          { id: asBranchId('b1'), label: 'A', controls: [{ controlId: la.id, type: 'control', courseControlId: asCourseControlId('cc-la') }] },
+          { id: asBranchId('b2'), label: 'B', controls: [{ controlId: lb.id, type: 'control', courseControlId: asCourseControlId('cc-lb') }] },
+        ],
+      },
+    ];
+    return buildEvent({ courses: [course], controls, mapFile: { name: 'm.pdf', type: 'pdf', scale: 10000, dpi: 150 } });
+  }
+
+  it('warns when butterfly loops differ too much in length', () => {
+    const items = auditEvent(butterflyEvent(100, 500)); // 5× imbalance
+    const w = items.find((i) => i.messageKey === 'auditLoopImbalance');
+    expect(w).toBeDefined();
+    expect(w!.severity).toBe('warning');
+    expect(w!.messageParams?.code).toBe(32); // hub control code
+  });
+
+  it('does not warn when loops are balanced', () => {
+    const items = auditEvent(butterflyEvent(120, 120)); // equal round trips
+    expect(items.some((i) => i.messageKey === 'auditLoopImbalance')).toBe(false);
+  });
+
+  it('does not warn for a fork (gaffle) — only loops are length-audited', () => {
+    // Same geometry but a fork instead of a loop: branches are meant to differ.
+    const event = butterflyEvent(100, 500);
+    event.courses[0]!.variations![0]!.kind = 'fork';
+    expect(auditEvent(event).some((i) => i.messageKey === 'auditLoopImbalance')).toBe(false);
+  });
+
+  it('does not warn when the absolute difference is below the floor (tiny loops)', () => {
+    // 30px vs 50px from hub → ~102 m vs ~169 m round trips: ratio ~1.66 but Δ ~67 m < 100 m.
+    expect(auditEvent(butterflyEvent(30, 50)).some((i) => i.messageKey === 'auditLoopImbalance')).toBe(false);
+  });
+
+  it('does not warn (or crash) when a loop is still empty', () => {
+    const event = butterflyEvent(100, 500);
+    event.courses[0]!.variations![0]!.branches[1]!.controls = []; // loop B incomplete
+    expect(auditEvent(event).some((i) => i.messageKey === 'auditLoopImbalance')).toBe(false);
+  });
+});

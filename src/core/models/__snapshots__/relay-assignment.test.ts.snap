@@ -16,13 +16,13 @@ exports[`assignRelayTeams > (1) golden snapshot — 2-way fork, 8 teams × 3 leg
 exports[`assignRelayTeams > (1) golden snapshot — fork + loop combined, 8 teams × 4 legs 1`] = `
 [
   "1: BCD ADC BDC ACD",
-  "2: ACD BDC ADC BCD",
-  "3: BDC ACD BCD ADC",
-  "4: ADC BCD ACD BDC",
-  "5: BDC BCD ADC ACD",
-  "6: ADC ACD BCD BDC",
-  "7: ACD ADC BDC BCD",
-  "8: BDC BCD ACD ADC",
+  "2: ADC BCD ACD BDC",
+  "3: ACD BDC ADC BCD",
+  "4: BDC ACD BCD ADC",
+  "5: BCD ADC ACD BDC",
+  "6: ADC BCD BDC ACD",
+  "7: BDC BCD ADC ACD",
+  "8: ADC ACD BDC BCD",
 ]
 `;
 
@@ -30,10 +30,10 @@ exports[`assignRelayTeams > (1) golden snapshot — single 3-loop, 6 teams × 3 
 [
   "1: ACB BAC CAB",
   "2: BCA CAB ABC",
-  "3: CAB BCA ACB",
-  "4: CBA ACB BAC",
-  "5: ABC CBA BCA",
-  "6: BAC ABC CBA",
+  "3: CAB ABC BAC",
+  "4: ABC CBA BCA",
+  "5: BAC ACB CBA",
+  "6: CBA BCA ACB",
 ]
 `;
 

@@ -170,7 +170,11 @@ overprint/
   `RelaySettings.fixedBranches` (keyed by BranchId) forces specific legs onto a branch via an inline
   branch×leg matrix in the modal; `minUniquePathsByLeg` is now genuinely per-leg, a fully-pinned-yet-
   stranded fork drops its whole pin set (PP semantics), and `duplicateCourse` remaps pins onto the
-  clone's new BranchIds. See [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
+  clone's new BranchIds. **E10 loop fairness (v0.29.0)**: a loop-length-imbalance **audit** warning
+  (butterfly loops should be near-equal length or the order permutation stops separating the field),
+  and **cross-team first-loop spreading** in relay scoring (a deliberate improvement over PurplePen —
+  spreads the mass-start first loop across teams). See
+  [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
 
 ## Getting Started
 

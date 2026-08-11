@@ -238,6 +238,7 @@ const en = {
   auditForkTooFewLoops: 'A loop on course "{name}" needs at least 2 loops',
   auditForkDuplicateAnchor: 'Course "{name}" has two variations anchored at the same control',
   auditForkTooManyLoops: 'A loop on course "{name}" has more than 4 loops — the hub will be hard to read',
+  auditLoopImbalance: 'Course "{name}": loop hub #{code} has uneven loops ({min}–{max} m) — runners may be advantaged by the loop order',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Variations',
@@ -526,6 +527,7 @@ const fr: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'Un papillon du circuit \xab\xa0{name}\xa0\xbb n\xe9cessite au moins 2 boucles',
   auditForkDuplicateAnchor: 'Le circuit \xab\xa0{name}\xa0\xbb a deux variantes ancr\xe9es au m\xeame poste',
   auditForkTooManyLoops: 'Un papillon du circuit \xab\xa0{name}\xa0\xbb a plus de 4 boucles — le poste central sera difficile \xe0 lire',
+  auditLoopImbalance: 'Circuit « {name} » : le papillon au poste #{code} a des boucles inégales ({min}–{max} m) — l’ordre des boucles peut avantager certains coureurs',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Variantes',
@@ -801,6 +803,7 @@ const de: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'Ein Schmetterling auf Bahn «{name}» braucht mindestens 2 Schleifen',
   auditForkDuplicateAnchor: 'Bahn «{name}» hat zwei Varianten, die am selben Posten verankert sind',
   auditForkTooManyLoops: 'Ein Schmetterling auf Bahn «{name}» hat mehr als 4 Schleifen — der Zentralposten wird schwer lesbar',
+  auditLoopImbalance: 'Bahn «{name}»: der Schmetterling an Posten #{code} hat ungleiche Schleifen ({min}–{max} m) — die Schleifenreihenfolge kann Läufer bevorteilen',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Varianten',
@@ -1077,6 +1080,7 @@ const es: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'Una mariposa del recorrido «{name}» necesita al menos 2 bucles',
   auditForkDuplicateAnchor: 'El recorrido «{name}» tiene dos variantes ancladas en el mismo control',
   auditForkTooManyLoops: 'Una mariposa del recorrido «{name}» tiene m\xe1s de 4 bucles — el control central ser\xe1 dif\xedcil de leer',
+  auditLoopImbalance: 'Recorrido «{name}»: la mariposa en el control #{code} tiene bucles desiguales ({min}–{max} m) — el orden de los bucles puede favorecer a algunos corredores',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Variantes',
@@ -1353,6 +1357,7 @@ const fi: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'Radan «{name}» perhosessa on oltava v\xe4hint\xe4\xe4n 2 silmukkaa',
   auditForkDuplicateAnchor: 'Radan «{name}» kaksi variaatiota on kiinnitetty samaan rastiin',
   auditForkTooManyLoops: 'Radan «{name}» perhosessa on yli 4 silmukkaa — keskusrastista tulee vaikealukuinen',
+  auditLoopImbalance: 'Rata «{name}»: rastin #{code} perhosen silmukat ovat eripituiset ({min}–{max} m) — silmukoiden järjestys voi hyödyttää joitakin juoksijoita',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Hajonnat',
@@ -1629,6 +1634,7 @@ const it: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'Una farfalla del percorso \xab{name}\xbb richiede almeno 2 anelli',
   auditForkDuplicateAnchor: 'Il percorso \xab{name}\xbb ha due varianti ancorate allo stesso punto',
   auditForkTooManyLoops: 'Una farfalla del percorso \xab{name}\xbb ha pi\xf9 di 4 anelli — il punto centrale sar\xe0 difficile da leggere',
+  auditLoopImbalance: 'Percorso «{name}»: la farfalla al punto #{code} ha anelli diseguali ({min}–{max} m) — l’ordine degli anelli può avvantaggiare alcuni concorrenti',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Varianti',
@@ -1904,6 +1910,7 @@ const sv: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'En fjäril på banan ”{name}” behöver minst 2 slingor',
   auditForkDuplicateAnchor: 'Banan ”{name}” har två varianter förankrade vid samma kontroll',
   auditForkTooManyLoops: 'En fjäril på banan ”{name}” har fler än 4 slingor — centralkontrollen blir svår att läsa',
+  auditLoopImbalance: 'Bana ”{name}”: fjärilen vid kontroll #{code} har ojämna slingor ({min}–{max} m) — slingornas ordning kan gynna vissa löpare',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'Gafflingar',
@@ -2180,6 +2187,7 @@ const ja: Partial<Record<TranslationKey, string>> = {
   auditForkTooFewLoops: 'コース「{name}」のバタフライには少なくとも2つのループが必要です',
   auditForkDuplicateAnchor: 'コース「{name}」に同じコントロールに固定された2つのバリエーションがあります',
   auditForkTooManyLoops: 'コース「{name}」のバタフライのループが4つを超えています — 中心コントロールが読みにくくなります',
+  auditLoopImbalance: 'コース「{name}」：コントロール #{code} のバタフライのループ長が不均等です（{min}〜{max} m） — ループの順序で有利不利が生じる可能性があります',
 
   // Variations section (course-fork UI, E10)
   variationsTitle: 'バリエーション',
