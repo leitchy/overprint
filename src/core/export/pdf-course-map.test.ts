@@ -12,8 +12,38 @@
 import { inflateSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import { PDFDocument, PDFArray, PDFRawStream } from 'pdf-lib';
-import { generateCoursePdf, descBoxOrigin } from './pdf-course-map';
+import { generateCoursePdf, descBoxOrigin, fitHeaderText } from './pdf-course-map';
 import type { PageLayout } from './pdf-page-layout';
+
+describe('fitHeaderText — title fits the description-box grid (Task #19)', () => {
+  // Fake monospace-ish font: width = chars × size × 0.5.
+  const font = { widthOfTextAtSize: (t: string, s: number) => t.length * s * 0.5 };
+
+  it('leaves a short title unchanged at full size', () => {
+    const r = fitHeaderText(font, 'ACT League', 9, 200);
+    expect(r.text).toBe('ACT League');
+    expect(r.size).toBe(9);
+  });
+
+  it('shrinks the font (no ellipsis) so a moderately long title fits', () => {
+    // 'Radford College Sprint' = 22 chars → width 99 at size 9; force a shrink.
+    const maxWidth = 80;
+    const r = fitHeaderText(font, 'Radford College Sprint', 9, maxWidth);
+    expect(r.text).toBe('Radford College Sprint'); // full text preserved
+    expect(r.size).toBeLessThan(9);
+    expect(font.widthOfTextAtSize(r.text, r.size)).toBeLessThanOrEqual(maxWidth);
+  });
+
+  it('ellipsizes once shrinking hits the minimum size, and still fits', () => {
+    const maxWidth = 100;
+    const long = '2026 NOL Round 2 — ACT League 1 — Radford College Sprint Championships';
+    const r = fitHeaderText(font, long, 9, maxWidth);
+    expect(r.text.endsWith('…')).toBe(true);
+    expect(r.text.length).toBeLessThan(long.length);
+    expect(font.widthOfTextAtSize(r.text, r.size)).toBeLessThanOrEqual(maxWidth);
+    expect(r.size).toBeGreaterThanOrEqual(9 * 0.6); // never below the floor
+  });
+});
 
 describe('descBoxOrigin — description-box placement', () => {
   const layout: PageLayout = {
