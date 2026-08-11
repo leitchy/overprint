@@ -84,6 +84,29 @@ describe('exportGpx', () => {
     expect(gpx).toContain('<name>Start</name>');
     expect(gpx).toContain('<name>Finish</name>');
   });
+
+  it('includes controls that live only inside a fork/loop branch', () => {
+    const event = makeGeoEvent();
+    // A branch-only control at a fresh georeferenced position.
+    const [lon3, lat3] = proj4(UTM55S_PROJ, 'EPSG:4326', [REF_EASTING + 200, REF_NORTHING + 50]);
+    const p = gpsToMapPixels(lon3, lat3, makeGeoRef())!;
+    const branchCtrl = createControl(77, { x: p.x, y: p.y });
+    event.controls[branchCtrl.id] = branchCtrl;
+    const course = event.courses[0]!;
+    course.controls[1]!.courseControlId = 'cc-anchor' as never;
+    course.variations = [{
+      id: 'lp1' as never,
+      kind: 'loop',
+      anchorCourseControlId: 'cc-anchor' as never,
+      branches: [
+        { id: 'a' as never, label: 'A', controls: [{ controlId: branchCtrl.id, type: 'control', courseControlId: 'cc-77' as never }] },
+        { id: 'b' as never, label: 'B', controls: [{ controlId: event.courses[0]!.controls[1]!.controlId, type: 'control', courseControlId: 'cc-45b' as never }] },
+      ],
+    }];
+    const gpx = exportGpx(event)!;
+    // Control 77 exists ONLY in a loop branch — must still get a waypoint.
+    expect(gpx).toContain('<name>77</name>');
+  });
 });
 
 describe('exportIofXml — geo Position', () => {

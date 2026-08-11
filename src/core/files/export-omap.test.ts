@@ -206,6 +206,64 @@ describe('exportCourseToOmap', () => {
   });
 });
 
+describe('exportCourseToOmap — fork/loop variations', () => {
+  it('emits control circles for branch-only controls (not just the trunk)', () => {
+    const { event } = buildEvent();
+    const course = event.courses[0]!;
+    // Give the trunk stable ids and anchor a fork on the interior control (c1).
+    course.controls = course.controls.map((cc, i) => ({ ...cc, courseControlId: `cc-${i}` as never }));
+    const bx = createControl(51, { x: 700, y: 800 });
+    const by = createControl(52, { x: 1100, y: 800 });
+    event.controls[bx.id] = bx;
+    event.controls[by.id] = by;
+    course.variations = [{
+      id: 'fk1' as never,
+      kind: 'fork',
+      anchorCourseControlId: 'cc-1' as never, // the c1 control
+      branches: [
+        { id: 'a' as never, label: 'A', controls: [{ controlId: bx.id, type: 'control', courseControlId: 'cc-bx' as never }] },
+        { id: 'b' as never, label: 'B', controls: [{ controlId: by.id, type: 'control', courseControlId: 'cc-by' as never }] },
+      ],
+    }];
+
+    const parsed = parseOmapXml(exportCourseToOmap(event, 0));
+    const circles = pointObjects(parsed.objects, SYM_CONTROL);
+    // trunk c1, c2 + branch bx, by = 4 distinct control circles (deduped by geometry)
+    expect(circles.length).toBe(4);
+    // Union of both branches' legs: start→c1, c1→bx, bx→c2, c2→finish, c1→by, by→c2 = 6
+    // (vs 3 for the trunk alone), proving branch legs are emitted, deduped.
+    const legs = parsed.objects.filter((o) => o.type === 1 && o.symbolId === SYM_LINE);
+    expect(legs.length).toBe(6);
+  });
+
+  it('a butterfly loop emits the hub circle once but its legs to every loop', () => {
+    const { event } = buildEvent();
+    const course = event.courses[0]!;
+    course.controls = course.controls.map((cc, i) => ({ ...cc, courseControlId: `cc-${i}` as never }));
+    const la = createControl(61, { x: 700, y: 400 });
+    const lb = createControl(62, { x: 1100, y: 400 });
+    event.controls[la.id] = la;
+    event.controls[lb.id] = lb;
+    course.variations = [{
+      id: 'lp1' as never,
+      kind: 'loop',
+      anchorCourseControlId: 'cc-1' as never, // hub = c1
+      branches: [
+        { id: 'a' as never, label: 'A', controls: [{ controlId: la.id, type: 'control', courseControlId: 'cc-la' as never }] },
+        { id: 'b' as never, label: 'B', controls: [{ controlId: lb.id, type: 'control', courseControlId: 'cc-lb' as never }] },
+      ],
+    }];
+
+    const parsed = parseOmapXml(exportCourseToOmap(event, 0));
+    const circles = pointObjects(parsed.objects, SYM_CONTROL);
+    // hub c1 (once), c2, loop la, loop lb = 4 distinct control circles
+    expect(circles.length).toBe(4);
+    // The hub is visited 3× → its 3 sequence numbers all appear (fanned).
+    const numbers = parsed.objects.filter((o) => o.type === 4).map((o) => o.text);
+    expect(numbers.filter((t) => t === '2' || t === '4' || t === '6').length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 describe('suggestedOmapFilename', () => {
   it('combines event and course names', () => {
     const { event } = buildEvent();
