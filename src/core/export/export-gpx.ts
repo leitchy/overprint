@@ -7,6 +7,7 @@
  */
 import type { Control, CourseControl, OverprintEvent } from '@/core/models/types';
 import { mapPixelsToGps } from '@/core/geometry/geo-transform';
+import { forEachCourseControl } from '@/core/models/course-controls';
 
 function escapeXml(raw: string): string {
   return raw
@@ -48,13 +49,21 @@ export function exportGpx(event: OverprintEvent): string | null {
   if (!georef) return null;
 
   // Unique controls across all courses, keyed by control id (first type wins).
+  // Walk trunk AND fork/loop branch controls, so a control that lives only inside a
+  // branch or butterfly loop still gets a waypoint. Prefer a non-'control' type if
+  // one occurrence carries it (start/finish are only ever on the trunk).
   const seen = new Map<string, { ctrl: Control; type: ControlType }>();
   for (const course of event.courses) {
-    for (const cc of course.controls) {
+    forEachCourseControl(course, (cc) => {
       const ctrl = event.controls[cc.controlId];
-      if (!ctrl) continue;
-      if (!seen.has(String(ctrl.id))) seen.set(String(ctrl.id), { ctrl, type: cc.type });
-    }
+      if (!ctrl) return;
+      const existing = seen.get(String(ctrl.id));
+      if (!existing) {
+        seen.set(String(ctrl.id), { ctrl, type: cc.type });
+      } else if (existing.type === 'control' && cc.type !== 'control') {
+        existing.type = cc.type;
+      }
+    });
   }
 
   const waypoints: string[] = [];

@@ -22,6 +22,7 @@
 
 import type {
   Control,
+  CourseControl,
   CourseControlType,
   MapFile,
   MapPoint,
@@ -34,6 +35,8 @@ import {
 } from '@/core/models/constants';
 import { computeShapeOffset } from '@/core/geometry/shape-offset';
 import { buildLegPath, mergeGaps, splitPathByGaps } from '@/core/geometry/leg-path';
+import { enumerateVariations } from '@/core/models/variation-enumerator';
+import { computeNumberFanOffsets } from '@/core/geometry/number-fan';
 
 // ---------------------------------------------------------------------------
 // Coordinate frame
@@ -330,85 +333,101 @@ export function exportCourseToOmap(event: OverprintEvent, courseIndex: number): 
       dims.lineWidth,
     );
 
-  // Resolve course controls to positions in OMAP units
-  const resolved: Array<{
-    control: Control;
-    type: CourseControlType;
-    index: number;
-    pos: MapPoint;
-  }> = [];
-  for (let i = 0; i < course.controls.length; i++) {
-    const cc = course.controls[i]!;
-    const control = event.controls[cc.controlId];
-    if (control) {
-      resolved.push({ control, type: cc.type, index: i, pos: pixelToOmapUnits(control.position, frame) });
-    }
-  }
-
   const objects: string[] = [];
+  // Emit the UNION of all fork/loop variations so a butterfly's loops and every
+  // gaffle branch appear (not just the trunk). Geometry (circles, legs, start,
+  // finish, crossing) is deduped by content so shared trunk objects render once;
+  // each control is NUMBERED only in the first variation it appears in (a hub's
+  // repeated numbers within that variation are kept and fanned; a fork branch's
+  // controls get numbered from the first variation that contains them).
+  const geomKeys = new Set<string>();
+  const numberedControlIds = new Set<string>();
+  const pushGeom = (obj: string): void => {
+    if (!geomKeys.has(obj)) { geomKeys.add(obj); objects.push(obj); }
+  };
+  const labelMode = course.settings.labelMode ?? 'sequence';
+  const fanRadiusPx = (dims.circleRadius + dims.numberSize) / unitsPerPx;
 
-  // Legs (behind shapes) — score courses have no ordered legs
-  if (course.courseType !== 'score') {
-    for (let i = 1; i < resolved.length; i++) {
-      const prev = resolved[i - 1]!;
-      const curr = resolved[i]!;
-      const cc = course.controls[prev.index];
-      const bendPoints = cc?.bendPoints?.map((bp) => pixelToOmapUnits(bp, frame));
-      const path = buildLegPath(prev.pos, curr.pos, bendPoints, shapeOffset(prev.type), shapeOffset(curr.type));
-      if (!path) continue;
+  for (const variation of enumerateVariations(course).variations) {
+    const controlsSeq = variation.controls;
+    // Resolve this variation's controls to positions in OMAP units.
+    const resolved: Array<{ control: Control; type: CourseControlType; cc: CourseControl; pos: MapPoint }> = [];
+    for (const cc of controlsSeq) {
+      const control = event.controls[cc.controlId];
+      if (control) resolved.push({ control, type: cc.type, cc, pos: pixelToOmapUnits(control.position, frame) });
+    }
 
-      // Manual leg gaps are stored as pixel distances along the leg — scale to units
-      const gaps = (cc?.legGaps ?? []).map((g) => ({
-        startDist: g.startDist * unitsPerPx,
-        endDist: g.endDist * unitsPerPx,
-      }));
-      const subPaths = gaps.length > 0 ? splitPathByGaps(path, mergeGaps(gaps)) : [path];
-      for (const sub of subPaths) {
-        if (sub.length >= 2) objects.push(pathObject(SYM_LINE, sub));
+    // Legs (behind shapes) — score courses have no ordered legs
+    if (course.courseType !== 'score') {
+      for (let i = 1; i < resolved.length; i++) {
+        const prev = resolved[i - 1]!;
+        const curr = resolved[i]!;
+        const cc = prev.cc; // leg geometry lives on the SOURCE control
+        const bendPoints = cc.bendPoints?.map((bp) => pixelToOmapUnits(bp, frame));
+        const path = buildLegPath(prev.pos, curr.pos, bendPoints, shapeOffset(prev.type), shapeOffset(curr.type));
+        if (!path) continue;
+        const gaps = (cc.legGaps ?? []).map((g) => ({
+          startDist: g.startDist * unitsPerPx,
+          endDist: g.endDist * unitsPerPx,
+        }));
+        const subPaths = gaps.length > 0 ? splitPathByGaps(path, mergeGaps(gaps)) : [path];
+        for (const sub of subPaths) {
+          if (sub.length >= 2) pushGeom(pathObject(SYM_LINE, sub));
+        }
       }
     }
-  }
 
-  // Start triangle direction: toward first bend point of the first leg, else next control
-  const firstLegBends = course.controls[resolved[0]?.index ?? 0]?.bendPoints;
-  const startTargetPos = firstLegBends && firstLegBends.length > 0
-    ? pixelToOmapUnits(firstLegBends[0]!, frame)
-    : resolved[1]?.pos;
+    // Start triangle direction: toward first bend of the first leg, else next control.
+    const firstLegBends = resolved[0]?.cc.bendPoints;
+    const startTargetPos = firstLegBends && firstLegBends.length > 0
+      ? pixelToOmapUnits(firstLegBends[0]!, frame)
+      : resolved[1]?.pos;
 
-  // Shapes + numbers
-  for (const { type, index, pos, control } of resolved) {
-    if (type === 'start' || type === 'mapExchange' || type === 'mapFlip') {
-      let rotation = startTargetPos && resolved.length >= 2
-        ? rotationToward({ x: startTargetPos.x - resolved[0]!.pos.x, y: startTargetPos.y - resolved[0]!.pos.y })
-        : 0;
-      if (type !== 'start') rotation += Math.PI; // inverted triangle
-      objects.push(pointObject(SYM_START, pos, rotation));
-    } else if (type === 'finish') {
-      objects.push(pointObject(SYM_FINISH, pos));
-    } else if (type === 'crossingPoint') {
-      // X shape: two diagonal strokes with the course-line symbol
-      const a = dims.crossingPointArm;
-      objects.push(pathObject(SYM_LINE, [{ x: pos.x - a, y: pos.y - a }, { x: pos.x + a, y: pos.y + a }]));
-      objects.push(pathObject(SYM_LINE, [{ x: pos.x + a, y: pos.y - a }, { x: pos.x - a, y: pos.y + a }]));
-    } else {
-      objects.push(pointObject(SYM_CONTROL, pos));
+    // Fanned number offsets so a repeated hub's several numbers don't stack.
+    const fanOffsets = computeNumberFanOffsets(
+      resolved.map((r) => ({ controlId: r.control.id, numberOffset: r.cc.numberOffset })),
+      fanRadiusPx,
+    );
 
-      // Control number — same label logic as the canvas/PDF renderers
-      const labelMode = course.settings.labelMode ?? 'sequence';
-      const seqNum = index + 1;
-      let labelText = '';
-      if (labelMode === 'sequence') labelText = String(seqNum);
-      else if (labelMode === 'code') labelText = String(control.code);
-      else if (labelMode === 'both') labelText = `${seqNum} (${control.code})`;
-      if (labelText !== '') {
-        const numberOffset = course.controls[index]?.numberOffset;
-        const label: MapPoint = {
-          x: pos.x + shapeOffset(type) + dims.lineWidth + (numberOffset ? numberOffset.x * unitsPerPx : 0),
-          y: pos.y + dims.numberSize * 0.35 + (numberOffset ? numberOffset.y * unitsPerPx : 0),
-        };
-        objects.push(textObject(SYM_NUMBER, label, labelText));
+    const presentThisVariation = new Set<string>();
+    for (let ri = 0; ri < resolved.length; ri++) {
+      const { type, pos, control } = resolved[ri]!;
+      presentThisVariation.add(String(control.id));
+
+      if (type === 'start' || type === 'mapExchange' || type === 'mapFlip') {
+        let rotation = startTargetPos && resolved.length >= 2
+          ? rotationToward({ x: startTargetPos.x - resolved[0]!.pos.x, y: startTargetPos.y - resolved[0]!.pos.y })
+          : 0;
+        if (type !== 'start') rotation += Math.PI; // inverted triangle
+        pushGeom(pointObject(SYM_START, pos, rotation));
+      } else if (type === 'finish') {
+        pushGeom(pointObject(SYM_FINISH, pos));
+      } else if (type === 'crossingPoint') {
+        const a = dims.crossingPointArm;
+        pushGeom(pathObject(SYM_LINE, [{ x: pos.x - a, y: pos.y - a }, { x: pos.x + a, y: pos.y + a }]));
+        pushGeom(pathObject(SYM_LINE, [{ x: pos.x + a, y: pos.y - a }, { x: pos.x - a, y: pos.y + a }]));
+      } else {
+        pushGeom(pointObject(SYM_CONTROL, pos));
+
+        // Number only the first variation a control appears in (repeats within that
+        // variation — a butterfly hub — are kept so it shows all its numbers).
+        if (numberedControlIds.has(String(control.id))) continue;
+        const seqNum = ri + 1;
+        let labelText = '';
+        if (labelMode === 'sequence') labelText = String(seqNum);
+        else if (labelMode === 'code') labelText = String(control.code);
+        else if (labelMode === 'both') labelText = `${seqNum} (${control.code})`;
+        if (labelText !== '') {
+          const off = fanOffsets[ri];
+          const label: MapPoint = {
+            x: pos.x + shapeOffset(type) + dims.lineWidth + (off ? off.x * unitsPerPx : 0),
+            y: pos.y + dims.numberSize * 0.35 + (off ? off.y * unitsPerPx : 0),
+          };
+          objects.push(textObject(SYM_NUMBER, label, labelText));
+        }
       }
     }
+    for (const cid of presentThisVariation) numberedControlIds.add(cid);
   }
 
   const partName = esc(`${course.name} overprint`);

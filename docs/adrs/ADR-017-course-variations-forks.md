@@ -96,8 +96,13 @@ disabled there to avoid trunk corruption).
   triangle or finish rendered k+1× would be wrong; workaround: place a normal control at the start as
   the hub); a fork *inside* a loop (the model doesn't structurally forbid it); relay team assignment
   (Phase 3). Map-exchange inside/at a loop is forbidden as an implementation simplification, **not** an
-  IOF rule. OMAP/GPX exports still emit only the trunk (they don't enumerate variations) — a documented
-  gap tracked for a follow-up.
+  IOF rule.
+- **OMAP & GPX exports enumerate variations (v0.26.5).** GPX walks trunk + branch controls
+  (`forEachCourseControl`), so a branch/loop-only control still gets a waypoint. OMAP emits the **union**
+  of all variations' geometry (circles + legs deduped by content) so a butterfly's loops and every gaffle
+  branch appear; each control is numbered from the first variation it appears in (a hub's repeated numbers
+  within that variation are kept and fanned via `computeNumberFanOffsets`). Previously both emitted only
+  the trunk, silently dropping loops/branches.
 - **Phase-3 framing note (from domain review):** permuting loop order is for **anti-following /
   hub-congestion**, not distance-balancing — with comparable loops the total distance/climb is equal by
   construction. The real fairness check is a future loop-length-imbalance audit, not order assignment.
