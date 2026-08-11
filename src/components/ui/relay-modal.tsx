@@ -1,13 +1,23 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useModalClose } from './use-modal-close';
 import { BottomSheet } from './bottom-sheet';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
-import { assignRelayTeams } from '@/core/models/relay-assignment';
+import { assignRelayTeams, type RelayIssue } from '@/core/models/relay-assignment';
+import { resolveGenerators } from '@/core/models/variation-enumerator';
 import { saveString, saveBlob, sanitizeFilename } from '@/core/files/download';
 import { useT } from '@/i18n/use-t';
+import type { TranslationKey } from '@/i18n/translations';
 import type { CourseId } from '@/utils/id';
 import type { RelaySettings } from '@/core/models/types';
+
+/** Translation key for each fixed-pin issue kind. */
+const ISSUE_KEYS: Record<RelayIssue['kind'], TranslationKey> = {
+  legUnassignable: 'relayIssueLegUnassignable',
+  legPinnedOutOfRange: 'relayIssueLegOutOfRange',
+  unknownBranch: 'relayIssueUnknownBranch',
+  duplicateLegPin: 'relayIssueDuplicateLegPin',
+};
 
 interface RelayModalProps {
   courseId: CourseId;
@@ -27,6 +37,8 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
   const breakpoint = useBreakpoint();
   const event = useEventStore((s) => s.event);
   const setRelaySettings = useEventStore((s) => s.setRelaySettings);
+  const toggleRelayFixedLeg = useEventStore((s) => s.toggleRelayFixedLeg);
+  const [fixedOpen, setFixedOpen] = useState(false);
 
   const courseIndex = event?.courses.findIndex((c) => c.id === courseId) ?? -1;
   const course = courseIndex >= 0 ? event!.courses[courseIndex] : undefined;
@@ -39,10 +51,20 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
     return assignRelayTeams(course, event.controls, settings);
   }, [course, event?.controls, settings]);
 
+  // Fork generators only — loops carry no branch choice, so they can't be pinned.
+  const forkGens = useMemo(
+    () => (course ? resolveGenerators(course).generators.filter((g) => g.fork.kind === 'fork') : []),
+    [course],
+  );
+
   if (!course || !event) return null;
 
   const update = (patch: Partial<RelaySettings>) => setRelaySettings(courseId, patch);
   const canExport = settings.teams > 0 && assignment != null && assignment.teams.length > 0;
+  const anchorCode = (anchorIndex: number): number | undefined =>
+    event!.controls[course!.controls[anchorIndex]!.controlId]?.code;
+  const issueText = (iss: RelayIssue): string =>
+    t(ISSUE_KEYS[iss.kind], { code: iss.anchorCode, leg: (iss.leg ?? 0) + 1 });
 
   const handleExportXml = async () => {
     const { exportRelayIofXml } = await import('@/core/iof/export-relay-xml');
@@ -147,6 +169,85 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
         <p className="border-b border-gray-100 bg-blue-50 px-4 py-2 text-[11px] text-blue-700">
           ℹ {t('relayDuplicateTeamsNote', { n: settings.teams - assignment.totalVariations })}
         </p>
+      )}
+
+      {/* Fixed-pin validation errors */}
+      {assignment && assignment.issues.length > 0 && (
+        <ul className="space-y-0.5 border-b border-gray-100 bg-red-50 px-4 py-2">
+          {assignment.issues.map((iss, i) => (
+            <li key={i} className="text-[11px] text-red-700">
+              ⚠ {issueText(iss)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Fixed legs (E10 Phase 3b) — only forks can be pinned */}
+      {settings.teams > 0 && forkGens.length > 0 && (
+        <div className="border-b border-gray-100 px-4 py-2">
+          <button
+            className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-gray-400"
+            onClick={() => setFixedOpen((v) => !v)}
+          >
+            <span>{t('relayFixedLegsTitle')}</span>
+            <span>{fixedOpen ? '▲' : '▼'}</span>
+          </button>
+          {fixedOpen && (
+            <div className="mt-1 space-y-2">
+              <p className="text-[10px] italic text-gray-400">{t('relayFixedLegsHint')}</p>
+              {forkGens.map((gen) => (
+                <div key={gen.fork.id}>
+                  <div className="mb-0.5 text-[11px] font-medium text-gray-600">
+                    {t('forkAtControl', { code: anchorCode(gen.anchorIndex) ?? '?' })}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="border-collapse text-[11px]">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-white px-1.5 py-0.5" />
+                          {legHeaders.map((n) => (
+                            <th key={n} className="px-1.5 py-0.5 font-normal text-gray-400">
+                              {t('relayLeg', { n })}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gen.fork.branches.map((b) => (
+                          <tr key={b.id}>
+                            <td className="sticky left-0 z-10 bg-white px-1.5 py-0.5 font-medium text-violet-700">
+                              {b.label}
+                            </td>
+                            {legHeaders.map((n) => {
+                              const leg = n - 1;
+                              const pinned = settings.fixedBranches?.[String(b.id)]?.includes(leg) ?? false;
+                              return (
+                                <td key={n} className="p-0.5 text-center">
+                                  <button
+                                    aria-label={`${t('relayBranchRow', { label: b.label })} ${t('relayLeg', { n })}`}
+                                    aria-pressed={pinned}
+                                    onClick={() => toggleRelayFixedLeg(courseId, gen.fork.id, b.id, leg)}
+                                    className={`h-5 w-6 rounded border text-[10px] ${
+                                      pinned
+                                        ? 'border-violet-500 bg-violet-500 text-white'
+                                        : 'border-gray-200 text-gray-300 hover:bg-violet-50'
+                                    }`}
+                                  >
+                                    {pinned ? '●' : ''}
+                                  </button>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Grid */}

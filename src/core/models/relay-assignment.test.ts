@@ -291,3 +291,101 @@ describe('assignRelayTeams', () => {
     expect(result.teams.map((t) => t.teamNumber)).toEqual([64, 65, 66]);
   });
 });
+
+/** Settings with fixed-branch pins (branch ids are `${forkId}-${branchIndex}`). */
+const pinned = (
+  teams: number,
+  legs: number,
+  fixedBranches: Record<string, number[]>,
+): RelaySettings => ({ firstTeamNumber: 1, teams, legs, fixedBranches });
+
+describe('assignRelayTeams — fixed branch→leg pinning (Phase 3b)', () => {
+  it('pins force the exact branch on those legs; unpinned legs take the rest', () => {
+    // 2-way fork (A=f1-0, B=f1-1), legs=4, A pinned to legs 0,1 → B is the only
+    // non-fixed branch, so legs 2,3 are always B.
+    const { course, controls } = twoWayFork();
+    const result = assignRelayTeams(course, controls, pinned(8, 4, { 'f1-0': [0, 1] }));
+    expect(result.issues).toEqual([]);
+    for (const team of result.teams) expect(team.legs).toEqual(['A', 'A', 'B', 'B']);
+  });
+
+  it('a fully-pinned fork with all legs covered is honoured with no issues', () => {
+    const { course, controls } = twoWayFork();
+    const result = assignRelayTeams(course, controls, pinned(4, 2, { 'f1-0': [0], 'f1-1': [1] }));
+    expect(result.issues).toEqual([]);
+    for (const team of result.teams) expect(team.legs).toEqual(['A', 'B']);
+  });
+
+  it('non-fixed legs balance over the non-fixed branches', () => {
+    // 3-branch fork, A pinned to leg 0, legs=5 → legs 1..4 balance over B,C (2 each).
+    const { course, controls } = build(trunk(), [
+      fork('f1', 'cc-a', [
+        { label: 'A', controls: ['x'] },
+        { label: 'B', controls: ['y'] },
+        { label: 'C', controls: ['z'] },
+      ]),
+    ]);
+    const result = assignRelayTeams(course, controls, pinned(20, 5, { 'f1-0': [0] }));
+    expect(result.issues).toEqual([]);
+    for (const team of result.teams) {
+      expect(team.legs[0]).toBe('A');
+      expect(team.legs.filter((c) => c === 'B').length).toBe(2);
+      expect(team.legs.filter((c) => c === 'C').length).toBe(2);
+    }
+  });
+
+  it('contradictory pins (all branches pinned, a leg unpinned) drop the whole fork; output equals the unpinned run', () => {
+    const { course, controls } = twoWayFork();
+    const unpinnedRun = assignRelayTeams(course, controls, settings(8, 3));
+    const pinnedRun = assignRelayTeams(course, controls, pinned(8, 3, { 'f1-0': [0], 'f1-1': [1] }));
+    expect(pinnedRun.teams).toEqual(unpinnedRun.teams); // drop-all → identical
+    expect(pinnedRun.issues.some((i) => i.kind === 'legUnassignable')).toBe(true);
+    // No blank/NaN cells — every code is a real branch label.
+    for (const team of pinnedRun.teams) for (const code of team.legs) expect(['A', 'B']).toContain(code);
+  });
+
+  it('pinning one fork leaves another fork balanced (independence)', () => {
+    // Two 2-way forks; pin only fork 1's A to leg 0. Fork 2 (2nd code char) stays
+    // balanced per team over legs.
+    const { course, controls } = build(trunk(), [
+      fork('f1', 'cc-a', [
+        { label: 'A', controls: ['x'] },
+        { label: 'B', controls: ['y'] },
+      ]),
+      fork('f2', 'cc-b', [
+        { label: 'C', controls: ['p'] },
+        { label: 'D', controls: ['q'] },
+      ]),
+    ]);
+    const result = assignRelayTeams(course, controls, pinned(20, 4, { 'f1-0': [0] }));
+    expect(result.issues).toEqual([]);
+    for (const team of result.teams) {
+      expect(team.legs[0]![0]).toBe('A'); // fork 1 pinned on leg 0
+      const c = team.legs.filter((code) => code[1] === 'C').length;
+      const d = team.legs.filter((code) => code[1] === 'D').length;
+      expect(c).toBe(2); // fork 2 balanced over 4 legs
+      expect(d).toBe(2);
+    }
+  });
+
+  it('an out-of-range pin is dropped with an issue', () => {
+    const { course, controls } = twoWayFork();
+    const result = assignRelayTeams(course, controls, pinned(4, 3, { 'f1-0': [5] }));
+    expect(result.issues.some((i) => i.kind === 'legPinnedOutOfRange')).toBe(true);
+    // Fork runs unpinned (no valid pins) → both branches appear across teams.
+    const allCodes = new Set(result.teams.flatMap((t) => t.legs));
+    expect(allCodes.has('A') && allCodes.has('B')).toBe(true);
+  });
+
+  it('a pin referencing an unknown branch is dropped with an issue', () => {
+    const { course, controls } = twoWayFork();
+    const result = assignRelayTeams(course, controls, pinned(4, 3, { 'does-not-exist': [0] }));
+    expect(result.issues.some((i) => i.kind === 'unknownBranch')).toBe(true);
+  });
+
+  it('golden snapshot — 2-way fork with A pinned to legs 0,2 (8 teams × 4 legs)', () => {
+    const { course, controls } = twoWayFork();
+    const result = assignRelayTeams(course, controls, pinned(8, 4, { 'f1-0': [0, 2] }));
+    expect(result.teams.map((t) => `${t.teamNumber}: ${t.legs.join(' ')}`)).toMatchSnapshot();
+  });
+});

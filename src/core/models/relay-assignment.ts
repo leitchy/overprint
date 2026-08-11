@@ -26,10 +26,17 @@
  * - Per-fork branch usage within a team is a hard multiset (floor(L/k) + bias to
  *   the first L%k branches) — the same bias the uneven-division warning reports.
  *
- * Pure and dependency-light (no store/geometry). `minUniquePathsByLeg` collapses
- * to `totalVariations` for every leg — **provably exact** for the flat, unpinned
- * model (PP's CalcMinUniquePaths reduces to ∏dims with no nesting/pinning); this
- * must become per-leg if fixed-branch pinning is ever added.
+ * Pure and dependency-light (no store/geometry).
+ *
+ * Fixed branch→leg pinning (E10 Phase 3b): `RelaySettings.fixedBranches` forces
+ * specific legs to run a specific fork branch. `minUniquePathsByLeg` is therefore a
+ * per-LEG array (PP's CalcMinUniquePaths): a fork contributes 1 for a pinned leg,
+ * `numNonFixed` for an unpinned leg, `k!` for a loop. With no pins `numNonFixed = k`
+ * ⇒ product = `totalVariations` for every leg, byte-identical to Phase 3.
+ * INVARIANT (from `resolveFixed`): every fork generator has `numNonFixed ≥ 1` OR all
+ * legs pinned — a contradictory config (all branches pinned yet some leg unpinned)
+ * has its whole fork pin set dropped (PP semantics), keeping the pool non-empty and
+ * `minUnique ≥ 1`.
  */
 import type { Control, Course, RelaySettings } from './types';
 import type { ControlId } from '@/utils/id';
@@ -64,11 +71,42 @@ export interface RelayWarning {
   lessLabels: string[];
 }
 
+/** A problem with the fixed branch→leg pins (E10 Phase 3b), surfaced in the modal. */
+export interface RelayIssue {
+  kind:
+    | 'legUnassignable' // fork fully pinned yet this leg unpinned → whole fork's pins ignored
+    | 'legPinnedOutOfRange' // pinned leg index ≥ leg count
+    | 'unknownBranch' // pin references a BranchId no longer on any fork (stale)
+    | 'duplicateLegPin'; // a leg pinned to two branches of one fork (kept the first)
+  /** Control code at the fork anchor (0 when the branch/fork can't be resolved). */
+  anchorCode: number;
+  /** The offending leg (1-based for display is a UI concern; stored 0-based). */
+  leg?: number;
+}
+
 export interface RelayAssignment {
   teams: TeamAssignment[];
   /** Total distinct variations of the course (∏ generator dims; 1 if none). */
   totalVariations: number;
   warnings: RelayWarning[];
+  /** Fixed-pin validation problems (empty when there are none). */
+  issues: RelayIssue[];
+}
+
+/**
+ * Per-fork-generator fixed-branch state (E10 Phase 3b). Loops get a trivial entry
+ * (they are never pinned). Produced by {@link resolveFixed}, which guarantees the
+ * INVARIANT `numNonFixed ≥ 1` OR all legs pinned.
+ */
+interface GenFixed {
+  /** leg → branch index pinned there, or −1 when unpinned. Length = legs. */
+  fixedLegs: number[];
+  /** Branch indices not pinned to any leg, ascending. */
+  nonFixedBranches: number[];
+  /** `nonFixedBranches.length`. */
+  numNonFixed: number;
+  /** Count of legs with no pin (= `fixedLegs.filter(x => x < 0).length`). */
+  numUnfixedLegs: number;
 }
 
 /** Small, fast, seedable PRNG (mulberry32). Deterministic per seed. */
@@ -119,10 +157,127 @@ function removeFirst(arr: number[], value: number): void {
   if (i >= 0) arr.splice(i, 1);
 }
 
+/**
+ * Cycling multiset of the NON-fixed branch indices, one entry per non-fixed leg
+ * (PP GetPossibleBranches with fixed legs/branches skipped). Removing one entry per
+ * earlier non-fixed pick keeps each team's per-branch usage balanced over the
+ * unpinned branches.
+ */
+function nonFixedPool(nonFixedBranches: number[], numUnfixedLegs: number): number[] {
+  const result: number[] = [];
+  const m = nonFixedBranches.length;
+  for (let i = 0; i < numUnfixedLegs; i++) result.push(nonFixedBranches[i % m]!);
+  return result;
+}
+
+/**
+ * Resolve `RelaySettings.fixedBranches` (BranchId → leg indices) into per-generator
+ * {@link GenFixed}, validating defensively (PP ValidateFixedBranches). Drops invalid
+ * pins with a {@link RelayIssue} rather than blocking. Loops are never pinned.
+ *
+ * CONTRADICTORY-PIN RULE (PP semantics, load-bearing): if a fork ends fully pinned
+ * (`numNonFixed === 0`) yet some leg is unpinned, that leg has no branch to run — so
+ * the fork's ENTIRE pin set is dropped (fork runs unpinned) and a `legUnassignable`
+ * issue is emitted per unpinned leg. This guarantees the module invariant
+ * `numNonFixed ≥ 1` OR all legs pinned, keeping the pool non-empty and `minUnique ≥ 1`.
+ */
+function resolveFixed(
+  generators: ResolvedGenerator[],
+  fixedBranches: Record<string, number[]> | undefined,
+  course: Course,
+  controls: Record<ControlId, Control>,
+  legs: number,
+): { fixed: GenFixed[]; issues: RelayIssue[] } {
+  const issues: RelayIssue[] = [];
+  const anchorCodeOf = (gen: ResolvedGenerator): number => {
+    const cc = course.controls[gen.anchorIndex];
+    return cc ? controls[cc.controlId]?.code ?? 0 : 0;
+  };
+
+  // Trivial per-generator state (all unpinned) — the default for loops and forks
+  // with no pins.
+  const fixed: GenFixed[] = generators.map((gen) => {
+    const k = gen.fork.branches.length;
+    return {
+      fixedLegs: new Array<number>(legs).fill(-1),
+      nonFixedBranches: Array.from({ length: k }, (_, i) => i),
+      numNonFixed: k,
+      numUnfixedLegs: legs,
+    };
+  });
+
+  if (fixedBranches) {
+    // Map each pinned BranchId to (generator index, branch index); loops resolve but
+    // are ignored (PP drops loop-branch pins silently).
+    const location = new Map<string, { g: number; branchIndex: number; isLoop: boolean }>();
+    generators.forEach((gen, g) => {
+      gen.fork.branches.forEach((b, branchIndex) => {
+        location.set(String(b.id), { g, branchIndex, isLoop: gen.fork.kind === 'loop' });
+      });
+    });
+
+    for (const [branchId, pinnedLegs] of Object.entries(fixedBranches)) {
+      const loc = location.get(branchId);
+      if (!loc) {
+        issues.push({ kind: 'unknownBranch', anchorCode: 0 });
+        continue;
+      }
+      if (loc.isLoop) continue; // loops carry no branch choice — ignore, matching PP
+      const gen = generators[loc.g]!;
+      const gf = fixed[loc.g]!;
+      const anchorCode = anchorCodeOf(gen);
+      for (const leg of pinnedLegs) {
+        if (leg < 0 || leg >= legs) {
+          issues.push({ kind: 'legPinnedOutOfRange', anchorCode, leg });
+          continue;
+        }
+        if (gf.fixedLegs[leg]! >= 0) {
+          issues.push({ kind: 'duplicateLegPin', anchorCode, leg });
+          continue; // keep the first branch pinned to this leg
+        }
+        gf.fixedLegs[leg] = loc.branchIndex;
+      }
+    }
+
+    // Recompute non-fixed sets and apply the contradictory-pin rule per fork.
+    generators.forEach((gen, g) => {
+      if (gen.fork.kind === 'loop') return;
+      const gf = fixed[g]!;
+      const k = gen.fork.branches.length;
+      const pinnedBranches = new Set(gf.fixedLegs.filter((x) => x >= 0));
+      const unpinnedLegs = gf.fixedLegs.reduce<number[]>((acc, x, leg) => {
+        if (x < 0) acc.push(leg);
+        return acc;
+      }, []);
+
+      if (pinnedBranches.size === k && unpinnedLegs.length > 0) {
+        // Contradictory: every branch is pinned but some leg has no branch. Drop the
+        // whole fork's pins (PP) and flag each stranded leg.
+        gf.fixedLegs.fill(-1);
+        gf.nonFixedBranches = Array.from({ length: k }, (_, i) => i);
+        gf.numNonFixed = k;
+        gf.numUnfixedLegs = legs;
+        const anchorCode = anchorCodeOf(gen);
+        for (const leg of unpinnedLegs) issues.push({ kind: 'legUnassignable', anchorCode, leg });
+        return;
+      }
+
+      gf.nonFixedBranches = Array.from({ length: k }, (_, i) => i).filter((i) => !pinnedBranches.has(i));
+      gf.numNonFixed = gf.nonFixedBranches.length;
+      gf.numUnfixedLegs = unpinnedLegs.length;
+    });
+  }
+
+  return { fixed, issues };
+}
+
 interface RelayContext {
   generators: ResolvedGenerator[];
   legs: number;
-  totalVariations: number;
+  /** Per-generator fixed-branch state (parallel to `generators`). */
+  fixed: GenFixed[];
+  /** Per-leg count of distinct paths available to that leg (PP minUniquePathsByLeg). */
+  minUnique: number[];
   rng: () => number;
 }
 
@@ -168,11 +323,26 @@ function buildLegChoice(ctx: RelayContext, leg: number, teamLegs: Choice[]): Cho
   for (let g = 0; g < ctx.generators.length; g++) {
     const gen = ctx.generators[g]!;
     if (gen.fork.kind === 'fork') {
-      const k = gen.fork.branches.length;
-      const pool = possibleBranches(k, ctx.legs);
-      // Prefer branches this team's earlier legs haven't used (round-robin).
-      for (let i = 0; i < leg; i++) removeFirst(pool, teamLegs[i]![g]!);
-      choice[g] = pool[randInt(ctx.rng, pool.length)]!;
+      const gf = ctx.fixed[g]!;
+      // A pinned leg runs its fixed branch — no draw.
+      if (gf.fixedLegs[leg]! >= 0) {
+        choice[g] = gf.fixedLegs[leg]!;
+        continue;
+      }
+      // Otherwise draw from the non-fixed branches, balanced over this team's earlier
+      // NON-fixed legs (fixed legs don't consume a pool slot).
+      const pool = nonFixedPool(gf.nonFixedBranches, gf.numUnfixedLegs);
+      for (let i = 0; i < leg; i++) {
+        if (gf.fixedLegs[i]! < 0) removeFirst(pool, teamLegs[i]![g]!);
+      }
+      if (pool.length === 0) {
+        // Defensive: the invariant makes this unreachable, but never index []. Fall
+        // back to an unpinned draw over all branches (a fairness blemish, not a crash).
+        const fallback = possibleBranches(gen.fork.branches.length, ctx.legs);
+        choice[g] = fallback[randInt(ctx.rng, fallback.length)]!;
+      } else {
+        choice[g] = pool[randInt(ctx.rng, pool.length)]!;
+      }
     } else {
       const k = gen.fork.branches.length;
       let rank = 0;
@@ -202,8 +372,10 @@ function scoreLeg(
   let score = 0;
   const current = teamLegs[leg]!;
 
-  // Check 1: cross-team per-fork following. Loops are EXCLUDED (PP: numNonFixedBranches=0),
-  // but a leading loop still consumes the ×3 first-generator boost.
+  // Check 1: cross-team per-fork following. Loops are EXCLUDED (PP: numNonFixedBranches=0)
+  // but still consume the ×3 first-generator boost. A FIXED leg is skipped WITHOUT
+  // consuming the boost (PP skips before firstFork=false), so the next unfixed fork
+  // still gets it.
   let firstGenerator = true;
   for (let g = 0; g < ctx.generators.length; g++) {
     const gen = ctx.generators[g]!;
@@ -211,8 +383,14 @@ function scoreLeg(
       firstGenerator = false;
       continue;
     }
-    const k = gen.fork.branches.length;
-    const allowed = Math.floor((1.17 * accepted.length) / k);
+    const gf = ctx.fixed[g]!;
+    if (gf.fixedLegs[leg]! >= 0) continue; // fixed leg: nothing to score, boost preserved
+    const m = gf.numNonFixed;
+    if (m === 0) {
+      firstGenerator = false;
+      continue; // defensive (unreachable post-invariant)
+    }
+    const allowed = Math.floor((1.17 * accepted.length) / m);
     let similar = 0;
     for (const team of accepted) if (team[leg]![g] === current[g]) similar++;
     let penalty = Math.max(0, similar - allowed);
@@ -222,15 +400,16 @@ function scoreLeg(
     firstGenerator = false;
   }
 
-  // Check 2: cross-team whole-leg duplication.
-  let allowedDuplicates = Math.floor(accepted.length / ctx.totalVariations);
+  // Check 2: cross-team whole-leg duplication (per-leg distinct-path budget).
+  const minUnique = ctx.minUnique[leg]!;
+  let allowedDuplicates = Math.floor(accepted.length / minUnique);
   if (allowedDuplicates >= 1) allowedDuplicates += Math.ceil(allowedDuplicates / 3);
   let duplicates = 0;
   for (const team of accepted) if (legEquals(team[leg]!, current)) duplicates++;
   score += 10 * Math.max(0, duplicates - allowedDuplicates);
 
-  // Check 3: within-team distinctness (only when enough distinct paths exist).
-  if (ctx.legs <= ctx.totalVariations) {
+  // Check 3: within-team distinctness (only when enough distinct paths exist for this leg).
+  if (ctx.legs <= minUnique) {
     for (let other = 0; other < leg; other++) {
       if (legEquals(teamLegs[other]!, current)) score += 100;
     }
@@ -315,21 +494,28 @@ function clampInt(value: number, min: number): number {
   return Math.max(min, Math.floor(value));
 }
 
-/** Uneven-division warnings — fork generators only (loops never warn: all loops are run). */
+/**
+ * Uneven-division warnings — fork generators only (loops never warn: all loops are
+ * run). Splits the NON-fixed legs over the NON-fixed branches (fixed pins are exact),
+ * in ascending branch order so `moreLabels` matches the actual per-team bias. A fully
+ * pinned fork (`numNonFixed === 0`) emits no warning.
+ */
 function branchWarnings(
   generators: ResolvedGenerator[],
   course: Course,
   controls: Record<ControlId, Control>,
-  legs: number,
+  fixed: GenFixed[],
 ): RelayWarning[] {
   const warnings: RelayWarning[] = [];
-  for (const gen of generators) {
-    if (gen.fork.kind !== 'fork') continue;
-    const k = gen.fork.branches.length;
-    const more = legs % k;
-    if (more === 0) continue;
-    const legsPerBranch = Math.floor(legs / k);
-    const labels = gen.fork.branches.map((b) => b.label);
+  generators.forEach((gen, g) => {
+    if (gen.fork.kind !== 'fork') return;
+    const gf = fixed[g]!;
+    const m = gf.numNonFixed;
+    if (m === 0) return;
+    const more = gf.numUnfixedLegs % m;
+    if (more === 0) return;
+    const legsPerBranch = Math.floor(gf.numUnfixedLegs / m);
+    const labels = gf.nonFixedBranches.map((bi) => gen.fork.branches[bi]!.label);
     const anchorCC = course.controls[gen.anchorIndex]!;
     warnings.push({
       kind: 'unevenDivision',
@@ -339,8 +525,26 @@ function branchWarnings(
       lessLegs: legsPerBranch,
       lessLabels: labels.slice(more),
     });
-  }
+  });
   return warnings;
+}
+
+/**
+ * Per-leg count of distinct paths available to that leg (PP CalcMinUniquePaths,
+ * flat case): a fork contributes 1 for a pinned leg, `numNonFixed` otherwise; a
+ * loop contributes `k!`. With no pins this is `totalVariations` for every leg.
+ */
+function computeMinUnique(generators: ResolvedGenerator[], fixed: GenFixed[], legs: number): number[] {
+  const result: number[] = [];
+  for (let leg = 0; leg < legs; leg++) {
+    let product = 1;
+    generators.forEach((gen, g) => {
+      if (gen.fork.kind === 'loop') product *= gen.dim;
+      else product *= fixed[g]!.fixedLegs[leg]! >= 0 ? 1 : fixed[g]!.numNonFixed;
+    });
+    result.push(product);
+  }
+  return result;
 }
 
 /**
@@ -361,11 +565,12 @@ export function assignRelayTeams(
   const legs = clampInt(settings.legs, 1);
   const firstTeamNumber = clampInt(settings.firstTeamNumber, 0);
 
-  const warnings = branchWarnings(generators, course, controls, legs);
+  const { fixed, issues } = resolveFixed(generators, settings.fixedBranches, course, controls, legs);
+  const warnings = branchWarnings(generators, course, controls, fixed);
 
   // No teams configured, or an unforked course → nothing to scramble.
   if (teams === 0) {
-    return { teams: [], totalVariations, warnings };
+    return { teams: [], totalVariations, warnings, issues };
   }
   if (generators.length === 0) {
     const emptyLegs = new Array<string>(legs).fill('');
@@ -376,13 +581,15 @@ export function assignRelayTeams(
       })),
       totalVariations,
       warnings,
+      issues,
     };
   }
 
   const ctx: RelayContext = {
     generators,
     legs,
-    totalVariations,
+    fixed,
+    minUnique: computeMinUnique(generators, fixed, legs),
     rng: mulberry32(RELAY_SEED),
   };
 
@@ -397,5 +604,5 @@ export function assignRelayTeams(
     });
   }
 
-  return { teams: result, totalVariations, warnings };
+  return { teams: result, totalVariations, warnings, issues };
 }

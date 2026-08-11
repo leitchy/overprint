@@ -39,9 +39,34 @@ team can follow another. `RelaySettings { firstTeamNumber, teams, legs }` lives 
   `Course*` (one per uncapped variation, `CourseFamily`-grouped) → `TeamCourseAssignment*` (native IOF
   relay elements; `Leg` 1-based; `CourseName` = `"<course> <code>"` referencing the variation courses)
   in strict schema order; plus a paginating team × leg PDF table (`pdf-relay-table.ts`).
-- **Deferred still**: fixed branch→leg pinning (PP `FixedBranchAssignments`, which is what makes
-  `minUniquePaths` leg-dependent); cross-team first-loop spreading at a butterfly hub (a gap PP shares);
-  drawing variation-code letters on the map.
+### Phase 3b (fixed branch→leg pinning) — v0.28.0
+
+Setters can now force specific legs to run a specific fork branch (PP `FixedBranchAssignments`).
+`RelaySettings.fixedBranches: Record<BranchId, number[]>` (BranchId → 0-based leg indices; loops are
+never pinned — no branch choice). Keyed by the stable `BranchId` (labels aren't globally unique in the
+flat model). Round-trips verbatim.
+
+- **`minUniquePathsByLeg` is now genuinely per-leg** (the Phase 3 documented expiry): a fork contributes
+  1 for a pinned leg, `numNonFixed` otherwise, `k!` for a loop. With no pins `numNonFixed = k` ⇒ product
+  = `totalVariations` for every leg, byte-identical to Phase 3 (golden snapshots are the regression anchor).
+- **Contradictory-pin semantics (PP, load-bearing):** if a fork ends fully pinned yet a leg is unpinned,
+  that leg has no branch to run — so the fork's *entire* pin set is dropped (runs unpinned) and a
+  `legUnassignable` issue is surfaced. This guarantees the invariant `numNonFixed ≥ 1` OR all legs pinned,
+  keeping the branch pool non-empty and `minUnique ≥ 1` (avoids empty-pool `undefined` codes / `0/0` NaN
+  scoring). Other invalid pins (out-of-range leg, stale/unknown BranchId, a leg pinned twice in one fork)
+  are dropped-and-warned, never blocking — matching PP's `ValidateFixedBranches` + Overprint's defensive
+  philosophy.
+- A fixed leg **preserves** the ×3 first-generator boost (PP skips a fixed leg before `firstFork=false`),
+  unlike a loop which consumes it.
+- **UI:** an inline branch × leg toggle matrix in the Relay modal (`overflow-x-auto`, sticky branch
+  column), gated on `teams > 0` and ≥1 fork; pins via `toggleRelayFixedLeg` (one branch per leg per fork,
+  enforced at write time). **Store hygiene:** `duplicateCourse` **remaps** pins onto the clone's
+  regenerated BranchIds (a deep copy alone would orphan them); `setRelaySettings` drops now-out-of-range
+  pins on a legs-reduce as a *stored* mutation (no reduce→increase resurrection); `removeBranch`/`removeFork`
+  eager-clean orphaned pins.
+
+- **Deferred still**: cross-team first-loop spreading at a butterfly hub (a gap PP shares); importing
+  `.ppen` relay/fixed-branch settings; drawing variation-code letters on the map.
 
 ### Phase 2 (loops) — what the design predicted, and held
 

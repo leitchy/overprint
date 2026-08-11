@@ -127,8 +127,12 @@ interface EventActions {
   /** Create a NEW control at `position` and append it to a fork/loop branch. */
   placeControlInBranch: (courseId: CourseId, forkId: ForkId, branchId: BranchId, position: MapPoint) => void;
   /** Set relay team-assignment settings on a course (E10 Phase 3). Clamps inputs
-   *  and clears `course.relay` when `teams` is 0. */
+   *  and clears `course.relay` when `teams` is 0. Reducing `legs` drops now
+   *  out-of-range fixed-branch pins. */
   setRelaySettings: (courseId: CourseId, patch: Partial<RelaySettings>) => void;
+  /** Toggle a fixed branch→leg pin (E10 Phase 3b). Enforces one branch per leg per
+   *  fork (pinning a leg clears it from sibling branches). No-op without a relay. */
+  toggleRelayFixedLeg: (courseId: CourseId, forkId: ForkId, branchId: BranchId, leg: number) => void;
 
   // Background course visibility
   toggleCourseVisibility: (id: CourseId) => void;
@@ -219,6 +223,15 @@ function findFork(course: Course, forkId: ForkId): CourseFork | undefined {
   return course.variations?.find((f) => f.id === forkId);
 }
 
+/** Drop relay fixed-branch pins for the given branch ids (branch/fork removal
+ *  hygiene, E10 Phase 3b). Prunes an emptied record back to undefined. */
+function dropRelayPins(course: Course, branchIds: BranchId[]): void {
+  const fb = course.relay?.fixedBranches;
+  if (!fb) return;
+  for (const bid of branchIds) delete fb[String(bid)];
+  if (Object.keys(fb).length === 0) course.relay!.fixedBranches = undefined;
+}
+
 /** Anchor must resolve to an INTERIOR trunk control (matches the enumerator's
  *  drop rule in variation-enumerator.ts and courseForkIssues). */
 function isForkAnchorResolvable(course: Course, anchorCourseControlId: CourseControlId): boolean {
@@ -233,9 +246,17 @@ function isAnchorOccupied(course: Course, anchorCourseControlId: CourseControlId
 }
 
 /** After any trunk mutation: drop forks whose anchor no longer resolves to an
- *  interior trunk control (deleted, or pushed to first/last position). */
+ *  interior trunk control (deleted, or pushed to first/last position). Also drops
+ *  any relay fixed-branch pins that belonged to the removed forks (same hygiene as
+ *  removeFork/removeBranch). */
 function dropOrphanedForks(course: Course): void {
   if (!course.variations) return;
+  const dropped = course.variations.filter(
+    (f) => !isForkAnchorResolvable(course, f.anchorCourseControlId),
+  );
+  if (dropped.length > 0) {
+    dropRelayPins(course, dropped.flatMap((f) => f.branches.map((b) => b.id)));
+  }
   course.variations = course.variations.filter((f) =>
     isForkAnchorResolvable(course, f.anchorCourseControlId),
   );
@@ -368,7 +389,10 @@ export const useEventStore = create<EventState & EventActions>()(
 
           // Copy forks, remapping each anchor onto the NEW trunk copy's id.
           // A fork whose anchor doesn't resolve in the source trunk is dropped
-          // (same rule the enumerator applies to stale data).
+          // (same rule the enumerator applies to stale data). Branch ids are also
+          // regenerated; `branchIdMap` records old→new so relay fixed-branch pins
+          // (keyed by BranchId) can be remapped onto the clone.
+          const branchIdMap = new Map<BranchId, BranchId>();
           let variations: CourseFork[] | undefined;
           if (source.variations) {
             variations = [];
@@ -379,20 +403,40 @@ export const useEventStore = create<EventState & EventActions>()(
                 id: generateForkId(),
                 kind: fork.kind,
                 anchorCourseControlId: newAnchor,
-                branches: fork.branches.map((b) => ({
-                  id: generateBranchId(),
-                  label: b.label,
-                  entryBendPoints: b.entryBendPoints
-                    ? JSON.parse(JSON.stringify(b.entryBendPoints))
-                    : undefined,
-                  entryLegGaps: b.entryLegGaps
-                    ? JSON.parse(JSON.stringify(b.entryLegGaps))
-                    : undefined,
-                  controls: b.controls.map(cloneCourseControl),
-                })),
+                branches: fork.branches.map((b) => {
+                  const newBranchId = generateBranchId();
+                  branchIdMap.set(b.id, newBranchId);
+                  return {
+                    id: newBranchId,
+                    label: b.label,
+                    entryBendPoints: b.entryBendPoints
+                      ? JSON.parse(JSON.stringify(b.entryBendPoints))
+                      : undefined,
+                    entryLegGaps: b.entryLegGaps
+                      ? JSON.parse(JSON.stringify(b.entryLegGaps))
+                      : undefined,
+                    controls: b.controls.map(cloneCourseControl),
+                  };
+                }),
               });
             }
             if (variations.length === 0) variations = undefined;
+          }
+
+          // Deep-copy relay settings, remapping fixed-branch pins onto the clone's new
+          // BranchIds. A shallow copy would share the nested record/arrays, and the old
+          // BranchIds would be orphaned (dropped) on the clone.
+          let relay: RelaySettings | undefined;
+          if (source.relay) {
+            relay = { ...source.relay, fixedBranches: undefined };
+            if (source.relay.fixedBranches) {
+              const remapped: Record<string, number[]> = {};
+              for (const [oldBid, legs] of Object.entries(source.relay.fixedBranches)) {
+                const newBid = branchIdMap.get(oldBid as BranchId);
+                if (newBid) remapped[String(newBid)] = [...legs];
+              }
+              if (Object.keys(remapped).length > 0) relay.fixedBranches = remapped;
+            }
           }
 
           const clone: Course = {
@@ -404,7 +448,7 @@ export const useEventStore = create<EventState & EventActions>()(
             settings: JSON.parse(JSON.stringify(source.settings)),
             partOptions: source.partOptions ? JSON.parse(JSON.stringify(source.partOptions)) : undefined,
             variations,
-            relay: source.relay ? { ...source.relay } : undefined,
+            relay,
           };
           // Insert after the source course
           const index = state.event.courses.findIndex((c) => c.id === id);
@@ -518,8 +562,49 @@ export const useEventStore = create<EventState & EventActions>()(
           next.firstTeamNumber = Math.max(0, Math.floor(next.firstTeamNumber) || 0);
           next.teams = Math.max(0, Math.floor(next.teams) || 0);
           next.legs = Math.max(1, Math.floor(next.legs) || 1);
+          // Drop fixed pins beyond the (possibly reduced) leg count — a STORED
+          // mutation, so a later legs-increase can't resurrect them. Prune empties.
+          if (next.fixedBranches) {
+            const cleaned: Record<string, number[]> = {};
+            for (const [bid, legs] of Object.entries(next.fixedBranches)) {
+              const kept = legs.filter((l) => l >= 0 && l < next.legs);
+              if (kept.length > 0) cleaned[bid] = kept;
+            }
+            next.fixedBranches = Object.keys(cleaned).length > 0 ? cleaned : undefined;
+          }
           // teams === 0 means "not configured" — drop the relay block entirely.
           course.relay = next.teams === 0 ? undefined : next;
+        });
+      },
+
+      toggleRelayFixedLeg: (courseId: CourseId, forkId: ForkId, branchId: BranchId, leg: number) => {
+        set((state) => {
+          if (!state.event) return;
+          const course = findCourse(state.event, courseId);
+          if (!course?.relay) return; // relay must exist (UI gates on teams > 0)
+          const fork = findFork(course, forkId);
+          if (!fork || !fork.branches.some((b) => b.id === branchId)) return;
+          if (leg < 0 || leg >= course.relay.legs) return;
+
+          if (!course.relay.fixedBranches) course.relay.fixedBranches = {};
+          const fb = course.relay.fixedBranches;
+          const key = String(branchId);
+          const wasOnTarget = (fb[key] ?? []).includes(leg);
+
+          // One branch per leg per fork: remove this leg from every sibling branch.
+          for (const b of fork.branches) {
+            const bk = String(b.id);
+            const arr = fb[bk];
+            if (!arr) continue;
+            const filtered = arr.filter((l) => l !== leg);
+            if (filtered.length > 0) fb[bk] = filtered;
+            else delete fb[bk];
+          }
+          // Toggle ON only if it wasn't already pinned to the target (else it's now off).
+          if (!wasOnTarget) {
+            fb[key] = [...(fb[key] ?? []), leg].sort((a, b) => a - b);
+          }
+          if (Object.keys(fb).length === 0) course.relay.fixedBranches = undefined;
         });
       },
 
@@ -574,6 +659,8 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!state.event) return;
           const course = findCourse(state.event, courseId);
           if (!course?.variations) return;
+          const fork = findFork(course, forkId);
+          if (fork) dropRelayPins(course, fork.branches.map((b) => b.id));
           course.variations = course.variations.filter((f) => f.id !== forkId);
           if (course.variations.length === 0) course.variations = undefined;
           if (state.activeLoopTarget?.forkId === forkId) state.activeLoopTarget = null;
@@ -601,6 +688,7 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!course?.variations) return;
           const fork = findFork(course, forkId);
           if (!fork) return;
+          dropRelayPins(course, [branchId]);
           fork.branches = fork.branches.filter((b) => b.id !== branchId);
           // A fork with no branches is meaningless — remove it entirely
           if (fork.branches.length === 0) {

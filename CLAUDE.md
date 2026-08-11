@@ -166,8 +166,11 @@ overprint/
   of PurplePen's `RelayVariations` greedy anti-following scrambler (`relay-assignment.ts`, seeded, over
   the flat generator list; grid codes match the picker via shared enumerator helpers). A "Relay teams…"
   modal previews the grid; exports as native IOF v3 `<TeamCourseAssignment>` (`export-relay-xml.ts`)
-  and a paginating PDF table (`pdf-relay-table.ts`). Fixed branch→leg pinning is still deferred. See
-  [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
+  and a paginating PDF table (`pdf-relay-table.ts`). **Fixed branch→leg pinning (Phase 3b, v0.28.0)**:
+  `RelaySettings.fixedBranches` (keyed by BranchId) forces specific legs onto a branch via an inline
+  branch×leg matrix in the modal; `minUniquePathsByLeg` is now genuinely per-leg, a fully-pinned-yet-
+  stranded fork drops its whole pin set (PP semantics), and `duplicateCourse` remaps pins onto the
+  clone's new BranchIds. See [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
 
 ## Getting Started
 

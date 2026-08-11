@@ -110,4 +110,17 @@ describe('exportRelayIofXml', () => {
     const member = doc.getElementsByTagNameNS(NS, 'TeamMemberCourseAssignment')[0]!;
     expect(Array.from(member.children).map((c) => c.localName)).toEqual(['Leg', 'CourseName', 'CourseFamily']);
   });
+
+  it('honours fixed pins — every leg-1 assignment references the pinned A variation', () => {
+    const { event, courseIndex } = makeRelayEvent(6, 3);
+    // Pin branch A (id 'b1') to leg 0 → every team runs "Course A A" on leg 1.
+    event.courses[courseIndex]!.relay!.fixedBranches = { b1: [0] };
+    const xml = exportRelayIofXml(event, event.courses[courseIndex]!, 'FIXED');
+    const doc = parse(xml);
+    const teams = doc.getElementsByTagNameNS(NS, 'TeamCourseAssignment');
+    for (const team of Array.from(teams)) {
+      const leg1 = team.getElementsByTagNameNS(NS, 'TeamMemberCourseAssignment')[0]!;
+      expect(leg1.getElementsByTagNameNS(NS, 'CourseName')[0]?.textContent).toBe('Course A A');
+    }
+  });
 });

@@ -36,3 +36,16 @@ exports[`assignRelayTeams > (1) golden snapshot — single 3-loop, 6 teams × 3 
   "6: BAC ABC CBA",
 ]
 `;
+
+exports[`assignRelayTeams — fixed branch→leg pinning (Phase 3b) > golden snapshot — 2-way fork with A pinned to legs 0,2 (8 teams × 4 legs) 1`] = `
+[
+  "1: A B A B",
+  "2: A B A B",
+  "3: A B A B",
+  "4: A B A B",
+  "5: A B A B",
+  "6: A B A B",
+  "7: A B A B",
+  "8: A B A B",
+]
+`;
