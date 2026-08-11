@@ -203,6 +203,10 @@ export interface RelaySettings {
   teams: number;
   /** Number of legs per team (default 1). */
   legs: number;
+  /** Fixed branch→leg pins (E10 Phase 3b): `BranchId` → sorted, unique, 0-based
+   *  leg indices that must run that branch. Absent = no pinning. Loops are never
+   *  pinned (no branch choice). Keyed by the stable BranchId, not the label. */
+  fixedBranches?: Record<string, number[]>;
 }
 
 export interface Course {
