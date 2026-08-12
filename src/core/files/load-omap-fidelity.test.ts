@@ -280,7 +280,9 @@ describe('OMAP builder — real fixtures (parse + deterministic build)', () => {
       expect(a.startsWith('<svg')).toBe(true);
       expect(a).toMatch(/viewBox="/);
       expect(a.trim().endsWith('</svg>')).toBe(true);
-    });
+      // Parsing + double-building the 11 MB Mt Taylor map exceeds the default 5 s
+      // timeout on the (slower, shared) CI runner though it's ~1 s locally.
+    }, 30000);
   }
 
   it('the large maps produce substantial geometry with upper-ink tagging', () => {
@@ -290,7 +292,7 @@ describe('OMAP builder — real fixtures (parse + deterministic build)', () => {
     const svg = _buildSvg(p.objects, p.symbols, p.colors);
     expect((svg.match(/<path/g) ?? []).length).toBeGreaterThan(200);
     expect(svg).toContain('data-ink="upper"');
-  });
+  }, 30000);
 
   it('rejects the legacy binary OMAP format with a clear error', () => {
     expect(() => parseOmapXml('OMAP\x00\x08 legacy binary blob')).toThrow(/legacy/i);
