@@ -103,12 +103,26 @@ async function svgToPngBlob(svgString: string, sizePx: number): Promise<Blob> {
  * @param event       - The OverprintEvent to render
  * @param courseIndex - Index into event.courses (default 0)
  */
+/** Rasterise a symbol SVG to PNG bytes. Injectable so tests can bypass the
+ *  browser-canvas rasteriser (unavailable in jsdom) and exercise the symbol-
+ *  embedding path deterministically. Defaults to an offscreen-canvas render. */
+export type SymbolRasterizer = (svgString: string, sizePx: number) => Promise<Uint8Array>;
+
+export interface DescriptionSheetOptions {
+  renderSymbolPng?: SymbolRasterizer;
+}
+
 export async function generateDescriptionSheetPdf(
   event: OverprintEvent,
   courseIndex = 0,
+  opts: DescriptionSheetOptions = {},
 ): Promise<{ blob: Blob; suggestedName: string }> {
   const course: Course | undefined = event.courses[courseIndex];
   if (!course) throw new Error('No course to export');
+
+  const renderSymbolPng: SymbolRasterizer =
+    opts.renderSymbolPng ??
+    (async (svg, sizePx) => new Uint8Array(await (await svgToPngBlob(svg, sizePx)).arrayBuffer()));
 
   const lang = event.settings.language ?? 'en';
   const appearance = course.settings.descriptionAppearance ?? 'symbols';
@@ -144,9 +158,7 @@ export async function generateDescriptionSheetPdf(
 
     // 300 DPI equivalent: cell is 7mm → 7/25.4*300 ≈ 83px — round up to 84
     const sizePx = Math.ceil((CELL_SIZE_MM / 25.4) * 300);
-    const blob = await svgToPngBlob(svgString, sizePx);
-    const arrayBuffer = await blob.arrayBuffer();
-    const pngBytes = new Uint8Array(arrayBuffer);
+    const pngBytes = await renderSymbolPng(svgString, sizePx);
     const image = await pdfDoc.embedPng(pngBytes);
     embeddedSymbols.set(symbolId, image);
     return image;

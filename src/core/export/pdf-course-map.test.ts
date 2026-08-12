@@ -9,9 +9,9 @@
  *
  * and that the vector path never sets a Multiply blend mode.
  */
-import { inflateSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
-import { PDFDocument, PDFArray, PDFRawStream } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
+import { pageContentText, allObjectsText } from './__test-utils__/pdf-inspect';
 import { generateCoursePdf, descBoxOrigin, fitHeaderText } from './pdf-course-map';
 import type { PageLayout } from './pdf-page-layout';
 
@@ -129,43 +129,6 @@ function makeEvent(mapStandard: EventSettings['mapStandard'], specialItems: Spec
     specialItems,
     version: '1',
   };
-}
-
-/** Decompressed content stream text of one page of a loaded PDF. */
-function pageContentText(doc: PDFDocument, pageIndex: number): string {
-  const page = doc.getPage(pageIndex);
-  const contents = page.node.Contents();
-  const streams: PDFRawStream[] = [];
-  const push = (obj: unknown) => {
-    if (obj instanceof PDFRawStream) streams.push(obj);
-  };
-  if (contents instanceof PDFArray) {
-    for (let i = 0; i < contents.size(); i++) push(doc.context.lookup(contents.get(i)));
-  } else if (contents) {
-    push(doc.context.lookup(contents) ?? contents);
-  }
-  return streams
-    .map((s) => {
-      const body = s.getContents();
-      try {
-        return inflateSync(Buffer.from(body)).toString('latin1');
-      } catch {
-        return Buffer.from(body).toString('latin1');
-      }
-    })
-    .join('\n');
-}
-
-/**
- * Every indirect object of the loaded document, stringified — dictionaries
- * like ExtGStates live inside compressed object streams, so raw-byte greps
- * miss them; the parsed object model doesn't.
- */
-function allObjectsText(doc: PDFDocument): string {
-  return doc.context
-    .enumerateIndirectObjects()
-    .map(([, obj]) => String(obj))
-    .join('\n');
 }
 
 async function exportAndLoad(event: OverprintEvent): Promise<{ content: string; raw: string }> {
