@@ -12,6 +12,13 @@ exports[`OMAP builder — golden snapshots per symbol category > along-line mid 
 </svg>"
 `;
 
+exports[`OMAP builder — golden snapshots per symbol category > area with a hole (island/donut polygon) 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 3300 3300">
+<rect x="-150" y="-150" width="3300" height="3300" fill="white"/>
+<path d="M0 0 L3000 0 L3000 3000 L0 3000 Z M1000 1000 L2000 1000 L2000 2000 L1000 2000 Z" fill="rgb(0,128,255)" fill-rule="evenodd" data-ink="upper"/>
+</svg>"
+`;
+
 exports[`OMAP builder — golden snapshots per symbol category > area with dot pattern 1`] = `
 "<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 2200 2200">
 <defs>
@@ -29,6 +36,13 @@ exports[`OMAP builder — golden snapshots per symbol category > area with hatch
 </defs>
 <rect x="-100" y="-100" width="2200" height="2200" fill="white"/>
 <path d="M0 0 L2000 0 L2000 2000 L0 2000 Z" fill="url(#pat-1-0)" fill-rule="evenodd"/>
+</svg>"
+`;
+
+exports[`OMAP builder — golden snapshots per symbol category > bezier-curved line 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 3300 1300">
+<rect x="-150" y="-150" width="3300" height="1300" fill="white"/>
+<path d="M0 0 C1000 1000 2000 1000 3000 0" fill="none" stroke="rgb(0,0,0)" stroke-width="120" stroke-linecap="round" stroke-linejoin="round" data-ink="upper"/>
 </svg>"
 `;
 
@@ -55,6 +69,20 @@ exports[`OMAP builder — golden snapshots per symbol category > dashed line (gr
 </svg>"
 `;
 
+exports[`OMAP builder — golden snapshots per symbol category > glyphless point falls back to a dot 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="500 500 0 0">
+<rect x="500" y="500" width="0" height="0" fill="white"/>
+<circle cx="500" cy="500" r="80" fill="rgb(0,0,0)" data-ink="upper"/>
+</svg>"
+`;
+
+exports[`OMAP builder — golden snapshots per symbol category > point glyph with line sub-elements (a cross/X symbol) 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="1000 1000 0 0">
+<rect x="1000" y="1000" width="0" height="0" fill="white"/>
+<g transform="translate(1000,1000)"><path d="M-200 0 L200 0" fill="none" stroke="rgb(0,0,0)" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 -200 L0 200" fill="none" stroke="rgb(0,0,0)" stroke-width="50" stroke-linecap="round" stroke-linejoin="round"/></g>
+</svg>"
+`;
+
 exports[`OMAP builder — golden snapshots per symbol category > point symbol glyph 1`] = `
 "<svg xmlns="http://www.w3.org/2000/svg" viewBox="1000 1000 0 0">
 <rect x="1000" y="1000" width="0" height="0" fill="white"/>
@@ -73,5 +101,48 @@ exports[`OMAP builder — golden snapshots per symbol category > solid line 1`] 
 "<svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 3300 300">
 <rect x="-150" y="-150" width="3300" height="300" fill="white"/>
 <path d="M0 0 L3000 0" fill="none" stroke="rgb(0,0,0)" stroke-width="200" stroke-linecap="round" stroke-linejoin="round" data-ink="upper"/>
+</svg>"
+`;
+
+exports[`OMAP builder — golden snapshots per symbol category > staggered (brick-layout) dot pattern 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 2200 2200">
+<defs>
+<pattern id="pat-1-0" patternUnits="userSpaceOnUse" width="600" height="1200" patternTransform="rotate(0, 0, 0)"><circle cx="300" cy="300" r="90" fill="rgb(153,77,0)"/><circle cx="0" cy="900" r="90" fill="rgb(153,77,0)"/><circle cx="600" cy="900" r="90" fill="rgb(153,77,0)"/></pattern>
+</defs>
+<rect x="-100" y="-100" width="2200" height="2200" fill="white"/>
+<path d="M0 0 L2000 0 L2000 2000 L0 2000 Z" fill="url(#pat-1-0)" fill-rule="evenodd"/>
+</svg>"
+`;
+
+exports[`OMAP builder — golden snapshots per symbol category > start + end along-line symbols (e.g. north-line arrow ends) 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="-150 -150 3300 300">
+<rect x="-150" y="-150" width="3300" height="300" fill="white"/>
+<path d="M0 0 L3000 0" fill="none" stroke="rgb(0,0,0)" stroke-width="60" stroke-linecap="round" stroke-linejoin="round" data-ink="upper"/>
+<g transform="translate(0,0) rotate(0)"><circle cx="0" cy="0" r="150" fill="rgb(0,0,0)"/></g>
+<g transform="translate(3000,0) rotate(0)"><circle cx="0" cy="0" r="150" fill="rgb(0,0,0)"/></g>
+</svg>"
+`;
+
+exports[`OMAP builder — text rendering > bold + italic text 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0">
+<rect x="0" y="0" width="0" height="0" fill="white"/>
+<text x="0" y="0" fill="rgb(0,0,0)" font-family="'Arial', sans-serif" font-size="4000" font-weight="bold" font-style="italic" text-anchor="start" dominant-baseline="hanging" data-ink="upper">Bold</text>
+</svg>"
+`;
+
+exports[`OMAP builder — text rendering > left-aligned single-line text 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="1000 1000 0 0">
+<rect x="1000" y="1000" width="0" height="0" fill="white"/>
+<text x="1000" y="1000" fill="rgb(0,0,0)" font-family="'Arial', sans-serif" font-size="4000" font-weight="normal" font-style="normal" text-anchor="start" dominant-baseline="auto" data-ink="upper">Hello</text>
+</svg>"
+`;
+
+exports[`OMAP builder — text rendering > multi-line text emits tspans 1`] = `
+"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0">
+<rect x="0" y="0" width="0" height="0" fill="white"/>
+<text x="0" y="0" fill="rgb(0,0,0)" font-family="'Arial', sans-serif" font-size="4000" font-weight="normal" font-style="normal" text-anchor="start" dominant-baseline="hanging" data-ink="upper">
+<tspan x="0" dy="0">line one</tspan>
+<tspan x="0" dy="1.2em">line two</tspan>
+</text>
 </svg>"
 `;

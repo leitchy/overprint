@@ -1333,7 +1333,7 @@ function renderGlyph(glyph: OmapPointGlyph, colors: Map<number, OmapColor>, tran
 }
 
 /** @internal Exported for testing */
-export { flattenCoords as _flattenCoords, sampleAt as _sampleAt };
+export { flattenCoords as _flattenCoords, sampleAt as _sampleAt, extractGeoRef as _extractGeoRef };
 
 // ---------------------------------------------------------------------------
 // Main loader
