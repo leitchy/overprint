@@ -63,13 +63,13 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
       aria-modal="true"
       aria-label={t('keyboardShortcuts')}
     >
-      <div className="w-[560px] rounded-lg border border-gray-200 bg-white shadow-xl">
+      <div className="w-[560px] rounded-lg border border-edge bg-surface shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-base font-semibold text-gray-900">{t('keyboardShortcuts')}</h2>
+        <div className="flex items-center justify-between border-b border-edge px-5 py-3">
+          <h2 className="text-base font-semibold text-content">{t('keyboardShortcuts')}</h2>
           <button
             onClick={onClose}
-            className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+            className="rounded p-0.5 text-faint hover:text-content-2"
             aria-label={t('close')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
@@ -82,7 +82,7 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
         <div className="grid grid-cols-2 gap-6 px-5 py-4">
           {/* Left: Navigation */}
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
               {t('shortcutsNavigation')}
             </h3>
             <div className="space-y-1.5">
@@ -94,7 +94,7 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
 
           {/* Right: Course editing */}
           <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
               {t('shortcutsCourseEditing')}
             </h3>
             <div className="space-y-1.5">
@@ -106,29 +106,29 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
         </div>
 
         {/* Gesture note — secondary zoom/pan methods and the G caveat */}
-        <p className="px-5 -mt-1 pb-3 text-xs text-gray-400">
+        <p className="px-5 -mt-1 pb-3 text-xs text-faint">
           Scroll or pinch to zoom · drag, hold <kbd className="font-mono">Space</kbd>, or arrow keys to
           pan · <kbd className="font-mono">G</kbd> requires the Add Control tool and a GPS fix.
         </p>
 
         {/* Supported formats */}
-        <div className="border-t border-gray-100 px-5 py-3">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+        <div className="border-t border-edge px-5 py-3">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-faint">
             {t('supportedFormats')}
           </h3>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-gray-600">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-subtle">
             <div>
-              <span className="font-medium text-gray-500">Load map:</span>
+              <span className="font-medium text-subtle">Load map:</span>
               <ul className="mt-0.5 space-y-0.5 pl-3">
                 {LOAD_FORMATS.map((f) => <li key={f}>{f}</li>)}
               </ul>
             </div>
             <div>
-              <span className="font-medium text-gray-500">Export:</span>
+              <span className="font-medium text-subtle">Export:</span>
               <ul className="mt-0.5 space-y-0.5 pl-3">
                 {EXPORT_FORMATS.map((f) => <li key={f}>{f}</li>)}
               </ul>
-              <span className="mt-1.5 block font-medium text-gray-500">Save/load:</span>
+              <span className="mt-1.5 block font-medium text-subtle">Save/load:</span>
               <ul className="mt-0.5 pl-3">
                 <li>.overprint</li>
               </ul>
@@ -137,9 +137,9 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-200 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-edge px-5 py-3">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-faint">
               Overprint v{__APP_VERSION__}
               {__APP_COMMIT__ !== 'local' && ` (${__APP_COMMIT__.slice(0, 7)})`}
             </span>
@@ -147,14 +147,14 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
               href="https://github.com/leitchy/overprint/releases"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-violet-500 hover:underline"
+              className="text-xs text-accent-text hover:underline"
             >
               {t('whatsNew')}
             </a>
           </div>
           <button
             onClick={onClose}
-            className="rounded bg-gray-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
+            className="rounded bg-neutral-solid px-4 py-1.5 text-sm font-medium text-neutral-solid-contrast hover:bg-neutral-solid-hover"
           >
             {t('close')}
           </button>
@@ -167,8 +167,8 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
 function ShortcutRow({ label, shortcut }: { label: string; shortcut: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm text-gray-700">{label}</span>
-      <kbd className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-500 border border-gray-200">
+      <span className="text-sm text-content-2">{label}</span>
+      <kbd className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-subtle border border-edge">
         {shortcut}
       </kbd>
     </div>

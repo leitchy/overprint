@@ -97,17 +97,17 @@ export function CoursePanel({
   // All-controls view: collapsed panel showing only course list + language selector
   if (viewMode === 'allControls') {
     return (
-      <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-white/90 shadow'}>
+      <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-surface/90 shadow'}>
         <CourseList />
-        <div className="border-t border-gray-200 px-3 py-2">
-          <p className="mb-2 text-[10px] italic text-gray-400">{t('viewingAllControls')}</p>
-          <label className="block text-[10px] font-medium text-gray-400 mb-1">
+        <div className="border-t border-edge px-3 py-2">
+          <p className="mb-2 text-[10px] italic text-faint">{t('viewingAllControls')}</p>
+          <label className="block text-[10px] font-medium text-faint mb-1">
             {t('descriptionLanguageLabel')}
           </label>
           <select
             value={descriptionLang}
             onChange={(e) => updateSettings({ language: e.target.value })}
-            className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+            className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
           >
             {SUPPORTED_IOF_LANGUAGES.map((lang) => (
               <option key={lang.code} value={lang.code}>
@@ -121,7 +121,7 @@ export function CoursePanel({
   }
 
   return (
-    <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-white/90 shadow'}>
+    <div className={embedded ? 'w-full' : 'absolute right-4 top-4 w-64 rounded bg-surface/90 shadow'}>
       {/* Course list — always visible */}
       <CourseList />
 
@@ -129,17 +129,17 @@ export function CoursePanel({
       {course && courseId && (
         <>
           {/* Course stats + course type toggle */}
-          <div className="border-b border-gray-200 px-3 py-1.5">
+          <div className="border-b border-edge px-3 py-1.5">
             <div className="flex items-center justify-between">
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-faint">
                 {displayControls.length} {displayControls.length !== 1 ? t('controls') : t('control')}
                 {!isScoreCourse && displayControls.length >= 2 && ` \u00B7 ${lengthKm} ${t('km')}`}
               </div>
               <button
                 className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
                   isScoreCourse
-                    ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
-                    : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+                    ? 'bg-accent-soft-2 text-accent-text hover:bg-accent-soft-2'
+                    : 'text-faint hover:text-subtle hover:bg-muted'
                 }`}
                 title={t('courseType')}
                 onClick={() => setCourseType(courseId, isScoreCourse ? 'normal' : 'score')}
@@ -159,11 +159,11 @@ export function CoursePanel({
                 <button
                   aria-pressed={activePartIndex === null}
                   className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors
-                    focus:outline-none focus:ring-1 focus:ring-violet-300
+                    focus:outline-none focus:ring-1 focus:ring-accent-edge
                     max-lg:px-3 max-lg:py-1.5 max-lg:text-xs max-lg:min-h-11 max-lg:flex max-lg:items-center ${
                     activePartIndex === null
-                      ? 'bg-violet-100 text-violet-700'
-                      : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+                      ? 'bg-accent-soft-2 text-accent-text'
+                      : 'bg-muted text-subtle hover:bg-accent-soft hover:text-accent-text'
                   }`}
                   onClick={() => setActivePartIndex(null)}
                 >
@@ -174,11 +174,11 @@ export function CoursePanel({
                     key={i}
                     aria-pressed={activePartIndex === i}
                     className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors
-                      focus:outline-none focus:ring-1 focus:ring-violet-300
+                      focus:outline-none focus:ring-1 focus:ring-accent-edge
                       max-lg:px-3 max-lg:py-1.5 max-lg:text-xs max-lg:min-h-11 max-lg:flex max-lg:items-center ${
                       activePartIndex === i
-                        ? 'bg-violet-100 text-violet-700'
-                        : 'bg-gray-100 text-gray-500 hover:bg-violet-50 hover:text-violet-700'
+                        ? 'bg-accent-soft-2 text-accent-text'
+                        : 'bg-muted text-subtle hover:bg-accent-soft hover:text-accent-text'
                     }`}
                     onClick={() => setActivePartIndex(i)}
                   >
@@ -197,7 +197,7 @@ export function CoursePanel({
               if (activePartIndex === null) {
                 // All Parts — static text showing which part has the finish
                 return (
-                  <div className="mt-1 text-[10px] text-gray-400 max-lg:text-xs max-lg:py-1">
+                  <div className="mt-1 text-[10px] text-faint max-lg:text-xs max-lg:py-1">
                     {t('finishOnPart')} {ownerPart + 1}
                   </div>
                 );
@@ -206,11 +206,11 @@ export function CoursePanel({
               const isOwner = activePartIndex === ownerPart;
               return (
                 <label className={`mt-1 flex items-center gap-1.5 text-[10px] max-lg:text-xs max-lg:py-1 ${
-                  isOwner ? 'text-violet-600' : 'text-gray-500 cursor-pointer'
+                  isOwner ? 'text-accent-text' : 'text-subtle cursor-pointer'
                 }`}>
                   <input
                     type="checkbox"
-                    className="h-3 w-3 rounded border-gray-300 text-violet-600 focus:ring-violet-300 max-lg:h-4 max-lg:w-4"
+                    className="h-3 w-3 rounded border-edge-strong text-accent-text focus:ring-accent-edge max-lg:h-4 max-lg:w-4"
                     checked={isOwner}
                     disabled={isOwner}
                     onChange={() => {
@@ -227,7 +227,7 @@ export function CoursePanel({
 
           {/* Control list */}
           {course.controls.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-gray-400">
+            <div className="px-3 py-2 text-xs text-faint">
               {t('noControlsYet')}
             </div>
           ) : (
@@ -246,14 +246,14 @@ export function CoursePanel({
                   <li
                     key={cc.controlId}
                     className={`flex items-center gap-1 px-3 py-1 text-xs max-lg:py-2.5 ${
-                      isSelected ? 'bg-yellow-50' : 'hover:bg-gray-50'
+                      isSelected ? 'bg-warning-soft' : 'hover:bg-surface-2'
                     }`}
                     onClick={() => setSelectedControl(cc.controlId)}
                   >
                     {/* Type indicator — clickable to cycle for middle controls */}
                     {isMiddle ? (
                       <button
-                        className="w-6 shrink-0 text-center font-medium text-violet-500 hover:text-violet-700 rounded hover:bg-violet-50"
+                        className="w-6 shrink-0 text-center font-medium text-accent-text hover:text-accent-text rounded hover:bg-accent-soft"
                         title={t('courseControlType')}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -263,7 +263,7 @@ export function CoursePanel({
                         {label}
                       </button>
                     ) : (
-                      <span className="w-6 shrink-0 text-center font-medium text-gray-500">
+                      <span className="w-6 shrink-0 text-center font-medium text-subtle">
                         {label}
                       </span>
                     )}
@@ -274,7 +274,7 @@ export function CoursePanel({
                         type="number"
                         min={31}
                         value={codeDraft}
-                        className="w-14 flex-1 font-mono text-gray-700 border-b border-violet-400 bg-transparent outline-none px-1 text-xs"
+                        className="w-14 flex-1 font-mono text-content-2 border-b border-accent-edge bg-transparent outline-none px-1 text-xs"
                         onChange={(e) => setCodeDraft(Number(e.target.value))}
                         onKeyDown={(e) => {
                           e.stopPropagation();
@@ -294,7 +294,7 @@ export function CoursePanel({
                       />
                     ) : (
                       <span
-                        className="flex-1 font-mono text-gray-700 cursor-pointer hover:text-violet-600"
+                        className="flex-1 font-mono text-content-2 cursor-pointer hover:text-accent-text"
                         title={t('clickToEditCode')}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -314,7 +314,7 @@ export function CoursePanel({
                           type="number"
                           min={0}
                           value={scoreDraft}
-                          className="w-10 font-mono text-gray-700 border-b border-violet-400 bg-transparent outline-none px-1 text-xs text-right"
+                          className="w-10 font-mono text-content-2 border-b border-accent-edge bg-transparent outline-none px-1 text-xs text-right"
                           onChange={(e) => setScoreDraft(Number(e.target.value))}
                           onKeyDown={(e) => {
                             e.stopPropagation();
@@ -335,7 +335,7 @@ export function CoursePanel({
                         />
                       ) : (
                         <span
-                          className="w-10 text-right font-mono text-violet-600 cursor-pointer hover:text-violet-800 shrink-0"
+                          className="w-10 text-right font-mono text-accent-text cursor-pointer hover:text-accent-text shrink-0"
                           title={t('scoreLabel')}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -354,7 +354,7 @@ export function CoursePanel({
                         moveControlInCourse(courseId, index, index - 1);
                       }}
                       disabled={isFirst}
-                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible max-lg:px-2 max-lg:py-1"
+                      className="rounded px-1 text-faint hover:text-content-2 disabled:invisible max-lg:px-2 max-lg:py-1"
                       title="Move up"
                     >
                       &uarr;
@@ -365,7 +365,7 @@ export function CoursePanel({
                         moveControlInCourse(courseId, index, index + 1);
                       }}
                       disabled={isLast}
-                      className="rounded px-1 text-gray-400 hover:text-gray-700 disabled:invisible max-lg:px-2 max-lg:py-1"
+                      className="rounded px-1 text-faint hover:text-content-2 disabled:invisible max-lg:px-2 max-lg:py-1"
                       title="Move down"
                     >
                       &darr;
@@ -375,7 +375,7 @@ export function CoursePanel({
                         e.stopPropagation();
                         removeControlFromCourse(courseId, cc.controlId);
                       }}
-                      className="rounded px-1 text-red-300 hover:text-red-600 max-lg:px-2 max-lg:py-1"
+                      className="rounded px-1 text-danger-text hover:text-danger-text max-lg:px-2 max-lg:py-1"
                       title={t('removeFromCourse')}
                     >
                       &times;
@@ -400,9 +400,9 @@ export function CoursePanel({
 
       {/* Course Settings — collapsible section */}
       {course && courseId && (
-        <div className="border-t border-gray-200">
+        <div className="border-t border-edge">
           <button
-            className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 hover:bg-gray-50"
+            className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-faint hover:bg-surface-2"
             onClick={() => setCourseSettingsOpen((v) => !v)}
           >
             <span>{t('courseSettings')}</span>
@@ -412,13 +412,13 @@ export function CoursePanel({
             <div className="px-3 pb-2 space-y-2">
               {/* Label mode */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('labelMode')}
                 </label>
                 <select
                   value={course.settings.labelMode ?? 'sequence'}
                   onChange={(e) => updateCourseSettings(courseId, { labelMode: e.target.value as 'sequence' | 'code' | 'both' | 'none' })}
-                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 >
                   <option value="sequence">{t('labelSequence')}</option>
                   <option value="code">{t('labelCode')}</option>
@@ -431,7 +431,7 @@ export function CoursePanel({
               {!isScoreCourse && (
                 <button
                   onClick={() => autoPlaceNumbers(courseId)}
-                  className="w-full rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+                  className="w-full rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2"
                   title="Position all control numbers automatically to avoid legs, circles and other numbers"
                 >
                   Auto-place numbers
@@ -440,13 +440,13 @@ export function CoursePanel({
 
               {/* Description appearance */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('descriptionAppearance')}
                 </label>
                 <select
                   value={course.settings.descriptionAppearance ?? 'symbols'}
                   onChange={(e) => updateCourseSettings(courseId, { descriptionAppearance: e.target.value as 'symbols' | 'text' | 'symbolsAndText' })}
-                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 >
                   <option value="symbols">{t('symbolsMode')}</option>
                   <option value="text">{t('textMode')}</option>
@@ -456,13 +456,13 @@ export function CoursePanel({
 
               {/* Print scale */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('printScaleLabel')}
                 </label>
                 <select
                   value={course.settings.printScale ?? (eventSettings?.printScale ?? 15000)}
                   onChange={(e) => updateCourseSettings(courseId, { printScale: Number(e.target.value) })}
-                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 >
                   <option value="">— {t('printScaleLabel')} (event default) —</option>
                   {SCALE_PRESETS.map((s) => (
@@ -473,7 +473,7 @@ export function CoursePanel({
 
               {/* Climb */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('climb')} ({t('climbMetres')})
                 </label>
                 <input
@@ -486,13 +486,13 @@ export function CoursePanel({
                     updateCourseSettings(courseId, { climb: val });
                   }}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 />
               </div>
 
               {/* Secondary title */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('secondaryTitle')}
                 </label>
                 <input
@@ -501,13 +501,13 @@ export function CoursePanel({
                   placeholder={t('secondaryTitlePlaceholder')}
                   onChange={(e) => updateCourseSettings(courseId, { secondaryTitle: e.target.value || undefined })}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 />
               </div>
 
               {/* Page orientation override */}
               <div>
-                <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+                <label className="block text-[10px] font-medium text-faint mb-0.5">
                   {t('orientationLabel')}
                 </label>
                 <select
@@ -525,7 +525,7 @@ export function CoursePanel({
                       });
                     }
                   }}
-                  className="w-full rounded border border-gray-200 px-1 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                  className="w-full rounded border border-edge px-1 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
                 >
                   <option value="">{t('useDefault')} ({eventSettings?.pageSetup.orientation ?? 'portrait'})</option>
                   <option value="portrait">{t('portrait')}</option>
@@ -536,7 +536,7 @@ export function CoursePanel({
               {/* Clear print area */}
               {course.settings.printArea && (
                 <button
-                  className="w-full rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:border-red-200 hover:text-red-500"
+                  className="w-full rounded border border-edge px-2 py-1 text-xs text-subtle hover:border-danger hover:text-danger-text"
                   onClick={() => clearPrintArea(courseId)}
                 >
                   {t('clearPrintArea')}
@@ -548,14 +548,14 @@ export function CoursePanel({
       )}
 
       {/* Description language selector — always visible when event is loaded */}
-      <div className="border-t border-gray-200 px-3 py-2">
-        <label className="block text-[10px] font-medium text-gray-400 mb-1">
+      <div className="border-t border-edge px-3 py-2">
+        <label className="block text-[10px] font-medium text-faint mb-1">
           {t('descriptionLanguageLabel')}
         </label>
         <select
           value={descriptionLang}
           onChange={(e) => updateSettings({ language: e.target.value })}
-          className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+          className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
         >
           {SUPPORTED_IOF_LANGUAGES.map((lang) => (
             <option key={lang.code} value={lang.code}>
@@ -567,7 +567,7 @@ export function CoursePanel({
 
       {/* Empty state when no courses */}
       {!course && (
-        <div className="px-3 py-2 text-xs text-gray-400">
+        <div className="px-3 py-2 text-xs text-faint">
           {t('addCourseToStart')}
         </div>
       )}

@@ -87,7 +87,7 @@ export function NudgePad() {
 
   const btn = (direction: Direction) => (
     <button
-      className="flex min-h-(--touch-target-min) min-w-(--touch-target-min) items-center justify-center rounded bg-white/90 text-gray-600 shadow active:bg-gray-100"
+      className="flex min-h-(--touch-target-min) min-w-(--touch-target-min) items-center justify-center rounded bg-surface/90 text-subtle shadow active:bg-muted"
       onPointerDown={() => handlePointerDown(direction)}
       onPointerUp={handlePointerUp}
       title={direction}

@@ -12,6 +12,12 @@ import { SUPPORTED_APP_LANGUAGES } from '@/i18n/languages';
 
 const LOCAL_STORAGE_KEY_LANGUAGE = 'overprint-app-language';
 const LOCAL_STORAGE_KEY_PRINT_BOUNDARY = 'overprint-show-print-boundary';
+/** Exported so the no-flash inline script in index.html and its drift test agree on the key. */
+export const LOCAL_STORAGE_KEY_THEME = 'overprint-theme';
+const LOCAL_STORAGE_KEY_MAP_FADE = 'overprint-map-fade';
+
+/** User theme preference. 'system' follows the OS via prefers-color-scheme. */
+export type ThemePreference = 'system' | 'light' | 'dark';
 
 /** Safe localStorage access — returns null in environments without localStorage (tests, SSR). */
 function storageGet(key: string): string | null {
@@ -54,20 +60,44 @@ function detectInitialShowPrintBoundary(): boolean {
   return storageGet(LOCAL_STORAGE_KEY_PRINT_BOUNDARY) === 'true';
 }
 
+function detectInitialTheme(): ThemePreference {
+  const saved = storageGet(LOCAL_STORAGE_KEY_THEME);
+  if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+  return 'system';
+}
+
+/** Clamp the map-fade value to its valid range: −1 (white) … 0 (off) … +1 (dark). */
+const clampFade = (n: number): number => Math.max(-1, Math.min(1, n));
+
+/** Map-fade slider: −1 = fully white (design aid) … 0 = off … +1 = fully dark (night glare). */
+function detectInitialMapFade(): number {
+  const raw = Number(storageGet(LOCAL_STORAGE_KEY_MAP_FADE));
+  if (!Number.isFinite(raw)) return 0;
+  return clampFade(raw);
+}
+
 interface AppSettingsState {
   appLanguage: string;
   /** Whether to show the print boundary rectangle on the canvas. */
   showPrintBoundary: boolean;
+  /** Light/dark/system theme preference. */
+  theme: ThemePreference;
+  /** Screen-only map fade: −1 (white) … 0 (off) … +1 (dark). Never affects exports. */
+  mapFade: number;
 }
 
 interface AppSettingsActions {
   setAppLanguage: (lang: string) => void;
   setShowPrintBoundary: (show: boolean) => void;
+  setTheme: (theme: ThemePreference) => void;
+  setMapFade: (fade: number) => void;
 }
 
 export const useAppSettingsStore = create<AppSettingsState & AppSettingsActions>()((set) => ({
   appLanguage: detectInitialLanguage(),
   showPrintBoundary: detectInitialShowPrintBoundary(),
+  theme: detectInitialTheme(),
+  mapFade: detectInitialMapFade(),
 
   setAppLanguage: (lang: string) => {
     storageSet(LOCAL_STORAGE_KEY_LANGUAGE, lang);
@@ -77,5 +107,16 @@ export const useAppSettingsStore = create<AppSettingsState & AppSettingsActions>
   setShowPrintBoundary: (show: boolean) => {
     storageSet(LOCAL_STORAGE_KEY_PRINT_BOUNDARY, String(show));
     set({ showPrintBoundary: show });
+  },
+
+  setTheme: (theme: ThemePreference) => {
+    storageSet(LOCAL_STORAGE_KEY_THEME, theme);
+    set({ theme });
+  },
+
+  setMapFade: (fade: number) => {
+    const clamped = clampFade(fade);
+    storageSet(LOCAL_STORAGE_KEY_MAP_FADE, String(clamped));
+    set({ mapFade: clamped });
   },
 }));

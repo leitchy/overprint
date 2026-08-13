@@ -154,7 +154,7 @@ export function BottomSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-white shadow-2xl"
+        className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-surface shadow-2xl"
         style={{
           height: sheetHeight > 0 ? `${sheetHeight}px` : '0px',
           transition: dragRef.current.isDragging ? 'none' : 'height 200ms ease-out',
@@ -172,7 +172,7 @@ export function BottomSheet({
           onPointerUp={handlePointerUp}
         >
           <div
-            className="rounded-full bg-gray-300"
+            className="rounded-full bg-surface-3"
             style={{
               width: 'var(--sheet-handle-width)',
               height: 'var(--sheet-handle-height)',

@@ -69,13 +69,13 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
       aria-modal="true"
       aria-label={t('pageSetupTitle')}
     >
-      <div className="w-[400px] rounded-lg border border-gray-200 bg-white shadow-xl">
+      <div className="w-[400px] rounded-lg border border-edge bg-surface shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-900">{t('pageSetupTitle')}</h2>
+        <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+          <h2 className="text-base font-semibold text-content">{t('pageSetupTitle')}</h2>
           <button
             onClick={onClose}
-            className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+            className="rounded p-0.5 text-faint hover:text-content-2"
             aria-label={t('close')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
@@ -88,7 +88,7 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
         <div className="px-4 py-4 space-y-4">
           {/* Map Title */}
           <div>
-            <label htmlFor="map-title" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="map-title" className="block text-sm font-medium text-content-2">
               {t('mapTitleLabel')}
             </label>
             <input
@@ -96,14 +96,14 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               type="text"
               value={mapTitle ?? ''}
               onChange={(e) => updateSettings({ mapTitle: e.target.value || undefined })}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
               placeholder={t('mapTitlePlaceholder')}
             />
           </div>
 
           {/* Map Author */}
           <div>
-            <label htmlFor="map-author" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="map-author" className="block text-sm font-medium text-content-2">
               {t('mapAuthorLabel')}
             </label>
             <input
@@ -111,14 +111,14 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               type="text"
               value={mapAuthor ?? ''}
               onChange={(e) => updateSettings({ mapAuthor: e.target.value || undefined })}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
             />
           </div>
 
           {/* Contour Interval */}
           <div>
-            <label htmlFor="contour-interval" className="block text-sm font-medium text-gray-700">
-              {t('contourIntervalLabel')} <span className="font-normal text-gray-400">({t('mm')})</span>
+            <label htmlFor="contour-interval" className="block text-sm font-medium text-content-2">
+              {t('contourIntervalLabel')} <span className="font-normal text-faint">({t('mm')})</span>
             </label>
             <input
               id="contour-interval"
@@ -131,21 +131,21 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
                 const val = Number(e.target.value);
                 updateSettings({ contourInterval: e.target.value === '' || val <= 0 ? undefined : val });
               }}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
               placeholder={t('contourIntervalPlaceholder')}
             />
           </div>
 
           {/* Print Scale */}
           <div>
-            <label htmlFor="print-scale" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="print-scale" className="block text-sm font-medium text-content-2">
               {t('printScaleLabel')}
             </label>
             <select
               id="print-scale"
               value={printScale}
               onChange={(e) => updateSettings({ printScale: Number(e.target.value) })}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
             >
               {SCALE_PRESETS.map((s) => (
                 <option key={s} value={s}>1:{s.toLocaleString()}</option>
@@ -155,14 +155,14 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
           {/* Paper Size */}
           <div>
-            <label htmlFor="paper-size" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="paper-size" className="block text-sm font-medium text-content-2">
               {t('paperSizeLabel')}
             </label>
             <select
               id="paper-size"
               value={pageSetup.paperSize}
               onChange={(e) => updatePageSetup({ paperSize: e.target.value as PaperSize })}
-              className="mt-1 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
             >
               {PAPER_SIZES.map((ps) => (
                 <option key={ps.value} value={ps.value}>{ps.label}</option>
@@ -172,14 +172,14 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
           {/* Orientation */}
           <div>
-            <span className="block text-sm font-medium text-gray-700">{t('orientationLabel')}</span>
+            <span className="block text-sm font-medium text-content-2">{t('orientationLabel')}</span>
             <div className="mt-1 flex gap-2">
               <button
                 onClick={() => updatePageSetup({ orientation: 'portrait' })}
                 className={`flex-1 rounded border px-3 py-1.5 text-sm font-medium ${
                   pageSetup.orientation === 'portrait'
-                    ? 'border-violet-500 bg-violet-50 text-violet-700'
-                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                    ? 'border-accent-edge bg-accent-soft text-accent-text'
+                    : 'border-edge-strong text-subtle hover:bg-surface-2'
                 }`}
               >
                 {t('portrait')}
@@ -188,8 +188,8 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
                 onClick={() => updatePageSetup({ orientation: 'landscape' })}
                 className={`flex-1 rounded border px-3 py-1.5 text-sm font-medium ${
                   pageSetup.orientation === 'landscape'
-                    ? 'border-violet-500 bg-violet-50 text-violet-700'
-                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                    ? 'border-accent-edge bg-accent-soft text-accent-text'
+                    : 'border-edge-strong text-subtle hover:bg-surface-2'
                 }`}
               >
                 {t('landscape')}
@@ -199,13 +199,13 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
 
           {/* Margins */}
           <div>
-            <span className="block text-sm font-medium text-gray-700">
-              {t('marginsLabel')} <span className="font-normal text-gray-400">({t('mm')})</span>
+            <span className="block text-sm font-medium text-content-2">
+              {t('marginsLabel')} <span className="font-normal text-faint">({t('mm')})</span>
             </span>
             <div className="mt-1 grid grid-cols-4 gap-2">
               {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
                 <div key={side}>
-                  <label htmlFor={`margin-${side}`} className="block text-[10px] text-gray-400">
+                  <label htmlFor={`margin-${side}`} className="block text-[10px] text-faint">
                     {t(side)}
                   </label>
                   <input
@@ -216,7 +216,7 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
                     step={1}
                     value={pageSetup.margins[side]}
                     onChange={(e) => updateMargin(side, Math.max(0, Number(e.target.value)))}
-                    className="w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-700 outline-none focus:border-violet-400"
+                    className="w-full rounded border border-edge-strong px-2 py-1 text-sm text-content-2 outline-none focus:border-accent-edge"
                   />
                 </div>
               ))}
@@ -228,24 +228,24 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               type="checkbox"
               checked={showPrintBoundary}
               onChange={(e) => setShowPrintBoundary(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-400"
+              className="h-4 w-4 rounded border-edge-strong text-accent-text focus:ring-accent-edge"
             />
-            <span className="text-sm text-gray-700">{t('showPrintBoundaryLabel')}</span>
+            <span className="text-sm text-content-2">{t('showPrintBoundaryLabel')}</span>
           </label>
 
           {/* Overprint Appearance */}
-          <div className="border-t border-gray-100 pt-3">
-            <span className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="border-t border-edge pt-3">
+            <span className="block text-sm font-medium text-content-2 mb-2">
               {t('overprintAppearance')}
             </span>
             {/* Map standard — sets the IOF overprint dimensions (ISOM forest vs ISSprOM sprint) */}
             <div className="mb-2">
-              <label htmlFor="map-standard" className="block text-xs text-gray-600">Map standard</label>
+              <label htmlFor="map-standard" className="block text-xs text-subtle">Map standard</label>
               <select
                 id="map-standard"
                 value={settings.mapStandard}
                 onChange={(e) => changeMapStandard(e.target.value as MapStandard)}
-                className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 outline-none focus:border-violet-400"
+                className="mt-1 w-full rounded border border-edge-strong px-2 py-1 text-xs text-content-2 outline-none focus:border-accent-edge"
               >
                 {MAP_STANDARDS.map((ms) => (
                   <option key={ms.value} value={ms.value}>{ms.label}</option>
@@ -279,10 +279,10 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-gray-200 px-4 py-3">
+        <div className="flex justify-end border-t border-edge px-4 py-3">
           <button
             onClick={onClose}
-            className="rounded bg-gray-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
+            className="rounded bg-neutral-solid px-4 py-1.5 text-sm font-medium text-neutral-solid-contrast hover:bg-neutral-solid-hover"
           >
             {t('close')}
           </button>
@@ -306,7 +306,7 @@ function AppearanceRow({
   const isDefault = Math.abs(value - defaultValue) < 0.001;
   return (
     <div className="flex items-center gap-2">
-      <label className="flex-1 text-xs text-gray-600">{label}</label>
+      <label className="flex-1 text-xs text-subtle">{label}</label>
       <input
         type="number"
         min={min}
@@ -317,14 +317,14 @@ function AppearanceRow({
           const v = Number(e.target.value);
           if (Number.isFinite(v) && v >= min && v <= max) onChange(v);
         }}
-        className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-xs text-gray-700 outline-none focus:border-violet-400"
+        className="w-20 rounded border border-edge-strong px-2 py-1 text-right text-xs text-content-2 outline-none focus:border-accent-edge"
       />
-      <span className="text-[10px] text-gray-400 w-6">mm</span>
+      <span className="text-[10px] text-faint w-6">mm</span>
       <button
         onClick={() => onChange(defaultValue)}
         disabled={isDefault}
         title={`Reset to ${defaultValue}`}
-        className={`rounded p-0.5 text-xs ${isDefault ? 'text-gray-200 cursor-default' : 'text-gray-400 hover:text-violet-600'}`}
+        className={`rounded p-0.5 text-xs ${isDefault ? 'text-faint cursor-default' : 'text-faint hover:text-accent-text'}`}
       >
         ↺
       </button>

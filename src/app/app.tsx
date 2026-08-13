@@ -17,6 +17,7 @@ import { useIsMobile } from '@/hooks/use-breakpoint';
 import { ToastContainer } from '@/components/ui/toast';
 import { PwaBanner } from '@/components/ui/pwa-banner';
 import { useToastStore } from '@/stores/toast-store';
+import { useThemeEffect } from '@/hooks/use-theme-effect';
 
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
@@ -31,6 +32,7 @@ function hasExtension(name: string, ext: string): boolean {
 export function App() {
   useKeyboardShortcuts();
   useAutosave();
+  useThemeEffect();
   const t = useT();
   const isMobile = useIsMobile();
   const hasImage = useMapImageStore((s) => s.image !== null);
@@ -185,7 +187,7 @@ export function App() {
 
   return (
     <div
-      className="flex h-full flex-col"
+      className="flex h-full flex-col bg-canvas-surround"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -196,41 +198,41 @@ export function App() {
       <main className="relative flex flex-1 overflow-hidden">
         {hasImage ? (
           <>
-            <div className="flex-1 overflow-hidden bg-gray-100">
+            <div className="flex-1 overflow-hidden bg-canvas-surround">
               <MapCanvas />
             </div>
             <DescriptionPanel />
           </>
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-gray-100">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-canvas-surround">
             {hasEventButNoMap ? (
               <>
-                <p className="text-base font-medium text-gray-700">
+                <p className="text-base font-medium text-content-2">
                   {t('eventLoadedNoMap').replace('{name}', event.name)}
                 </p>
                 {mapFileName != null && (
-                  <p className="font-mono text-sm font-medium text-violet-700">
+                  <p className="font-mono text-sm font-medium text-accent-text">
                     {mapFileName}
                   </p>
                 )}
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-subtle">
                   {t('dragOrClickLoadMap')}
                 </p>
                 <button
                   onClick={handleLoadMapClick}
                   disabled={dropLoading}
-                  className="mt-1 rounded bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                  className="mt-1 rounded bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
                 >
                   {dropLoading ? t('loadingMap') : t('loadMapButton')}
                 </button>
               </>
             ) : (
               <>
-                <p className="text-gray-400">{t('dropFilesHere')}</p>
+                <p className="text-faint">{t('dropFilesHere')}</p>
                 <button
                   onClick={handleTrySample}
                   disabled={loadingSample}
-                  className="mt-2 rounded-lg bg-violet-600 px-6 py-3 text-base font-semibold text-white shadow-md hover:bg-violet-700 disabled:opacity-50"
+                  className="mt-2 rounded-lg bg-accent px-6 py-3 text-base font-semibold text-white shadow-md hover:bg-accent-hover disabled:opacity-50"
                 >
                   {loadingSample ? t('loadingSample') : t('trySample')}
                 </button>
@@ -249,7 +251,7 @@ export function App() {
               borderRadius: '4px',
             }}
           >
-            <span className="rounded-lg bg-white/90 px-6 py-3 text-lg font-semibold text-indigo-700 shadow-lg">
+            <span className="rounded-lg bg-surface/90 px-6 py-3 text-lg font-semibold text-accent-text shadow-lg">
               {t('dropFilesToOpen')}
             </span>
           </div>

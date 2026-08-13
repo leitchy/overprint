@@ -60,7 +60,7 @@ export function LanguageMenu({ compact = false }: LanguageMenuProps) {
         title={t('appLanguageLabel')}
         className={`flex items-center gap-1 rounded text-sm font-medium ${
           compact ? 'h-10 px-2.5' : 'px-2 py-1.5'
-        } ${open ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
+        } ${open ? 'bg-muted text-content' : 'text-subtle hover:bg-surface-2 hover:text-content'}`}
       >
         <GlobeIcon />
         <span className="tabular-nums">{code}</span>
@@ -69,7 +69,7 @@ export function LanguageMenu({ compact = false }: LanguageMenuProps) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-edge bg-surface py-1 shadow-lg"
         >
           {SUPPORTED_APP_LANGUAGES.map((lang) => {
             const active = lang.code === current?.code;
@@ -83,12 +83,12 @@ export function LanguageMenu({ compact = false }: LanguageMenuProps) {
                   setOpen(false);
                 }}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm ${
-                  active ? 'bg-violet-50 text-violet-700' : 'text-gray-700 hover:bg-gray-100'
+                  active ? 'bg-accent-soft text-accent-text' : 'text-content-2 hover:bg-muted'
                 }`}
               >
-                <span className="w-4 flex-none text-violet-600">{active ? '✓' : ''}</span>
+                <span className="w-4 flex-none text-accent-text">{active ? '✓' : ''}</span>
                 <span className="flex-1">{lang.nativeName}</span>
-                <span className="text-xs text-gray-400">{lang.code.toUpperCase()}</span>
+                <span className="text-xs text-faint">{lang.code.toUpperCase()}</span>
               </button>
             );
           })}

@@ -201,17 +201,17 @@ export function CalibrationPanel() {
   if (step === 'intro') {
     return (
       <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30">
-        <div className="mx-4 max-w-[420px] rounded-xl bg-white p-6 shadow-xl">
+        <div className="mx-4 max-w-[420px] rounded-xl bg-surface p-6 shadow-xl">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">{t('calibrateTitle')}</h2>
+            <h2 className="text-lg font-semibold text-content">{t('calibrateTitle')}</h2>
             <HelpButton sectionId="gps" label={t('calibrateTitle')} />
           </div>
-          <p className="mt-3 text-sm text-gray-600">{t('calibrateExplain')}</p>
-          <p className="mt-2 text-sm text-gray-500">{t('calibrateExplainExample')}</p>
+          <p className="mt-3 text-sm text-subtle">{t('calibrateExplain')}</p>
+          <p className="mt-2 text-sm text-subtle">{t('calibrateExplainExample')}</p>
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={handleCancel}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-subtle hover:bg-muted"
             >
               {t('calibrateCancel')}
             </button>
@@ -230,19 +230,19 @@ export function CalibrationPanel() {
   // --- Pick point step ---
   if (step === 'pick-point') {
     return (
-      <div className="absolute top-0 left-0 right-0 z-30 border-b border-amber-200 bg-amber-50 px-4 py-3">
+      <div className="absolute top-0 left-0 right-0 z-30 border-b border-warning bg-warning-soft px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-amber-900">
+            <p className="text-sm font-medium text-warning-text">
               {t('calibratePickPoint').replace('{n}', String(pointNumber)).replace('{total}', String(targetCount))}
             </p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-xs text-warning-text mt-0.5">
               Tap the map at a point where you know the GPS coordinates.
             </p>
           </div>
           <button
             onClick={handleCancel}
-            className="rounded px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100"
+            className="rounded px-3 py-1.5 text-xs font-medium text-warning-text hover:bg-warning-soft"
           >
             {t('calibrateCancel')}
           </button>
@@ -252,7 +252,7 @@ export function CalibrationPanel() {
         {points.length > 0 && (
           <div className="mt-2 flex gap-2">
             {points.map((p, i) => (
-              <span key={i} className="rounded bg-amber-200 px-2 py-0.5 text-xs text-amber-800">
+              <span key={i} className="rounded bg-amber-200 px-2 py-0.5 text-xs text-warning-text">
                 Point {i + 1}: {p.lat.toFixed(4)}, {p.lon.toFixed(4)}
               </span>
             ))}
@@ -269,33 +269,33 @@ export function CalibrationPanel() {
     const canProceed = currentPoint.lat !== '' && currentPoint.lon !== '' && latValid && lonValid;
 
     return (
-      <div className="absolute top-0 left-0 right-0 z-30 border-b border-amber-200 bg-amber-50 px-4 py-3">
-        <p className="text-sm font-medium text-amber-900">{t('calibrateEnterCoords')}</p>
-        <p className="text-xs text-amber-700 mt-0.5">
+      <div className="absolute top-0 left-0 right-0 z-30 border-b border-warning bg-warning-soft px-4 py-3">
+        <p className="text-sm font-medium text-warning-text">{t('calibrateEnterCoords')}</p>
+        <p className="text-xs text-warning-text mt-0.5">
           Point {pointNumber} at map position ({Math.round(currentPoint.mapX)}, {Math.round(currentPoint.mapY)})
         </p>
 
         <div className="mt-3 flex items-end gap-3">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-600">{t('calibrateLat')}</label>
+            <label className="block text-xs font-medium text-subtle">{t('calibrateLat')}</label>
             <input
               type="number"
               step="any"
               value={currentPoint.lat}
               onChange={(e) => setCurrentPoint({ ...currentPoint, lat: e.target.value })}
               placeholder="-35.3082"
-              className={`mt-1 w-full rounded border px-2 py-1.5 text-sm ${latValid ? 'border-gray-300' : 'border-red-400'}`}
+              className={`mt-1 w-full rounded border px-2 py-1.5 text-sm ${latValid ? 'border-edge-strong' : 'border-danger'}`}
             />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-medium text-gray-600">{t('calibrateLon')}</label>
+            <label className="block text-xs font-medium text-subtle">{t('calibrateLon')}</label>
             <input
               type="number"
               step="any"
               value={currentPoint.lon}
               onChange={(e) => setCurrentPoint({ ...currentPoint, lon: e.target.value })}
               placeholder="149.1244"
-              className={`mt-1 w-full rounded border px-2 py-1.5 text-sm ${lonValid ? 'border-gray-300' : 'border-red-400'}`}
+              className={`mt-1 w-full rounded border px-2 py-1.5 text-sm ${lonValid ? 'border-edge-strong' : 'border-danger'}`}
             />
           </div>
         </div>
@@ -305,14 +305,14 @@ export function CalibrationPanel() {
             {gpsAvailable && (
               <button
                 onClick={handleUseCurrent}
-                className="rounded bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-200"
+                className="rounded bg-info-soft px-3 py-1.5 text-xs font-medium text-info-text hover:bg-blue-200"
               >
                 {t('calibrateUseCurrent')}
               </button>
             )}
             <button
               onClick={handleRepick}
-              className="rounded px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+              className="rounded px-3 py-1.5 text-xs font-medium text-subtle hover:bg-muted"
             >
               {t('calibrateRepick')}
             </button>
@@ -333,16 +333,16 @@ export function CalibrationPanel() {
   if (step === 'confirm') {
     return (
       <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30">
-        <div className="mx-4 max-w-[420px] rounded-xl bg-white p-6 shadow-xl">
-          <h2 className="text-lg font-semibold text-gray-900">{t('calibrateComplete')}</h2>
+        <div className="mx-4 max-w-[420px] rounded-xl bg-surface p-6 shadow-xl">
+          <h2 className="text-lg font-semibold text-content">{t('calibrateComplete')}</h2>
 
           <div className="mt-4 space-y-2">
             {points.map((p, i) => (
-              <div key={i} className="rounded bg-gray-50 px-3 py-2 text-xs text-gray-700">
+              <div key={i} className="rounded bg-surface-2 px-3 py-2 text-xs text-content-2">
                 <span className="font-medium">Point {i + 1}:</span>{' '}
                 {p.lat.toFixed(6)}, {p.lon.toFixed(6)} → map ({Math.round(p.mapPoint.x)}, {Math.round(p.mapPoint.y)})
                 {residuals[i] !== undefined && (
-                  <span className={`ml-2 ${residuals[i]! > 10 ? 'text-amber-600' : 'text-green-600'}`}>
+                  <span className={`ml-2 ${residuals[i]! > 10 ? 'text-warning-text' : 'text-green-600'}`}>
                     (error: {residuals[i]!.toFixed(1)}px)
                   </span>
                 )}
@@ -353,17 +353,17 @@ export function CalibrationPanel() {
           {warnings.length > 0 && (
             <div className="mt-3">
               {warnings.map((w, i) => (
-                <p key={i} className="text-xs text-amber-700">{w}</p>
+                <p key={i} className="text-xs text-warning-text">{w}</p>
               ))}
             </div>
           )}
 
-          <p className="mt-3 text-xs text-gray-500">{t('calibrateAccuracyNote')}</p>
+          <p className="mt-3 text-xs text-subtle">{t('calibrateAccuracyNote')}</p>
 
           {points.length === 2 && (
             <button
               onClick={handleAddThird}
-              className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="mt-3 text-xs font-medium text-info-text hover:text-info-text"
             >
               {t('calibrateAddThird')}
             </button>
@@ -372,7 +372,7 @@ export function CalibrationPanel() {
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={handleRedo}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-subtle hover:bg-muted"
             >
               {t('calibrateRedo')}
             </button>

@@ -100,14 +100,14 @@ function getButtonStyle(
 ): { className: string; title: string } {
   if (needsCalibration && !enabled) {
     return {
-      className: 'bg-gray-100 text-gray-400 ring-1 ring-amber-300',
+      className: 'bg-muted text-faint ring-1 ring-warning',
       title: 'Map not georeferenced — tap to calibrate',
     };
   }
 
   if (!enabled || status === 'inactive') {
     return {
-      className: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+      className: 'bg-muted text-subtle hover:bg-surface-3',
       title: 'Enable GPS placement',
     };
   }
@@ -115,37 +115,37 @@ function getButtonStyle(
   switch (status) {
     case 'acquiring':
       return {
-        className: 'bg-blue-50 text-blue-500',
+        className: 'bg-info-soft text-info-text',
         title: 'Acquiring GPS signal\u2026',
       };
     case 'active':
       return {
-        className: 'bg-blue-100 text-blue-700 ring-1 ring-blue-400',
+        className: 'bg-info-soft text-info-text ring-1 ring-info',
         title: 'GPS active \u2014 tap to disable',
       };
     case 'poor-signal':
       return {
-        className: 'bg-amber-50 text-amber-600 ring-1 ring-amber-400',
+        className: 'bg-warning-soft text-warning-text ring-1 ring-warning',
         title: 'GPS active \u2014 poor accuracy',
       };
     case 'lost':
       return {
-        className: 'bg-red-50 text-red-600 ring-1 ring-red-300',
+        className: 'bg-danger-soft text-danger-text ring-1 ring-danger',
         title: 'GPS signal lost',
       };
     case 'denied':
       return {
-        className: 'bg-gray-100 text-gray-300 cursor-not-allowed',
+        className: 'bg-muted text-faint cursor-not-allowed',
         title: 'Location access denied \u2014 check browser settings',
       };
     case 'unavailable':
       return {
-        className: 'bg-gray-100 text-gray-300 cursor-not-allowed',
+        className: 'bg-muted text-faint cursor-not-allowed',
         title: 'GPS not available on this device',
       };
     default:
       return {
-        className: 'bg-gray-100 text-gray-600',
+        className: 'bg-muted text-subtle',
         title: 'GPS',
       };
   }

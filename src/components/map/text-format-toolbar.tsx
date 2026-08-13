@@ -53,7 +53,7 @@ export function TextFormatToolbar() {
   const currentColor = item.color ?? OVERPRINT_PURPLE;
 
   return (
-    <div className="absolute left-1/2 top-2 z-40 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-gray-200 bg-white/95 px-2 py-1.5 shadow-lg">
+    <div className="absolute left-1/2 top-2 z-40 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-edge bg-surface/95 px-2 py-1.5 shadow-lg">
       {/* Text-specific controls */}
       {item.type === 'text' && (
         <TextControls item={item} dpi={dpi} update={update} />
@@ -66,7 +66,7 @@ export function TextFormatToolbar() {
 
       {/* Separator before color (if there are controls before it) */}
       {(item.type === 'text' || item.type === 'line' || item.type === 'rectangle') && (
-        <div className="mx-1 h-4 w-px bg-gray-200" />
+        <div className="mx-1 h-4 w-px bg-surface-3" />
       )}
 
       {/* Color presets — shown for all editable item types */}
@@ -77,7 +77,7 @@ export function TextFormatToolbar() {
             key={c.value}
             onClick={() => update({ color: c.value } as Partial<SpecialItem>)}
             className={`h-5 w-5 rounded-full border-2 ${
-              isActive ? 'border-violet-500' : 'border-gray-200 hover:border-gray-400'
+              isActive ? 'border-accent-edge' : 'border-edge hover:border-edge-strong'
             }`}
             style={{ backgroundColor: c.value }}
             title={c.label}
@@ -111,8 +111,8 @@ function TextControls({
             onClick={() => update({ fontSize: mmToPixels(preset.mm) } as Partial<SpecialItem>)}
             className={`rounded px-2 py-0.5 text-xs font-medium ${
               isActive
-                ? 'bg-violet-100 text-violet-700'
-                : 'text-gray-500 hover:bg-gray-100'
+                ? 'bg-accent-soft-2 text-accent-text'
+                : 'text-subtle hover:bg-muted'
             }`}
             title={`${preset.mm}mm`}
           >
@@ -121,15 +121,15 @@ function TextControls({
         );
       })}
 
-      <div className="mx-1 h-4 w-px bg-gray-200" />
+      <div className="mx-1 h-4 w-px bg-surface-3" />
 
       {/* Bold */}
       <button
         onClick={() => update({ fontWeight: item.fontWeight === 'bold' ? 'normal' : 'bold' } as Partial<SpecialItem>)}
         className={`rounded px-2 py-0.5 text-xs font-bold ${
           item.fontWeight === 'bold'
-            ? 'bg-violet-100 text-violet-700'
-            : 'text-gray-500 hover:bg-gray-100'
+            ? 'bg-accent-soft-2 text-accent-text'
+            : 'text-subtle hover:bg-muted'
         }`}
         title="Bold"
       >
@@ -141,8 +141,8 @@ function TextControls({
         onClick={() => update({ fontStyle: item.fontStyle === 'italic' ? 'normal' : 'italic' } as Partial<SpecialItem>)}
         className={`rounded px-2 py-0.5 text-xs italic ${
           item.fontStyle === 'italic'
-            ? 'bg-violet-100 text-violet-700'
-            : 'text-gray-500 hover:bg-gray-100'
+            ? 'bg-accent-soft-2 text-accent-text'
+            : 'text-subtle hover:bg-muted'
         }`}
         title="Italic"
       >
@@ -171,8 +171,8 @@ function LineWidthControls({
             onClick={() => update({ lineWidth: preset.value } as Partial<SpecialItem>)}
             className={`rounded px-2 py-0.5 text-xs font-medium ${
               isActive
-                ? 'bg-violet-100 text-violet-700'
-                : 'text-gray-500 hover:bg-gray-100'
+                ? 'bg-accent-soft-2 text-accent-text'
+                : 'text-subtle hover:bg-muted'
             }`}
             title={`${preset.label} (${preset.value}px)`}
           >

@@ -3,10 +3,12 @@
  * Opened from "Preferences…" in the File menu.
  */
 import { useRef } from 'react';
-import { useAppSettingsStore } from '@/stores/app-settings-store';
+import { useAppSettingsStore, type ThemePreference } from '@/stores/app-settings-store';
 import { SUPPORTED_APP_LANGUAGES } from '@/i18n/languages';
 import { useT } from '@/i18n/use-t';
 import { useModalClose } from './use-modal-close';
+
+const THEME_OPTIONS: ThemePreference[] = ['system', 'light', 'dark'];
 
 interface PreferencesModalProps {
   onClose: () => void;
@@ -16,7 +18,21 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
   const t = useT();
   const appLanguage = useAppSettingsStore((s) => s.appLanguage);
   const setAppLanguage = useAppSettingsStore((s) => s.setAppLanguage);
+  const theme = useAppSettingsStore((s) => s.theme);
+  const setTheme = useAppSettingsStore((s) => s.setTheme);
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Arrow-key roving selection across the theme segments (radiogroup pattern).
+  const onThemeKeyDown = (e: React.KeyboardEvent) => {
+    const idx = THEME_OPTIONS.indexOf(theme);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      setTheme(THEME_OPTIONS[(idx + 1) % THEME_OPTIONS.length]!);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setTheme(THEME_OPTIONS[(idx - 1 + THEME_OPTIONS.length) % THEME_OPTIONS.length]!);
+    }
+  };
   const { handleBackdropClick } = useModalClose(onClose);
 
   return (
@@ -29,14 +45,14 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
     >
       <div
         ref={dialogRef}
-        className="w-[360px] rounded-lg border border-gray-200 bg-white shadow-xl"
+        className="w-[360px] rounded-lg border border-edge bg-surface shadow-xl"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <h2 className="text-base font-semibold text-gray-900">{t('preferencesTitle')}</h2>
+        <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+          <h2 className="text-base font-semibold text-content">{t('preferencesTitle')}</h2>
           <button
             onClick={onClose}
-            className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+            className="rounded p-0.5 text-faint hover:text-content-2"
             aria-label={t('close')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
@@ -51,16 +67,16 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
           <div>
             <label
               htmlFor="app-language-select"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-content-2"
             >
               {t('appLanguageLabel')}
             </label>
-            <p className="mt-0.5 text-xs text-gray-400">{t('appLanguageDescription')}</p>
+            <p className="mt-0.5 text-xs text-faint">{t('appLanguageDescription')}</p>
             <select
               id="app-language-select"
               value={appLanguage}
               onChange={(e) => setAppLanguage(e.target.value)}
-              className="mt-1.5 w-full rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-violet-400"
+              className="mt-1.5 w-full rounded border border-edge-strong px-2 py-1.5 text-sm text-content-2 outline-none focus:border-accent-edge"
             >
               {SUPPORTED_APP_LANGUAGES.map((lang) => (
                 <option key={lang.code} value={lang.code}>
@@ -69,13 +85,48 @@ export function PreferencesModal({ onClose }: PreferencesModalProps) {
               ))}
             </select>
           </div>
+
+          {/* Appearance / theme */}
+          <div>
+            <span id="appearance-label" className="block text-sm font-medium text-content-2">
+              {t('appearanceLabel')}
+            </span>
+            <p className="mt-0.5 text-xs text-faint">{t('appearanceDescription')}</p>
+            <div
+              role="radiogroup"
+              aria-labelledby="appearance-label"
+              onKeyDown={onThemeKeyDown}
+              className="mt-1.5 inline-flex rounded-md border border-edge-strong p-0.5"
+            >
+              {THEME_OPTIONS.map((opt) => {
+                const selected = theme === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    tabIndex={selected ? 0 : -1}
+                    onClick={() => setTheme(opt)}
+                    className={`rounded px-3 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent-edge ${
+                      selected
+                        ? 'bg-accent text-accent-contrast'
+                        : 'text-content-2 hover:bg-muted'
+                    }`}
+                  >
+                    {t(`theme_${opt}`)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end border-t border-gray-200 px-4 py-3">
+        <div className="flex justify-end border-t border-edge px-4 py-3">
           <button
             onClick={onClose}
-            className="rounded bg-gray-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
+            className="rounded bg-neutral-solid px-4 py-1.5 text-sm font-medium text-neutral-solid-contrast hover:bg-neutral-solid-hover"
           >
             {t('close')}
           </button>

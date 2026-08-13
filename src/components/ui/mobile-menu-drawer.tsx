@@ -34,13 +34,13 @@ function MenuItemButton({
         indent ? 'px-6' : 'px-4'
       } ${
         item.disabled
-          ? 'cursor-default text-gray-300'
-          : 'text-gray-700 active:bg-gray-100'
+          ? 'cursor-default text-faint'
+          : 'text-content-2 active:bg-muted'
       }`}
     >
       <span>{item.label}</span>
       {!indent && item.shortcut && (
-        <span className="ml-4 text-xs text-gray-400">{item.shortcut}</span>
+        <span className="ml-4 text-xs text-faint">{item.shortcut}</span>
       )}
     </button>
   );
@@ -49,23 +49,23 @@ function MenuItemButton({
 export function MobileMenuDrawer({ open, onClose, sections }: MobileMenuDrawerProps) {
   return (
     <SlideDrawer open={open} onClose={onClose} side="left" width="280px">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <span className="text-sm font-semibold text-gray-900">Overprint</span>
-        <span className="text-[10px] text-gray-400 ml-1">v{__APP_VERSION__}</span>
+      <div className="px-4 py-3 border-b border-edge">
+        <span className="text-sm font-semibold text-content">Overprint</span>
+        <span className="text-[10px] text-faint ml-1">v{__APP_VERSION__}</span>
       </div>
 
       <nav className="flex-1 overflow-y-auto overscroll-contain py-2">
         {sections.map((section) => (
           <div key={section.label}>
             {/* Section header */}
-            <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+            <div className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-faint">
               {section.label}
             </div>
 
             {/* Items */}
             {section.items.map((entry, i) => {
               if ('separator' in entry && entry.separator) {
-                return <div key={i} className="my-1 mx-4 border-t border-gray-100" />;
+                return <div key={i} className="my-1 mx-4 border-t border-edge" />;
               }
 
               const item = entry as MenuItem;
@@ -74,12 +74,12 @@ export function MobileMenuDrawer({ open, onClose, sections }: MobileMenuDrawerPr
               if (item.children) {
                 return (
                   <div key={item.label}>
-                    <div className="px-4 py-2 text-xs font-medium text-gray-500">
+                    <div className="px-4 py-2 text-xs font-medium text-subtle">
                       {item.label}
                     </div>
                     {item.children.map((child, ci) => {
                       if ('separator' in child && child.separator) {
-                        return <div key={ci} className="my-1 mx-4 border-t border-gray-100" />;
+                        return <div key={ci} className="my-1 mx-4 border-t border-edge" />;
                       }
                       return (
                         <MenuItemButton

@@ -41,14 +41,14 @@ export function EventNameEditor({
           if (e.key === 'Escape') setEditing(false);
         }}
         onBlur={commit}
-        className={`text-sm text-gray-500 border-b border-violet-400 bg-transparent outline-none px-1 ${inputClassName}`}
+        className={`text-sm text-subtle border-b border-accent-edge bg-transparent outline-none px-1 ${inputClassName}`}
       />
     );
   }
 
   return (
     <span
-      className={`text-sm text-gray-500 cursor-pointer ${className}`}
+      className={`text-sm text-subtle cursor-pointer ${className}`}
       onClick={() => { setEditing(true); setDraft(eventName); }}
       title={t('clickToEditEventName')}
     >

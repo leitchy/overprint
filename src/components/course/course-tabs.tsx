@@ -127,13 +127,13 @@ export function CourseList() {
   }
 
   return (
-    <div className="border-b border-gray-200">
+    <div className="border-b border-edge">
       {/* All controls entry */}
       <div
         className={`flex items-center px-3 py-1.5 text-sm italic ${
           viewMode === 'allControls'
-            ? 'border-l-2 border-l-gray-400 bg-gray-50 font-medium text-gray-700'
-            : 'cursor-pointer border-l-2 border-l-transparent text-gray-400 hover:bg-gray-50'
+            ? 'border-l-2 border-l-gray-400 bg-surface-2 font-medium text-content-2'
+            : 'cursor-pointer border-l-2 border-l-transparent text-faint hover:bg-surface-2'
         }`}
         onClick={() => showAllControls()}
       >
@@ -142,13 +142,13 @@ export function CourseList() {
 
       {/* Thin separator + visibility bulk controls */}
       {courses.length > 1 && (
-        <div className="mx-3 flex flex-wrap items-center justify-end gap-x-1.5 border-t border-gray-100 py-1 max-lg:py-1.5">
+        <div className="mx-3 flex flex-wrap items-center justify-end gap-x-1.5 border-t border-edge py-1 max-lg:py-1.5">
           {/* Toggle — pill style, stays highlighted when active */}
           <button
-            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:text-xs max-lg:px-2.5 max-lg:py-1 ${
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors focus:outline-none focus:ring-1 focus:ring-accent-edge max-lg:text-xs max-lg:px-2.5 max-lg:py-1 ${
               showNonCurrentControls
-                ? 'bg-violet-100 text-violet-700 font-medium'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'
+                ? 'bg-accent-soft-2 text-accent-text font-medium'
+                : 'text-faint hover:bg-muted hover:text-subtle'
             }`}
             onClick={() => toggleNonCurrentControls()}
           >
@@ -156,13 +156,13 @@ export function CourseList() {
           </button>
           {/* One-shot actions — plain text links */}
           <button
-            className="text-[10px] text-gray-400 underline decoration-gray-300 hover:text-gray-600 hover:decoration-gray-400 focus:outline-none max-lg:text-xs"
+            className="text-[10px] text-faint underline decoration-edge-strong hover:text-subtle hover:decoration-faint focus:outline-none max-lg:text-xs"
             onClick={() => showAllCourses()}
           >
             {t('showAllCourses')}
           </button>
           <button
-            className="text-[10px] text-gray-400 underline decoration-gray-300 hover:text-gray-600 hover:decoration-gray-400 focus:outline-none max-lg:text-xs"
+            className="text-[10px] text-faint underline decoration-edge-strong hover:text-subtle hover:decoration-faint focus:outline-none max-lg:text-xs"
             onClick={() => hideAllCourses()}
           >
             {t('hideAll')}
@@ -180,9 +180,9 @@ export function CourseList() {
           return (
             <div
               key={course.id}
-              className="flex items-center gap-1 border-l-2 border-l-red-400 bg-red-50 px-3 py-1.5 text-sm"
+              className="flex items-center gap-1 border-l-2 border-l-red-400 bg-danger-soft px-3 py-1.5 text-sm"
             >
-              <span className="flex-1 truncate text-xs text-red-700">
+              <span className="flex-1 truncate text-xs text-danger-text">
                 {t('confirmDelete')} &ldquo;{course.name}&rdquo;
               </span>
               <button
@@ -192,7 +192,7 @@ export function CourseList() {
                 {t('yes')}
               </button>
               <button
-                className="rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700"
+                className="rounded bg-surface-3 px-2 py-0.5 text-xs text-content-2"
                 onClick={() => setConfirmingDeleteId(null)}
               >
                 {t('no')}
@@ -208,8 +208,8 @@ export function CourseList() {
             key={course.id}
             className={`flex items-center gap-1 px-3 py-1.5 text-sm ${
               isActive
-                ? 'border-l-2 border-l-violet-500 bg-violet-50 font-medium text-gray-900'
-                : 'cursor-pointer border-l-2 border-l-transparent text-gray-500 hover:bg-gray-50'
+                ? 'border-l-2 border-l-violet-500 bg-accent-soft font-medium text-content'
+                : 'cursor-pointer border-l-2 border-l-transparent text-subtle hover:bg-surface-2'
             }`}
             onClick={() => {
               if (!isActive) setActiveCourse(course.id);
@@ -221,19 +221,19 @@ export function CourseList() {
                 aria-label={isVisible ? `Hide ${course.name}` : `Show ${course.name}`}
                 aria-pressed={isVisible}
                 title={isVisible ? `Hide ${course.name}` : `Show ${course.name}`}
-                className="shrink-0 rounded p-0.5 focus:outline-none focus:ring-1 focus:ring-violet-300 max-lg:p-1.5"
+                className="shrink-0 rounded p-0.5 focus:outline-none focus:ring-1 focus:ring-accent-edge max-lg:p-1.5"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleCourseVisibility(course.id);
                 }}
               >
                 {isVisible ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-subtle">
                     <path d="M8 3C4.511 3 1.486 5.032.38 7.753a.75.75 0 0 0 0 .494C1.486 10.968 4.511 13 8 13s6.514-2.032 7.62-4.753a.75.75 0 0 0 0-.494C14.514 5.032 11.489 3 8 3Zm0 8.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z" />
                     <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-gray-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3 text-faint">
                     <path d="M.838 1.543a.75.75 0 0 1 1.12-.025l12.5 12a.75.75 0 1 1-1.04 1.08l-2.014-1.935A8.889 8.889 0 0 1 8 13c-3.489 0-6.514-2.032-7.62-4.753a.75.75 0 0 1 0-.494 8.574 8.574 0 0 1 2.637-3.385L.863 2.568a.75.75 0 0 1-.025-1.025Zm3.423 4.577a3.5 3.5 0 0 0 4.69 4.504l-.975-.937A2 2 0 0 1 6 8c0-.088.006-.175.017-.259l-1.756-1.621Zm6.584 3.09-1.27-1.22A2 2 0 0 0 8.07 6.06l-1.2-1.153A3.5 3.5 0 0 1 11.5 8c0 .474-.094.926-.265 1.338l-.39-.128Z" />
                     <path d="M15.62 7.753A8.756 8.756 0 0 0 13.058 4.6l-1.064 1.065a7.236 7.236 0 0 1 2.15 2.588 7.253 7.253 0 0 1-6.144 4.24l-.937.9C7.396 13.463 7.7 13.5 8 13.5c3.489 0 6.514-2.532 7.62-5.247a.75.75 0 0 0 0-.494v-.006Z" />
                   </svg>
@@ -247,7 +247,7 @@ export function CourseList() {
                 type="text"
                 value={renameValue}
                 aria-label="Course name"
-                className="min-w-0 flex-1 rounded border border-violet-400 px-1 py-0 text-sm outline-none"
+                className="min-w-0 flex-1 rounded border border-accent-edge px-1 py-0 text-sm outline-none"
                 onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={handleRenameKeyDown}
                 onBlur={handleRenameCommit}
@@ -262,7 +262,7 @@ export function CourseList() {
               <button
                 aria-label="Rename course"
                 title="Rename"
-                className="shrink-0 rounded p-0.5 text-gray-400 hover:text-gray-700"
+                className="shrink-0 rounded p-0.5 text-faint hover:text-content-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleRenameStart(course.id, course.name);
@@ -279,7 +279,7 @@ export function CourseList() {
               <button
                 aria-label="Duplicate course"
                 title="Duplicate"
-                className="shrink-0 rounded p-0.5 text-gray-400 hover:text-gray-700"
+                className="shrink-0 rounded p-0.5 text-faint hover:text-content-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   duplicateCourse(course.id);
@@ -297,7 +297,7 @@ export function CourseList() {
               <button
                 aria-label={`Delete ${course.name}`}
                 title="Delete"
-                className="shrink-0 rounded p-0.5 text-gray-300 hover:text-red-500"
+                className="shrink-0 rounded p-0.5 text-faint hover:text-danger-text"
                 onClick={(e) => handleDeleteCourse(e, course.id)}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
@@ -311,13 +311,13 @@ export function CourseList() {
 
       {/* Inline course creation input */}
       {creating && (
-        <div className="flex items-center gap-1 px-3 py-1.5 border-l-2 border-l-violet-300 bg-violet-50">
+        <div className="flex items-center gap-1 px-3 py-1.5 border-l-2 border-l-violet-300 bg-accent-soft">
           <input
             ref={createInputRef}
             type="text"
             value={createValue}
             aria-label={t('createCourse')}
-            className="min-w-0 flex-1 rounded border border-violet-400 px-1 py-0 text-sm outline-none"
+            className="min-w-0 flex-1 rounded border border-accent-edge px-1 py-0 text-sm outline-none"
             onChange={(e) => setCreateValue(e.target.value)}
             onKeyDown={handleCreateKeyDown}
             onBlur={handleCreateCommit}
@@ -330,7 +330,7 @@ export function CourseList() {
       <button
         aria-label={t('addCourse')}
         title={t('addCourse')}
-        className="flex w-full items-center gap-1 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+        className="flex w-full items-center gap-1 px-3 py-1.5 text-sm text-faint hover:bg-surface-2 hover:text-content-2"
         onClick={handleAddCourse}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">

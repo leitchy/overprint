@@ -163,15 +163,15 @@ export function VariationsSection({
   };
 
   return (
-    <div className="border-t border-gray-200">
+    <div className="border-t border-edge">
       <button
-        className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400 hover:bg-gray-50"
+        className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-faint hover:bg-surface-2"
         onClick={() => setOpen((v) => !v)}
       >
         <span>
           {t('variationsTitle')}
           {forks.length > 0 && (
-            <span className="ml-1 rounded-full bg-violet-100 px-1.5 text-violet-700 normal-case">
+            <span className="ml-1 rounded-full bg-accent-soft-2 px-1.5 text-accent-text normal-case">
               {forks.length}
             </span>
           )}
@@ -189,7 +189,7 @@ export function VariationsSection({
             <button
               disabled={!anchorId}
               onClick={() => anchorId && addFork(courseId, anchorId)}
-              className="flex-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+              className="flex-1 rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2 disabled:border-edge disabled:bg-surface-2 disabled:text-faint"
               title={anchorId ? undefined : t('addForkHint')}
             >
               {t('addForkAtSelected')}
@@ -197,20 +197,20 @@ export function VariationsSection({
             <button
               disabled={!anchorId}
               onClick={() => anchorId && addLoop(courseId, anchorId)}
-              className="flex-1 rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+              className="flex-1 rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2 disabled:border-edge disabled:bg-surface-2 disabled:text-faint"
               title={anchorId ? undefined : t('addForkHint')}
             >
               {t('addLoopAtSelected')}
             </button>
           </div>
           {!anchorId && (
-            <p className="text-[10px] italic text-gray-400">{t('addForkHint')}</p>
+            <p className="text-[10px] italic text-faint">{t('addForkHint')}</p>
           )}
 
           {/* Code-vs-sequence reminder — a novice trap: this panel lists controls by
               CODE (#106), but the map circles are numbered by SEQUENCE (1, 2, 3…). */}
           {forks.length > 0 && (
-            <p className="rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
+            <p className="rounded bg-warning-soft px-2 py-1 text-[10px] text-warning-text">
               ℹ {t('variationsCodeVsSequenceHint')}
             </p>
           )}
@@ -225,19 +225,19 @@ export function VariationsSection({
             const isLoop = fork.kind === 'loop';
 
             return (
-              <div key={fork.id} className="rounded border border-gray-200">
+              <div key={fork.id} className="rounded border border-edge">
                 <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-xs font-medium text-gray-600">
+                  <span className="text-xs font-medium text-subtle">
                     {t(isLoop ? 'loopAtControl' : 'forkAtControl', { code: anchorCode ?? '?' })}
                     {isLoop && (
-                      <span className="ml-1 text-[10px] font-normal text-gray-400">
+                      <span className="ml-1 text-[10px] font-normal text-faint">
                         {t('variationsLoopCount', { n: factorial(fork.branches.length) })}
                       </span>
                     )}
                   </span>
                   <button
                     onClick={() => removeFork(courseId, fork.id)}
-                    className="rounded px-1 text-red-300 hover:text-red-600"
+                    className="rounded px-1 text-danger-text hover:text-danger-text"
                     title={t('removeForkLabel')}
                   >
                     &times;
@@ -248,7 +248,7 @@ export function VariationsSection({
                 {forkIssues.length > 0 && (
                   <ul className="px-2 pb-1 space-y-0.5">
                     {forkIssues.map((issue, i) => (
-                      <li key={i} className="text-[10px] text-amber-600">
+                      <li key={i} className="text-[10px] text-warning-text">
                         ⚠ {issueText(issue)}
                       </li>
                     ))}
@@ -263,7 +263,7 @@ export function VariationsSection({
                   return (
                   <div
                     key={branch.id}
-                    className={`border-t border-gray-100 px-2 py-1 ${isActiveTarget ? 'bg-violet-50 ring-1 ring-inset ring-violet-300' : ''}`}
+                    className={`border-t border-edge px-2 py-1 ${isActiveTarget ? 'bg-accent-soft ring-1 ring-inset ring-accent-edge' : ''}`}
                   >
                     <div className="flex items-center gap-1">
                       <input
@@ -271,7 +271,7 @@ export function VariationsSection({
                         defaultValue={branch.label}
                         maxLength={3}
                         aria-label={t('branchLabelLabel')}
-                        className="w-8 rounded border border-gray-200 px-1 py-0.5 text-center text-xs font-medium text-violet-700 outline-none focus:border-violet-400"
+                        className="w-8 rounded border border-edge px-1 py-0.5 text-center text-xs font-medium text-accent-text outline-none focus:border-accent-edge"
                         onKeyDown={(e) => {
                           e.stopPropagation();
                           if (e.key === 'Enter' || e.key === 'Escape') {
@@ -285,7 +285,7 @@ export function VariationsSection({
 
                       {branchLen != null && (
                         <span
-                          className="shrink-0 font-mono text-[10px] text-gray-400"
+                          className="shrink-0 font-mono text-[10px] text-faint"
                           title={t(isLoop ? 'loopLengthHint' : 'branchLengthHint')}
                         >
                           {km(branchLen)}&nbsp;{t('km')}
@@ -301,7 +301,7 @@ export function VariationsSection({
                               cc.courseControlId &&
                               removeControlFromBranch(courseId, fork.id, branch.id, cc.courseControlId)
                             }
-                            className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[10px] text-gray-600 hover:bg-red-50 hover:text-red-600"
+                            className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-subtle hover:bg-danger-soft hover:text-danger-text"
                             title={t('removeFromCourse')}
                           >
                             #{controls[cc.controlId]?.code ?? '?'} &times;
@@ -317,7 +317,7 @@ export function VariationsSection({
                               addControlToBranch(courseId, fork.id, branch.id, e.target.value as ControlId);
                             }
                           }}
-                          className="rounded border border-gray-200 px-0.5 py-0.5 text-[10px] text-gray-500 outline-none focus:border-violet-400"
+                          className="rounded border border-edge px-0.5 py-0.5 text-[10px] text-subtle outline-none focus:border-accent-edge"
                         >
                           <option value="">{t('addControlToBranchPlaceholder')}</option>
                           {poolControls
@@ -339,7 +339,7 @@ export function VariationsSection({
                               setTool({ type: 'addControl' });
                             }
                           }}
-                          className={`rounded px-1 py-0.5 text-[10px] font-medium ${isActiveTarget ? 'bg-violet-600 text-white' : 'text-violet-600 hover:bg-violet-50'}`}
+                          className={`rounded px-1 py-0.5 text-[10px] font-medium ${isActiveTarget ? 'bg-accent text-white' : 'text-accent-text hover:bg-accent-soft'}`}
                           title={t('placeOnMapHint')}
                         >
                           {isActiveTarget ? t('placingOnMap') : t('placeOnMap')}
@@ -348,7 +348,7 @@ export function VariationsSection({
 
                       <button
                         onClick={() => removeBranch(courseId, fork.id, branch.id)}
-                        className="rounded px-1 text-red-300 hover:text-red-600"
+                        className="rounded px-1 text-danger-text hover:text-danger-text"
                         title={t('removeBranchLabel')}
                       >
                         &times;
@@ -358,10 +358,10 @@ export function VariationsSection({
                   );
                 })}
 
-                <div className="border-t border-gray-100 px-2 py-1">
+                <div className="border-t border-edge px-2 py-1">
                   <button
                     onClick={() => addBranch(courseId, fork.id)}
-                    className="rounded px-1 text-[10px] font-medium text-violet-600 hover:bg-violet-50"
+                    className="rounded px-1 text-[10px] font-medium text-accent-text hover:bg-accent-soft"
                   >
                     + {t(isLoop ? 'addLoopLabel' : 'addBranchLabel')}
                   </button>
@@ -372,7 +372,7 @@ export function VariationsSection({
 
           {/* Truncation warning — too many combinations to enumerate */}
           {enumeration.truncated && (
-            <p className="rounded bg-red-50 px-2 py-1 text-[10px] font-medium text-red-600">
+            <p className="rounded bg-danger-soft px-2 py-1 text-[10px] font-medium text-danger-text">
               ⚠ {t('variationsTruncatedWarning', { max: MAX_VARIATIONS })}
             </p>
           )}
@@ -380,7 +380,7 @@ export function VariationsSection({
           {/* Variation picker — drives the canvas render */}
           {hasPicker && (
             <div>
-              <label className="block text-[10px] font-medium text-gray-400 mb-0.5">
+              <label className="block text-[10px] font-medium text-faint mb-0.5">
                 {t('variationLabel')}
                 {lengthRange &&
                   ` · ${km(lengthRange.minM)}–${km(lengthRange.maxM)} ${t('km')}`}
@@ -389,7 +389,7 @@ export function VariationsSection({
                 value={clampedIndex}
                 aria-label={t('variationLabel')}
                 onChange={(e) => setActiveVariationIndex(Number(e.target.value))}
-                className="w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-600 outline-none focus:border-violet-400"
+                className="w-full rounded border border-edge px-1.5 py-1 text-xs text-subtle outline-none focus:border-accent-edge"
               >
                 {enumeration.variations.map((v) => {
                   const len = mapFile
@@ -409,7 +409,7 @@ export function VariationsSection({
           {hasPicker && course.courseType === 'normal' && (
             <button
               onClick={() => setRelayModalCourseId(courseId)}
-              className="w-full rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+              className="w-full rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2"
             >
               {t('relayTeamsButton')}
             </button>

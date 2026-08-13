@@ -16,7 +16,7 @@ export function ToastContainer() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto animate-fade-in rounded-full bg-gray-800 px-4 py-2 text-sm text-white shadow-lg"
+          className="pointer-events-auto animate-fade-in rounded-full bg-neutral-solid px-4 py-2 text-sm text-neutral-solid-contrast shadow-lg"
           role="status"
           aria-live="polite"
         >

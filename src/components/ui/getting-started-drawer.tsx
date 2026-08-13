@@ -31,16 +31,16 @@ export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
 
   return (
     <div
-      className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-gray-200 bg-white shadow-xl"
+      className="fixed inset-y-0 right-0 z-40 flex w-[480px] flex-col border-l border-edge bg-surface shadow-xl"
       role="complementary"
       aria-label={t('gettingStarted')}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-        <h2 className="text-base font-semibold text-gray-900">{t('gettingStarted')}</h2>
+      <div className="flex items-center justify-between border-b border-edge px-5 py-3">
+        <h2 className="text-base font-semibold text-content">{t('gettingStarted')}</h2>
         <button
           onClick={onClose}
-          className="rounded p-0.5 text-gray-400 hover:text-gray-700"
+          className="rounded p-0.5 text-faint hover:text-content-2"
           aria-label={t('close')}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
@@ -55,13 +55,13 @@ export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
           const isTarget = targetSection ? section.id === targetSection : i === 0;
           return (
             <details key={section.id} ref={isTarget ? targetRef : undefined} open={isTarget}>
-              <summary className="cursor-pointer rounded px-2 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 select-none">
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600">
+              <summary className="cursor-pointer rounded px-2 py-2 text-sm font-semibold text-content hover:bg-surface-2 select-none">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-soft-2 text-xs font-bold text-accent-text">
                   {i + 1}
                 </span>
                 {section.title}
               </summary>
-              <p className="mt-1 mb-3 pl-9 text-sm leading-relaxed text-gray-600">
+              <p className="mt-1 mb-3 pl-9 text-sm leading-relaxed text-subtle">
                 {section.body}
               </p>
             </details>
@@ -70,10 +70,10 @@ export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-200 px-5 py-3">
+      <div className="border-t border-edge px-5 py-3">
         <button
           onClick={onClose}
-          className="w-full rounded bg-gray-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-700"
+          className="w-full rounded bg-neutral-solid px-4 py-1.5 text-sm font-medium text-neutral-solid-contrast hover:bg-neutral-solid-hover"
         >
           {t('close')}
         </button>

@@ -1,5 +1,124 @@
 @import "tailwindcss";
 
+/*
+ * Semantic colour tokens (dark-mode aware).
+ *
+ * Each @theme colour points at a runtime `var(--c-*)` — `@theme inline` is
+ * REQUIRED so utilities emit `var(--c-*)` and re-resolve live when the
+ * [data-theme] attribute flips (a plain @theme would inline the value at build
+ * time and never switch). Components use semantic classes (bg-surface,
+ * text-content, border-edge, …); there are no `dark:` variants.
+ *
+ * SCREEN-ONLY: none of this reaches PDF/OMAP/PNG exports. Overprint/GPS/gold
+ * overlay colours live in src/core/models/constants.ts and are NOT themed.
+ */
+@theme inline {
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-muted: var(--c-muted);
+  --color-surface-3: var(--c-surface-3);
+  --color-content: var(--c-content);
+  --color-content-2: var(--c-content-2);
+  --color-subtle: var(--c-subtle);
+  --color-faint: var(--c-faint);
+  --color-edge: var(--c-edge);
+  --color-edge-strong: var(--c-edge-strong);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-contrast: var(--c-accent-contrast);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-soft-2: var(--c-accent-soft-2);
+  --color-accent-text: var(--c-accent-text);
+  --color-accent-edge: var(--c-accent-edge);
+  --color-neutral-solid: var(--c-neutral-solid);
+  --color-neutral-solid-hover: var(--c-neutral-solid-hover);
+  --color-neutral-solid-contrast: var(--c-neutral-solid-contrast);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-danger-text: var(--c-danger-text);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-warning-text: var(--c-warning-text);
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+  --color-info-text: var(--c-info-text);
+  --color-canvas-surround: var(--c-canvas-surround);
+}
+
+/* LIGHT — token values equal the previous hard-coded literals, so light mode is
+   visually unchanged by the migration. */
+:root {
+  color-scheme: light;
+  --tw-ring-offset-color: var(--c-surface);
+
+  --c-surface: #ffffff;
+  --c-surface-2: #f9fafb; /* gray-50 */
+  --c-muted: #f3f4f6; /* gray-100 */
+  --c-surface-3: #e5e7eb; /* gray-200 */
+  --c-content: #111827; /* gray-900 */
+  --c-content-2: #374151; /* gray-700 */
+  --c-subtle: #4b5563; /* gray-600 */
+  --c-faint: #9ca3af; /* gray-400 */
+  --c-edge: #e5e7eb; /* gray-200 */
+  --c-edge-strong: #d1d5db; /* gray-300 */
+  --c-accent: #7c3aed; /* violet-600 */
+  --c-accent-hover: #6d28d9; /* violet-700 */
+  --c-accent-contrast: #ffffff;
+  --c-accent-soft: #f5f3ff; /* violet-50 */
+  --c-accent-soft-2: #ede9fe; /* violet-100 */
+  --c-accent-text: #6d28d9; /* violet-700 */
+  --c-accent-edge: #a78bfa; /* violet-400 */
+  --c-neutral-solid: #1f2937; /* gray-800 */
+  --c-neutral-solid-hover: #374151; /* gray-700 */
+  --c-neutral-solid-contrast: #ffffff;
+  --c-danger: #dc2626;
+  --c-danger-soft: #fef2f2;
+  --c-danger-text: #b91c1c;
+  --c-warning: #d97706;
+  --c-warning-soft: #fffbeb;
+  --c-warning-text: #b45309;
+  --c-info: #2563eb;
+  --c-info-soft: #eff6ff;
+  --c-info-text: #1d4ed8;
+  --c-canvas-surround: #f3f4f6;
+}
+
+/* DARK — tuned for WCAG AA + a visible elevation ladder (reviewer-corrected). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-surface: #14161b;
+  --c-surface-2: #1e2128;
+  --c-muted: #20242b;
+  --c-surface-3: #282c36; /* 4 distinct rungs; hover = one step lighter */
+  --c-content: #e7e9ee;
+  --c-content-2: #c2c6cf;
+  --c-subtle: #9aa0ac;
+  --c-faint: #7d8494; /* ≥4.5:1 as text */
+  --c-edge: #3a3f4b;
+  --c-edge-strong: #5c6370; /* ≥3:1 for functional borders */
+  --c-accent: #8b5cf6; /* saturated fill + white text (not pastel-on-dark) */
+  --c-accent-hover: #7c3aed;
+  --c-accent-contrast: #ffffff;
+  --c-accent-soft: #211a3a;
+  --c-accent-soft-2: #2c2350;
+  --c-accent-text: #c4b5fd; /* pastel for text on dark surface */
+  --c-accent-edge: #a78bfa; /* pastel for borders/focus rings */
+  --c-neutral-solid: #e7e9ee;
+  --c-neutral-solid-hover: #f3f4f6;
+  --c-neutral-solid-contrast: #14161b;
+  --c-danger: #f87171;
+  --c-danger-soft: #2a1618;
+  --c-danger-text: #fca5a5;
+  --c-warning: #fbbf24;
+  --c-warning-soft: #2a2110;
+  --c-warning-text: #fcd34d;
+  --c-info: #60a5fa;
+  --c-info-soft: #12203a;
+  --c-info-text: #93c5fd;
+  --c-canvas-surround: #101217; /* darker than surface → panels read as raised */
+}
+
 :root {
   /* Touch targets — iOS HIG minimum */
   --touch-target-min: 44px;

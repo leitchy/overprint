@@ -50,13 +50,13 @@ export function FileMenu({ items, label = 'File', variant = 'default' }: FileMen
     variant === 'menubar'
       ? `rounded px-3 py-1.5 text-sm font-medium flex items-center gap-1 ${
           open
-            ? 'bg-gray-100 text-gray-900'
-            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            ? 'bg-muted text-content'
+            : 'text-subtle hover:text-content hover:bg-surface-2'
         }`
       : `rounded px-3 py-1.5 text-sm font-medium ${
           open
-            ? 'bg-gray-800 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ? 'bg-neutral-solid text-neutral-solid-contrast'
+            : 'bg-muted text-content-2 hover:bg-surface-3'
         }`;
 
   const dropdownAlign = variant === 'menubar' ? 'left-0' : 'right-0';
@@ -69,11 +69,11 @@ export function FileMenu({ items, label = 'File', variant = 'default' }: FileMen
       </button>
       {open && (
         <div
-          className={`absolute ${dropdownAlign} top-full z-50 mt-1 min-w-[200px] rounded-md border border-gray-200 bg-white py-1 shadow-lg`}
+          className={`absolute ${dropdownAlign} top-full z-50 mt-1 min-w-[200px] rounded-md border border-edge bg-surface py-1 shadow-lg`}
         >
           {items.map((entry, i) =>
             entry.separator ? (
-              <div key={i} className="my-1 border-t border-gray-100" />
+              <div key={i} className="my-1 border-t border-edge" />
             ) : entry.children ? (
               <SubMenuItem
                 key={i}
@@ -92,13 +92,13 @@ export function FileMenu({ items, label = 'File', variant = 'default' }: FileMen
                 disabled={entry.disabled}
                 className={`flex w-full items-center justify-between px-4 py-1.5 text-left text-sm ${
                   entry.disabled
-                    ? 'cursor-default text-gray-300'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'cursor-default text-faint'
+                    : 'text-content-2 hover:bg-muted'
                 }`}
               >
                 <span>{entry.label}</span>
                 {entry.shortcut && (
-                  <span className="ml-8 text-xs text-gray-400">{entry.shortcut}</span>
+                  <span className="ml-8 text-xs text-faint">{entry.shortcut}</span>
                 )}
               </button>
             ),
@@ -144,20 +144,20 @@ function SubMenuItem({ entry, onClose }: { entry: MenuItem; onClose: () => void 
         disabled={entry.disabled}
         className={`flex w-full items-center justify-between px-4 py-1.5 text-left text-sm ${
           entry.disabled
-            ? 'cursor-default text-gray-300'
+            ? 'cursor-default text-faint'
             : subOpen
-              ? 'bg-gray-100 text-gray-900'
-              : 'text-gray-700 hover:bg-gray-100'
+              ? 'bg-muted text-content'
+              : 'text-content-2 hover:bg-muted'
         }`}
       >
         <span>{entry.label}</span>
-        <span className="ml-4 text-xs text-gray-400">▸</span>
+        <span className="ml-4 text-xs text-faint">▸</span>
       </button>
       {subOpen && entry.children && (
-        <div className="absolute left-full top-0 z-50 ml-0.5 min-w-[200px] rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute left-full top-0 z-50 ml-0.5 min-w-[200px] rounded-md border border-edge bg-surface py-1 shadow-lg">
           {entry.children.map((child, i) =>
             child.separator ? (
-              <div key={i} className="my-1 border-t border-gray-100" />
+              <div key={i} className="my-1 border-t border-edge" />
             ) : (
               <button
                 key={i}
@@ -170,13 +170,13 @@ function SubMenuItem({ entry, onClose }: { entry: MenuItem; onClose: () => void 
                 disabled={child.disabled}
                 className={`flex w-full items-center justify-between px-4 py-1.5 text-left text-sm ${
                   child.disabled
-                    ? 'cursor-default text-gray-300'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'cursor-default text-faint'
+                    : 'text-content-2 hover:bg-muted'
                 }`}
               >
                 <span>{child.label}</span>
                 {child.shortcut && (
-                  <span className="ml-8 text-xs text-gray-400">{child.shortcut}</span>
+                  <span className="ml-8 text-xs text-faint">{child.shortcut}</span>
                 )}
               </button>
             ),

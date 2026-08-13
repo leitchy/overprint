@@ -8,6 +8,27 @@
     <meta name="theme-color" content="#C850A0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <!-- No-flash theme: resolve + apply before first paint. Kept in sync with
+         LOCAL_STORAGE_KEY_THEME in src/stores/app-settings-store.ts (a unit test
+         asserts this key string is present here). -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('overprint-theme') || 'system';
+          var dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          root.setAttribute('data-theme', dark ? 'dark' : 'light');
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          // Must match --c-canvas-surround (dark/light) in src/index.css.
+          root.style.backgroundColor = dark ? '#101217' : '#f3f4f6';
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- iOS home-screen / standalone PWA (iOS ignores the web manifest) -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
