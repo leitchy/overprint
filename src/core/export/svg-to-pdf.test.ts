@@ -1,6 +1,6 @@
-import { inflateSync } from 'node:zlib';
 import { describe, it, expect } from 'vitest';
 import { PDFDocument, rgb } from 'pdf-lib';
+import { allStreamText as contentStreamText, saveFlat, latin1 } from './__test-utils__/pdf-inspect';
 import {
   parseColor,
   parsePathD,
@@ -265,40 +265,6 @@ const TINY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
 <circle cx="150" cy="50" r="30" fill="none" stroke="rgb(187,41,187)" stroke-width="4"/>
 <text x="20" y="95" fill="black" font-size="10">Hello</text>
 </svg>`;
-
-/** Save without object streams so dictionaries stay plainly readable. */
-async function saveFlat(doc: PDFDocument): Promise<Uint8Array> {
-  return doc.save({ useObjectStreams: false });
-}
-
-/** Latin1-decode bytes (1:1 byte↔char, so string offsets are byte offsets). */
-function latin1(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('latin1');
-}
-
-/**
- * Extract and decompress all stream bodies (pdf-lib Flate-compresses the
- * content streams it creates) and return the concatenated operator text.
- */
-function contentStreamText(bytes: Uint8Array): string {
-  const raw = latin1(bytes);
-  const bodies: string[] = [];
-  const re = /stream\r?\n/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(raw)) !== null) {
-    const start = m.index + m[0].length;
-    const end = raw.indexOf('endstream', start);
-    if (end < 0) break;
-    const body = bytes.subarray(start, end);
-    try {
-      bodies.push(inflateSync(body).toString('latin1'));
-    } catch {
-      bodies.push(latin1(body));
-    }
-    re.lastIndex = end;
-  }
-  return bodies.join('\n');
-}
 
 describe('renderSvgToScratchPdf', () => {
   it('produces a loadable one-page PDF with the viewBox aspect ratio', async () => {

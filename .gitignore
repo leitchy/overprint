@@ -21,10 +21,25 @@ Thumbs.db
 # Test coverage
 coverage/
 
-# Test fixtures — large binaries and generated outputs
-tests/fixtures/maps/
+# Test fixtures — large binaries and generated outputs.
+# maps/ is ignored EXCEPT the handful of committed fixtures the loader test
+# harnesses read in CI (load-omap-fidelity.test.ts / load-ocad-fidelity.test.ts).
+# Use maps/* (contents), not maps/ (dir), so the !exceptions can re-include.
+tests/fixtures/maps/*
+!tests/fixtures/maps/complete-map.omap
+!tests/fixtures/maps/Mt Taylor 2024.omap
+!tests/fixtures/maps/Radford College 3000 Feb 2026.omap
+!tests/fixtures/maps/issue-513.xmap
+!tests/fixtures/maps/MtTaylor 5000 2025.ocd
 tests/fixtures/exports/
 tests/fixtures/events/
 tsconfig.tsbuildinfo
 tests/fixtures/PP-examples/
+# Ad-hoc fixture folders / screenshots not read by any test
+tests/fixtures/Mt Taylor/
+tests/fixtures/Tate/
+tests/fixtures/screenshots/
 .playwright-mcp/
+
+# Stray analysis screenshots / scratch in the repo root
+/gap-*.png

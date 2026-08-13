@@ -43,8 +43,8 @@ describe('pdfPolylineToSvgPath', () => {
 // renderOverprint layer split (IOF colour order, D2)
 // ---------------------------------------------------------------------------
 
-import { inflateSync } from 'node:zlib';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { allStreamText } from './__test-utils__/pdf-inspect';
 import { renderOverprint } from './pdf-overprint-renderer';
 import type { Control, Course, EventSettings } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
@@ -90,27 +90,6 @@ const TEST_COURSE: Course = {
   ],
   settings: {},
 };
-
-/** Decompress every stream body in a flat-saved PDF and concatenate. */
-function allStreamText(bytes: Uint8Array): string {
-  const raw = Buffer.from(bytes).toString('latin1');
-  const bodies: string[] = [];
-  const re = /stream\r?\n/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(raw)) !== null) {
-    const start = m.index + m[0].length;
-    const end = raw.indexOf('endstream', start);
-    if (end < 0) break;
-    const body = bytes.subarray(start, end);
-    try {
-      bodies.push(inflateSync(body).toString('latin1'));
-    } catch {
-      bodies.push(Buffer.from(body).toString('latin1'));
-    }
-    re.lastIndex = end;
-  }
-  return bodies.join('\n');
-}
 
 async function renderToText(
   mapStandard: EventSettings['mapStandard'],

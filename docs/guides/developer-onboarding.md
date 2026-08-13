@@ -11,7 +11,7 @@ This guide walks you through setting up a local development environment, running
 1. [Prerequisites](#1-prerequisites)
 2. [Clone and Setup](#2-clone-and-setup)
 3. [Running the App](#3-running-the-app)
-4. [Running Tests](#4-running-tests)
+4. [Testing](#4-testing)
 5. [Code Quality](#5-code-quality)
 6. [Project Structure](#6-project-structure)
 7. [Key Conventions](#7-key-conventions)
@@ -87,18 +87,67 @@ pnpm preview
 
 ---
 
-## 4. Running Tests
+## 4. Testing
 
 ```bash
-# Unit tests
+# Run the whole suite once
 pnpm test
 
-# Watch mode
+# Watch mode (re-runs affected tests on save)
 pnpm test:watch
 
 # Coverage report
 pnpm test:coverage
+
+# Run one file
+pnpm exec vitest run src/core/files/load-omap-fidelity.test.ts
 ```
+
+### Suite shape
+
+Vitest (jsdom env), tests live alongside source as `*.test.ts`. 50+ test files
+span the core: `geometry`, `files` (map loaders), `export` (PDF/image), `models`,
+`iof` (XML round-trip), `ppen`, `descriptions`, `validation`, plus the Zustand
+stores. Everything is client-side and deterministic — no network, no server.
+
+### Testing patterns
+
+The tricky parts of this app are pure-ish transforms with large outputs, so the
+harnesses lean on a few repeatable patterns rather than shallow smoke tests:
+
+- **Golden-SVG snapshots + structural invariants** — the OCAD/OMAP loaders
+  (`load-omap-fidelity.test.ts`, `load-ocad-fidelity.test.ts`) build one SVG
+  string that is both rasterised on screen and walked to PDF vectors. Tiny
+  synthetic per-symbol fixtures snapshot to human-readable golden SVGs; the big
+  real fixtures are checked with invariants (fragment counts, colour-priority
+  ordering, `data-ink="upper"` tag presence) rather than megabyte snapshots.
+- **PDF content-stream inspection** — pdf-lib output is Flate-compressed binary.
+  `src/core/export/__test-utils__/pdf-inspect.ts` inflates it back to readable
+  operators/objects so export tests assert real draw behaviour (colour-order,
+  vector-not-raster, per-cell/per-row content) instead of just "blob is non-empty".
+- **Injectable seams for browser-only code** — code that needs a real canvas
+  (symbol rasterising) takes an optional injected renderer so jsdom tests pass a
+  stub; the production default is unchanged.
+- **Round-trip / property tests** — IOF XML export→import round-trips (forks →
+  variations, loops → k! orderings, score courses), and pure geometry
+  (`leg-path.test.ts`) is checked by invariants over generated input.
+
+### Test fixtures
+
+`tests/fixtures/maps/` is **gitignored** (large binaries) **except** the handful
+of real `.omap`/`.ocd`/`.xmap` files the loader harnesses read — those are
+committed via explicit `!` exceptions in `.gitignore` so CI can run them. If you
+add a fixture that a test depends on, add a matching `!` exception, or CI will go
+red with `ENOENT` on a fresh checkout while passing locally.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs `pnpm typecheck → pnpm build → pnpm test` on
+every push to `main`/`develop` and every pull request. `main` is branch-protected:
+the `build` check is required, and force-push/deletion are blocked (admins may
+bypass, so the local `develop → main` merge-and-deploy flow still works). Keep
+CI green — a fresh-checkout runner catches things a warm local tree hides (e.g.
+missing fixtures, or a heavy test that needs an explicit longer timeout).
 
 ---
 

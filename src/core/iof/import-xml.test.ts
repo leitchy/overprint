@@ -299,3 +299,134 @@ describe('IOF XML round trip', () => {
     expect(c1Back.position.y).toBeCloseTo(600, 0);
   });
 });
+
+describe('IOF XML round trip — variations, score, multi-course', () => {
+  async function rt(build: (d: typeof import('@/core/models/defaults')) => import('@/core/models/types').OverprintEvent) {
+    const defaults = await import('@/core/models/defaults');
+    const { exportIofXml } = await import('./export-xml');
+    const event = build(defaults);
+    return importIofXml(exportIofXml(event), 96);
+  }
+
+  it('a forked course round-trips as its enumerated variations (ADR-017 contract)', async () => {
+    const { asBranchId, asCourseControlId, asForkId } = await import('@/utils/id');
+    const { courses, controls } = await rt(({ createEvent, createCourse, createControl }) => {
+      const event = createEvent('Fork RT');
+      event.mapFile = { name: 'm.ocd', type: 'raster', scale: 10000, dpi: 96 };
+      const s = createControl(101, { x: 100, y: 900 });
+      const a = createControl(45, { x: 300, y: 600 });
+      const f = createControl(102, { x: 800, y: 200 });
+      const x = createControl(51, { x: 350, y: 550 });
+      const y = createControl(52, { x: 400, y: 500 });
+      for (const c of [s, a, f, x, y]) event.controls[c.id] = c;
+      const course = createCourse('Blue');
+      course.controls = [
+        { controlId: s.id, type: 'start', courseControlId: asCourseControlId('cc-s') },
+        { controlId: a.id, type: 'control', courseControlId: asCourseControlId('cc-a') },
+        { controlId: f.id, type: 'finish', courseControlId: asCourseControlId('cc-f') },
+      ];
+      course.variations = [{
+        id: asForkId('f1'), kind: 'fork', anchorCourseControlId: asCourseControlId('cc-a'),
+        branches: [
+          { id: asBranchId('b1'), label: 'A', controls: [{ controlId: x.id, type: 'control', courseControlId: asCourseControlId('cc-x') }] },
+          { id: asBranchId('b2'), label: 'B', controls: [{ controlId: y.id, type: 'control', courseControlId: asCourseControlId('cc-y') }] },
+        ],
+      }];
+      event.courses.push(course);
+      return event;
+    });
+
+    // Export enumerates 2 variations → 2 flat courses, CourseFamily read but not reconstructed.
+    expect(courses.map((c) => c.name).sort()).toEqual(['Blue A', 'Blue B']);
+    const codesOf = (name: string) =>
+      courses.find((c) => c.name === name)!.controls
+        .map((cc) => controls.find((ctl) => ctl.id === cc.controlId)!.code)
+        .filter((code) => code === 45 || code === 51 || code === 52);
+    expect(codesOf('Blue A')).toEqual([45, 51]); // trunk + branch A
+    expect(codesOf('Blue B')).toEqual([45, 52]); // trunk + branch B
+  });
+
+  it('a butterfly loop round-trips as its k! orderings', async () => {
+    const { asBranchId, asCourseControlId, asForkId } = await import('@/utils/id');
+    const { courses } = await rt(({ createEvent, createCourse, createControl }) => {
+      const event = createEvent('Loop RT');
+      event.mapFile = { name: 'm.ocd', type: 'raster', scale: 10000, dpi: 96 };
+      const s = createControl(101, { x: 0, y: 0 });
+      const hub = createControl(45, { x: 100, y: 100 });
+      const f = createControl(102, { x: 200, y: 200 });
+      const p = createControl(51, { x: 120, y: 80 });
+      const q = createControl(52, { x: 80, y: 120 });
+      for (const c of [s, hub, f, p, q]) event.controls[c.id] = c;
+      const course = createCourse('Fly');
+      course.controls = [
+        { controlId: s.id, type: 'start', courseControlId: asCourseControlId('cc-s') },
+        { controlId: hub.id, type: 'control', courseControlId: asCourseControlId('cc-h') },
+        { controlId: f.id, type: 'finish', courseControlId: asCourseControlId('cc-f') },
+      ];
+      course.variations = [{
+        id: asForkId('l1'), kind: 'loop', anchorCourseControlId: asCourseControlId('cc-h'),
+        branches: [
+          { id: asBranchId('b1'), label: 'A', controls: [{ controlId: p.id, type: 'control', courseControlId: asCourseControlId('cc-p') }] },
+          { id: asBranchId('b2'), label: 'B', controls: [{ controlId: q.id, type: 'control', courseControlId: asCourseControlId('cc-q') }] },
+        ],
+      }];
+      event.courses.push(course);
+      return event;
+    });
+    // 2 loops → 2! = 2 orderings → courses "Fly AB" and "Fly BA".
+    expect(courses.map((c) => c.name).sort()).toEqual(['Fly AB', 'Fly BA']);
+  });
+
+  it('a score course round-trips its scores and score type', async () => {
+    const { courses } = await rt(({ createEvent, createCourse, createControl }) => {
+      const event = createEvent('Score RT');
+      event.mapFile = { name: 'm.ocd', type: 'raster', scale: 10000, dpi: 96 };
+      const a = createControl(31, { x: 100, y: 100 });
+      const b = createControl(32, { x: 200, y: 200 });
+      event.controls[a.id] = a; event.controls[b.id] = b;
+      const course = createCourse('Score');
+      course.courseType = 'score';
+      course.controls = [
+        { controlId: a.id, type: 'control', score: 30 },
+        { controlId: b.id, type: 'control', score: 50 },
+      ];
+      event.courses.push(course);
+      return event;
+    });
+    expect(courses[0]!.courseType).toBe('score');
+    expect(courses[0]!.controls.map((cc) => cc.score)).toEqual([30, 50]);
+  });
+
+  it('multiple courses all survive the round trip', async () => {
+    const { courses } = await rt(({ createEvent, createCourse, createControl }) => {
+      const event = createEvent('Multi');
+      event.mapFile = { name: 'm.ocd', type: 'raster', scale: 10000, dpi: 96 };
+      const s = createControl(101, { x: 0, y: 0 });
+      const f = createControl(102, { x: 100, y: 100 });
+      event.controls[s.id] = s; event.controls[f.id] = f;
+      for (const name of ['Long', 'Short', 'Very Easy']) {
+        const c = createCourse(name);
+        c.controls = [{ controlId: s.id, type: 'start' }, { controlId: f.id, type: 'finish' }];
+        event.courses.push(c);
+      }
+      return event;
+    });
+    expect(courses.map((c) => c.name).sort()).toEqual(['Long', 'Short', 'Very Easy']);
+  });
+
+  it('climb is NOT preserved (documented gap — importer does not parse <Climb>)', async () => {
+    const { courses } = await rt(({ createEvent, createCourse, createControl }) => {
+      const event = createEvent('Climb');
+      event.mapFile = { name: 'm.ocd', type: 'raster', scale: 10000, dpi: 96 };
+      const s = createControl(101, { x: 0, y: 0 });
+      const f = createControl(102, { x: 100, y: 100 });
+      event.controls[s.id] = s; event.controls[f.id] = f;
+      const c = createCourse('Hilly');
+      c.climb = 120;
+      c.controls = [{ controlId: s.id, type: 'start' }, { controlId: f.id, type: 'finish' }];
+      event.courses.push(c);
+      return event;
+    });
+    expect(courses[0]!.climb).toBeUndefined(); // lock the gap: a future climb-import is a conscious change
+  });
+});
