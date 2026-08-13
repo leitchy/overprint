@@ -5,6 +5,11 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.31.1 — 2026-08-13
+- **Fix:** the contextual help "?" popover no longer runs off the right edge of the screen (it
+  now clamps within the viewport regardless of which panel it opens from — e.g. the right-hand
+  Variations panel).
+
 ## 0.31.0 — 2026-08-13
 - **Tool & zoom keyboard shortcuts.** `A` Add Control · `V` Pan · `D` Descriptions · `Space` (hold)
   temporary pan · `⌘/Ctrl +/-/0` zoom in/out/fit — wired through a shared viewport-actions module so

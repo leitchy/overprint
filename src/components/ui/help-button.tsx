@@ -4,7 +4,7 @@
  * jumps to the matching Getting Started section. All copy comes from the help
  * content (single source of truth), so there is no per-string i18n to maintain.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getHelpSection } from '@/i18n/help/en';
 import { useToolStore } from '@/stores/tool-store';
 import { useT } from '@/i18n/use-t';
@@ -20,7 +20,32 @@ export function HelpButton({ sectionId, label }: HelpButtonProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  // Horizontal nudge (px) to keep the popover on-screen — placements live in panels
+  // on either edge (e.g. the right-hand course panel), so left-0 can overflow.
+  const [shiftX, setShiftX] = useState(0);
   const section = getHelpSection(sectionId);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setShiftX(0);
+      return;
+    }
+    const el = popoverRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    // Measure at the un-shifted position, then clamp within the viewport.
+    const base = rect.left - shiftX;
+    let next = 0;
+    if (base + rect.width > window.innerWidth - margin) {
+      next = window.innerWidth - margin - (base + rect.width); // move left
+    }
+    if (base + next < margin) {
+      next = margin - base; // don't push past the left edge
+    }
+    setShiftX(next);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,8 +92,10 @@ export function HelpButton({ sectionId, label }: HelpButtonProps) {
       </button>
       {open && (
         <div
+          ref={popoverRef}
           role="dialog"
           aria-label={label ?? t('help')}
+          style={shiftX ? { transform: `translateX(${shiftX}px)` } : undefined}
           className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white p-3 text-left shadow-lg"
         >
           <p className="text-xs leading-relaxed text-gray-600">{section.summary}</p>
