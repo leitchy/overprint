@@ -5,6 +5,20 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.30.0 — 2026-08-13
+- **Always-visible language switcher.** A globe button (🌐 EN) in the top bar opens the app
+  languages by native name — one click to switch, and crucially to switch *back* from any
+  language. Fixes app language being buried three levels deep (View → Preferences → select),
+  every step labelled in a language you might not read.
+- **Truthful keyboard-shortcuts help.** The shortcuts modal now lists only shortcuts that are
+  actually wired up (arrow-key pan, undo/redo, delete, `G` = place at GPS, `?`) and drops eight
+  that never existed; zoom/pan are documented as mouse/touch gestures.
+- **Expanded Getting Started** with sections for variations & relays, GPS placement, special
+  items, and the event audit. **What's New** now opens the releases index (no more version-tag 404s).
+- **Engineering.** New loader/PDF/IOF regression harnesses (OMAP & OCAD fidelity, PDF
+  content-stream inspection, IOF round-trip; +113 tests), a green CI gate with the map fixtures
+  committed, branch protection on `main`, and testing-strategy docs.
+
 ## 0.29.0 — 2026-08-12
 - **E10 loop fairness.** Loop-length-imbalance **audit** (warns when butterfly/phi loops differ too
   much in length) and **cross-team first-loop spreading** in the relay scrambler (a deliberate
