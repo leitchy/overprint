@@ -6,6 +6,7 @@ import { BottomSheet } from './bottom-sheet';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 import { auditEvent, type AuditItem, type AuditSeverity } from '@/core/validation/event-audit';
 import { useT } from '@/i18n/use-t';
+import { HelpButton } from './help-button';
 
 interface AuditModalProps {
   onClose: () => void;
@@ -52,7 +53,10 @@ export function AuditModal({ onClose }: AuditModalProps) {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">{t('eventAudit')}</h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-sm font-semibold text-gray-900">{t('eventAudit')}</h2>
+            <HelpButton sectionId="audit" label={t('eventAudit')} />
+          </div>
           <p className="text-xs text-gray-500">
             {errorCount} {t('auditErrors')} · {warningCount} {t('auditWarnings')}
           </p>

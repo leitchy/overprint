@@ -7,6 +7,7 @@ import { assignRelayTeams, type RelayIssue } from '@/core/models/relay-assignmen
 import { resolveGenerators } from '@/core/models/variation-enumerator';
 import { saveString, saveBlob, sanitizeFilename } from '@/core/files/download';
 import { useT } from '@/i18n/use-t';
+import { HelpButton } from './help-button';
 import type { TranslationKey } from '@/i18n/translations';
 import type { CourseId } from '@/utils/id';
 import type { RelaySettings } from '@/core/models/types';
@@ -90,7 +91,10 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">{t('relayTeamsTitle')}</h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-sm font-semibold text-gray-900">{t('relayTeamsTitle')}</h2>
+            <HelpButton sectionId="variations" label={t('relayTeamsTitle')} />
+          </div>
           <p className="text-xs text-gray-500">{course.name}</p>
         </div>
         <button onClick={onClose} className="text-lg text-gray-400 hover:text-gray-600">

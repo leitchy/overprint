@@ -4,14 +4,12 @@
  */
 import { useT } from '@/i18n/use-t';
 import type { TranslationKey } from '@/i18n/translations';
+import { MOD_KEY } from '@/utils/platform';
 import { useModalClose } from './use-modal-close';
 
 interface ShortcutsModalProps {
   onClose: () => void;
 }
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
-const mod = isMac ? '\u2318' : 'Ctrl';
 
 interface ShortcutEntry {
   /** Translation key for the action label */
@@ -20,16 +18,21 @@ interface ShortcutEntry {
   shortcut: string;
 }
 
-// Only shortcuts that are actually wired up (see use-keyboard-shortcuts.ts and
-// use-map-navigation.ts). Zoom/pan are mouse/touch gestures, not keys \u2014 see the
-// note under the grid rather than advertising keys that do nothing.
+// Every entry here is actually wired up \u2014 see use-keyboard-shortcuts.ts (tools,
+// zoom, GPS) and use-map-navigation.ts (delete, arrow-pan). Secondary pan methods
+// (drag / hold-Space / arrows) live in the note under the grid.
 const NAVIGATION_SHORTCUTS: ShortcutEntry[] = [
-  { labelKey: 'toolPan', shortcut: '\u2190 \u2191 \u2192 \u2193' },
-  { labelKey: 'undo', shortcut: `${mod}Z` },
-  { labelKey: 'redo', shortcut: `\u21E7${mod}Z` },
+  { labelKey: 'zoomIn', shortcut: `${MOD_KEY}+` },
+  { labelKey: 'zoomOut', shortcut: `${MOD_KEY}\u2212` },
+  { labelKey: 'fitToWindow', shortcut: `${MOD_KEY}0` },
+  { labelKey: 'undo', shortcut: `${MOD_KEY}Z` },
+  { labelKey: 'redo', shortcut: `\u21E7${MOD_KEY}Z` },
 ];
 
 const EDITING_SHORTCUTS: ShortcutEntry[] = [
+  { labelKey: 'toolAddControl', shortcut: 'A' },
+  { labelKey: 'toolPan', shortcut: 'V' },
+  { labelKey: 'toolDescriptions', shortcut: 'D' },
   { labelKey: 'deleteControl', shortcut: 'Del' },
   { labelKey: 'gpsPlaceAtGps', shortcut: 'G' },
   { labelKey: 'keyboardShortcuts', shortcut: '?' },
@@ -102,10 +105,10 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
           </div>
         </div>
 
-        {/* Gesture note — zoom/pan are mouse/touch, not keyboard */}
+        {/* Gesture note — secondary zoom/pan methods and the G caveat */}
         <p className="px-5 -mt-1 pb-3 text-xs text-gray-400">
-          Scroll or pinch to zoom · drag to pan · <kbd className="font-mono">G</kbd> requires the Add
-          Control tool and a GPS fix.
+          Scroll or pinch to zoom · drag, hold <kbd className="font-mono">Space</kbd>, or arrow keys to
+          pan · <kbd className="font-mono">G</kbd> requires the Add Control tool and a GPS fix.
         </p>
 
         {/* Supported formats */}

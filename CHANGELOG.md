@@ -5,6 +5,16 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.31.0 — 2026-08-13
+- **Tool & zoom keyboard shortcuts.** `A` Add Control · `V` Pan · `D` Descriptions · `Space` (hold)
+  temporary pan · `⌘/Ctrl +/-/0` zoom in/out/fit — wired through a shared viewport-actions module so
+  the View menu and the keyboard stay in sync; the shortcuts modal now lists the real shortcuts. Fixes
+  a long-standing dead `⇧⌘Z` redo (Shift makes the key uppercase), and hardens Space hold-to-pan against
+  window-blur/mid-hold edge cases; `⌘Backspace` no longer deletes a control.
+- **Contextual help.** A "?" button on the complex panels (Variations, Relay teams, Event Audit, Map
+  Settings, GPS Calibrate) opens a short summary with a "Learn more" link that deep-links into the
+  Getting Started guide.
+
 ## 0.30.0 — 2026-08-13
 - **Always-visible language switcher.** A globe button (🌐 EN) in the top bar opens the app
   languages by native name — one click to switch, and crucially to switch *back* from any

@@ -3,6 +3,7 @@ import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { pixelsToMetres } from '@/core/geometry/distance';
 import { useT } from '@/i18n/use-t';
+import { HelpButton } from './help-button';
 import { SCALE_PRESETS } from '@/core/models/constants';
 
 export function MapSettingsPanel() {
@@ -55,7 +56,10 @@ export function MapSettingsPanel() {
 
   return (
     <div className="absolute left-4 top-4 rounded bg-white/90 p-3 text-xs shadow">
-      <div className="mb-2 font-medium text-gray-700">{t('mapSettingsTitle')}</div>
+      <div className="mb-2 flex items-center gap-1.5 font-medium text-gray-700">
+        {t('mapSettingsTitle')}
+        <HelpButton sectionId="load-map" label={t('mapSettingsTitle')} />
+      </div>
 
       {/* Scale */}
       <label className="mb-1 block text-gray-500">{t('mapScaleLabel')}</label>
