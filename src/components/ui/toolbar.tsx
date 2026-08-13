@@ -14,6 +14,7 @@ import type { MapSource } from '@/core/export/pdf-course-map';
 import { FileMenu } from './file-menu';
 import type { MenuEntry } from './file-menu';
 import { PreferencesModal } from './preferences-modal';
+import { LanguageMenu } from './language-menu';
 import { PrintSettingsModal } from './print-settings';
 import { ShortcutsModal } from './shortcuts-modal';
 import { GettingStartedDrawer } from './getting-started-drawer';
@@ -769,12 +770,13 @@ export function Toolbar() {
             </>
           )}
 
-          {/* Zone 5 — Right side spacer + loading */}
+          {/* Zone 5 — Right side spacer + loading + language */}
           <div className="flex-1" />
 
           {loading && (
             <span className="text-sm text-gray-400">{t('loadingMap')}</span>
           )}
+          <LanguageMenu />
         </header>
       )}
 
@@ -844,6 +846,7 @@ export function Toolbar() {
           {loading && (
             <span className="text-xs text-gray-400">{t('loadingMap')}</span>
           )}
+          <LanguageMenu compact />
         </header>
       )}
 
