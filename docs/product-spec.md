@@ -122,11 +122,25 @@ A free, web-based orienteering course setting tool that runs on any device with 
 - [x] Touch-optimised UI for tablets
 - [x] Keyboard shortcuts
 - [x] Print-specific layout and DPI handling
-- [ ] Purple Pen .ppen file import (XML-based format)
+- [x] Purple Pen .ppen file import (XML-based format)
 - [x] Event audit / course validation checks
-- [ ] GPX export of control locations
-- [ ] Customise course appearance (circle size, line width, number size)
-- [ ] Dark mode
+- [x] GPX export of control locations
+
+### Phase 7 — Field-Ready & Personalisation (planned)
+**Goal**: Usable in the field without a network, and adaptable to the user's environment.
+
+Near-term planned work, in priority order:
+
+- [ ] **Offline / PWA** *(next up)* — installable app with a service worker; precache the app shell
+  and assets so a loaded event keeps working with no signal. Realises design principle #4
+  (offline-capable). Self-contained: the app is already static, backend-free, and file-based.
+- [ ] **Dark mode** — system / light / dark theme toggle, with an explicit dark palette for the canvas
+  (overprint + map) and all panels. Canvas rendering is hand-coded, so it needs deliberate dark
+  colours, not just CSS `dark:` variants.
+- [ ] **Course appearance customisation** — per-event control-circle size, line width, and number size.
+  Number size is already adjustable; extend to circle and line width and surface as appearance settings.
+- [ ] **Map layer visibility toggles** — show/hide OCAD/OMAP map layers for busy maps (also tracked
+  under Phase 5).
 
 ## Non-Goals (for now)
 
