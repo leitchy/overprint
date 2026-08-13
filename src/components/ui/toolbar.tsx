@@ -61,12 +61,12 @@ function UndoRedoButtons() {
 
   return (
     <>
-      <div className="h-5 w-px bg-gray-200" />
+      <div className="h-5 w-px bg-surface-3" />
       <div className="flex items-center gap-0.5">
         <button
           onClick={() => useEventStore.temporal.getState().undo()}
           disabled={!canUndo}
-          className="flex h-10 w-10 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300"
+          className="flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-muted disabled:text-faint"
           title={t('undo')}
           aria-label={t('undo')}
         >
@@ -79,7 +79,7 @@ function UndoRedoButtons() {
         <button
           onClick={() => useEventStore.temporal.getState().redo()}
           disabled={!canRedo}
-          className="flex h-10 w-10 items-center justify-center rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300"
+          className="flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-muted disabled:text-faint"
           title={t('redo')}
           aria-label={t('redo')}
         >
@@ -368,14 +368,26 @@ export function Toolbar() {
       const ctx = canvas.getContext('2d')!;
       ctx.scale(pixelRatio, pixelRatio);
 
-      for (const layer of stage.getLayers()) {
-        const layerCanvas = (layer.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
-        if (!layerCanvas || !layer.visible()) continue;
+      // Screen-only nodes (map-fade scrim, paper drop-shadow) must NOT appear in
+      // exports. Hide them and synchronously redraw their layers before compositing.
+      const screenOnly = stage.find('.screen-only-dim').concat(stage.find('.screen-only-paper-shadow'));
+      const affected = new Set(screenOnly.map((n) => n.getLayer()).filter(Boolean));
+      screenOnly.forEach((n) => n.visible(false));
+      affected.forEach((l) => l!.draw());
 
-        const isMultiply = layerCanvas.style.mixBlendMode === 'multiply';
-        if (isMultiply) ctx.globalCompositeOperation = 'multiply';
-        ctx.drawImage(layerCanvas, 0, 0, stage.width(), stage.height());
-        if (isMultiply) ctx.globalCompositeOperation = 'source-over';
+      try {
+        for (const layer of stage.getLayers()) {
+          const layerCanvas = (layer.getCanvas() as unknown as { _canvas?: HTMLCanvasElement })?._canvas;
+          if (!layerCanvas || !layer.visible()) continue;
+
+          const isMultiply = layerCanvas.style.mixBlendMode === 'multiply';
+          if (isMultiply) ctx.globalCompositeOperation = 'multiply';
+          ctx.drawImage(layerCanvas, 0, 0, stage.width(), stage.height());
+          if (isMultiply) ctx.globalCompositeOperation = 'source-over';
+        }
+      } finally {
+        screenOnly.forEach((n) => n.visible(true));
+        affected.forEach((l) => l!.draw());
       }
 
       const { generateImageBlob } = await import('@/core/export/image-export');
@@ -664,8 +676,8 @@ export function Toolbar() {
         onClick={() => setTool(tool)}
         className={`rounded px-3 py-1.5 text-sm font-medium ${
           isActive
-            ? 'bg-violet-600 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ? 'bg-accent text-white'
+            : 'bg-muted text-content-2 hover:bg-surface-3'
         }`}
       >
         {label}
@@ -685,11 +697,11 @@ export function Toolbar() {
     <>
       {/* ---- Desktop toolbar (>=1024px) ---- */}
       {!isCompact && (
-        <header className="flex items-center gap-1 border-b border-gray-200 bg-white px-2 py-1.5">
+        <header className="flex items-center gap-1 border-b border-edge bg-surface px-2 py-1.5">
 
           {/* Brand */}
-          <span className="text-sm font-semibold text-gray-900">Overprint</span>
-          <span className="text-[10px] text-gray-400 ml-0.5 mr-1">v{__APP_VERSION__}</span>
+          <span className="text-sm font-semibold text-content">Overprint</span>
+          <span className="text-[10px] text-faint ml-0.5 mr-1">v{__APP_VERSION__}</span>
 
           {/* Zone 1 — Menu bar */}
           <nav className="flex items-center">
@@ -703,13 +715,13 @@ export function Toolbar() {
           </nav>
 
           {/* Separator between menus and event name */}
-          <div className="mx-1 h-5 w-px bg-gray-200" />
+          <div className="mx-1 h-5 w-px bg-surface-3" />
 
           {/* Zone 2 — Event name */}
           {eventName !== undefined && (
             <EventNameEditor
               eventName={eventName}
-              className="group flex items-center gap-1 hover:text-gray-700"
+              className="group flex items-center gap-1 hover:text-content-2"
               showPencil
             />
           )}
@@ -717,7 +729,7 @@ export function Toolbar() {
           {/* Zone 3 + 4 — Tool buttons and descriptions toggle */}
           {hasImage && (
             <>
-              <div className="mx-1 h-5 w-px bg-gray-200" />
+              <div className="mx-1 h-5 w-px bg-surface-3" />
               <div className="flex items-center gap-1">
                 {toolButton({ type: 'pan' }, t('toolPan'))}
                 <button
@@ -726,42 +738,42 @@ export function Toolbar() {
                   title={viewMode === 'allControls' ? t('addControlDisabledInAllControls') : undefined}
                   className={`rounded px-3 py-1.5 text-sm font-medium ${
                     activeTool.type === 'addControl'
-                      ? 'bg-violet-600 text-white'
+                      ? 'bg-accent text-white'
                       : viewMode === 'allControls'
-                        ? 'cursor-not-allowed bg-gray-100 text-gray-300'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'cursor-not-allowed bg-muted text-faint'
+                        : 'bg-muted text-content-2 hover:bg-surface-3'
                   }`}
                 >
                   {t('toolAddControl')}
                 </button>
                 {hasEvent && event?.courses && event.courses.length > 0 && viewMode === 'course' && (
                   <>
-                    <div className="h-5 w-px bg-gray-200" />
+                    <div className="h-5 w-px bg-surface-3" />
                     <button
                       onClick={() => setTool({ type: 'setPrintArea' })}
                       title={t('setPrintArea')}
                       className={`rounded px-3 py-1.5 text-sm font-medium ${
                         activeTool.type === 'setPrintArea'
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'bg-accent text-white'
+                          : 'bg-muted text-content-2 hover:bg-surface-3'
                       }`}
                     >
                       {t('setPrintArea')}
                     </button>
                   </>
                 )}
-                <div className="h-5 w-px bg-gray-200" />
+                <div className="h-5 w-px bg-surface-3" />
                 <GpsToggleButton />
               </div>
 
               {/* Zone 4 — Descriptions toggle */}
-              <div className="mx-1 h-5 w-px bg-gray-200" />
+              <div className="mx-1 h-5 w-px bg-surface-3" />
               <button
                 onClick={toggleDescriptionsPanel}
                 className={`rounded px-3 py-1.5 text-sm font-medium ${
                   descriptionsPanelOpen
-                    ? 'bg-violet-100 text-violet-700'
-                    : 'bg-gray-100 text-gray-600 ring-1 ring-inset ring-violet-200 hover:bg-gray-200'
+                    ? 'bg-accent-soft-2 text-accent-text'
+                    : 'bg-muted text-subtle ring-1 ring-inset ring-accent-edge hover:bg-surface-3'
                 }`}
               >
                 {t('toolDescriptions')}
@@ -773,7 +785,7 @@ export function Toolbar() {
           <div className="flex-1" />
 
           {loading && (
-            <span className="text-sm text-gray-400">{t('loadingMap')}</span>
+            <span className="text-sm text-faint">{t('loadingMap')}</span>
           )}
           <LanguageMenu />
         </header>
@@ -781,11 +793,11 @@ export function Toolbar() {
 
       {/* ---- Mobile/tablet toolbar (<1024px) ---- */}
       {isCompact && (
-        <header className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2">
+        <header className="flex items-center gap-2 border-b border-edge bg-surface px-3 py-2">
           {/* Hamburger menu */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded text-gray-700 hover:bg-gray-100"
+            className="flex h-10 w-10 items-center justify-center rounded text-content-2 hover:bg-muted"
             aria-label="Menu"
           >
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -812,8 +824,8 @@ export function Toolbar() {
                 onClick={() => setTool({ type: 'pan' })}
                 className={`rounded px-3 py-2.5 text-sm font-medium ${
                   activeTool.type === 'pan'
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-accent text-white'
+                    : 'bg-muted text-content-2'
                 }`}
                 title={t('toolPan')}
               >
@@ -824,10 +836,10 @@ export function Toolbar() {
                 disabled={viewMode === 'allControls'}
                 className={`rounded px-3 py-2.5 text-sm font-medium ${
                   activeTool.type === 'addControl'
-                    ? 'bg-violet-600 text-white'
+                    ? 'bg-accent text-white'
                     : viewMode === 'allControls'
-                      ? 'cursor-not-allowed bg-gray-100 text-gray-300'
-                      : 'bg-gray-100 text-gray-700'
+                      ? 'cursor-not-allowed bg-muted text-faint'
+                      : 'bg-muted text-content-2'
                 }`}
                 title={t('toolAddControl')}
               >
@@ -843,7 +855,7 @@ export function Toolbar() {
           )}
 
           {loading && (
-            <span className="text-xs text-gray-400">{t('loadingMap')}</span>
+            <span className="text-xs text-faint">{t('loadingMap')}</span>
           )}
           <LanguageMenu compact />
         </header>

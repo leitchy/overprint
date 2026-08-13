@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
+import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { pixelsToMetres } from '@/core/geometry/distance';
 import { useT } from '@/i18n/use-t';
 import { HelpButton } from './help-button';
@@ -13,6 +14,8 @@ export function MapSettingsPanel() {
   const setMapDpi = useEventStore((s) => s.setMapDpi);
   const imageWidth = useMapImageStore((s) => s.imageWidth);
   const imageHeight = useMapImageStore((s) => s.imageHeight);
+  const mapFade = useAppSettingsStore((s) => s.mapFade);
+  const setMapFade = useAppSettingsStore((s) => s.setMapFade);
 
   const [editingDpi, setEditingDpi] = useState(false);
   const [dpiDraft, setDpiDraft] = useState('');
@@ -55,17 +58,17 @@ export function MapSettingsPanel() {
   const isPresetScale = (SCALE_PRESETS as readonly number[]).includes(mapFile.scale);
 
   return (
-    <div className="absolute left-4 top-4 rounded bg-white/90 p-3 text-xs shadow">
-      <div className="mb-2 flex items-center gap-1.5 font-medium text-gray-700">
+    <div className="absolute left-4 top-4 rounded bg-surface/90 p-3 text-xs shadow">
+      <div className="mb-2 flex items-center gap-1.5 font-medium text-content-2">
         {t('mapSettingsTitle')}
         <HelpButton sectionId="load-map" label={t('mapSettingsTitle')} />
       </div>
 
       {/* Scale */}
-      <label className="mb-1 block text-gray-500">{t('mapScaleLabel')}</label>
+      <label className="mb-1 block text-subtle">{t('mapScaleLabel')}</label>
       {customScale ? (
         <div className="mb-2 flex gap-1">
-          <span className="py-1 text-gray-500">1:</span>
+          <span className="py-1 text-subtle">1:</span>
           <input
             autoFocus
             type="number"
@@ -79,14 +82,14 @@ export function MapSettingsPanel() {
               if (e.key === 'Escape') setCustomScale(false);
             }}
             onBlur={commitCustomScale}
-            className="w-20 rounded border border-gray-300 px-1 py-0.5 text-xs outline-none focus:border-violet-400"
+            className="w-20 rounded border border-edge-strong px-1 py-0.5 text-xs outline-none focus:border-accent-edge"
           />
         </div>
       ) : (
         <select
           value={isPresetScale ? mapFile.scale : 'custom'}
           onChange={handleScaleChange}
-          className="mb-2 w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          className="mb-2 w-full rounded border border-edge-strong px-2 py-1 text-xs"
         >
           {SCALE_PRESETS.map((s) => (
             <option key={s} value={s}>
@@ -101,7 +104,7 @@ export function MapSettingsPanel() {
       )}
 
       {/* DPI */}
-      <div className="mb-1 space-y-0.5 text-gray-500">
+      <div className="mb-1 space-y-0.5 text-subtle">
         <div className="flex items-center gap-1">
           <span>DPI:</span>
           {editingDpi ? (
@@ -118,11 +121,11 @@ export function MapSettingsPanel() {
                 if (e.key === 'Escape') setEditingDpi(false);
               }}
               onBlur={commitDpi}
-              className="w-16 rounded border border-gray-300 px-1 py-0 text-xs outline-none focus:border-violet-400"
+              className="w-16 rounded border border-edge-strong px-1 py-0 text-xs outline-none focus:border-accent-edge"
             />
           ) : (
             <span
-              className="cursor-pointer hover:text-violet-600"
+              className="cursor-pointer hover:text-accent-text"
               onClick={() => { setEditingDpi(true); setDpiDraft(String(Math.round(mapFile.dpi))); }}
               title={t('clickToEditDpi')}
             >
@@ -135,6 +138,37 @@ export function MapSettingsPanel() {
         </div>
         <div>
           {(widthMetres / 1000).toFixed(1)} × {(heightMetres / 1000).toFixed(1)} km
+        </div>
+      </div>
+
+      {/* Map fade (screen-only) — lighter (design aid) … off … darker (night). */}
+      <div className="mt-2 border-t border-edge pt-2">
+        <div className="mb-1 flex items-center justify-between text-subtle">
+          <span>{t('mapFadeLabel')}</span>
+          <button
+            type="button"
+            onClick={() => setMapFade(0)}
+            className="text-[10px] text-faint hover:text-accent-text"
+            title={t('mapFadeReset')}
+          >
+            {mapFade > 0 ? '+' : ''}{Math.round(mapFade * 100)}%
+          </button>
+        </div>
+        <input
+          type="range"
+          min={-1}
+          max={1}
+          step={0.05}
+          value={mapFade}
+          onChange={(e) => setMapFade(Number(e.target.value))}
+          onDoubleClick={() => setMapFade(0)}
+          aria-label={t('mapFadeLabel')}
+          className="w-full accent-accent"
+        />
+        <div className="flex justify-between text-[9px] text-faint">
+          <span>☀</span>
+          <span>·</span>
+          <span>☾</span>
         </div>
       </div>
     </div>

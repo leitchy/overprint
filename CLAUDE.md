@@ -138,7 +138,19 @@ overprint/
 - Score course support (toggle, point values, no legs, sorted descriptions)
 - Batch export: each course as separate PDF (via directory picker or auto-download fallback)
 - Special items: text, lines, rectangles, description boxes, IOF symbols (out-of-bounds, dangerous area, water, first aid, forbidden route)
-- Overprint blending (multiply blend on screen — dark map features show through purple)
+- Overprint rendered as a **solid, consistent purple (normal blend)** on screen — the ISOM/PurplePen
+  model (map shows through by colour/draw order, not alpha; an earlier RGB multiply was off-spec and
+  removed — see the note in `map-canvas.tsx`)
+- **Dark mode** — system / light / dark theme (Preferences), via a Tailwind v4 semantic-token layer
+  (`@theme inline` in `src/index.css`; light values equal the old literals so light is unchanged).
+  `data-theme` on `<html>`, resolved by `use-theme-effect.ts` (matchMedia for 'system' + cross-tab
+  sync), applied before paint by a no-flash script in `index.html`. The map stays a white "paper"
+  sheet (a Konva rect backs OCAD/transparent maps) on a dark surround. **Screen-only** — never
+  touches exports (`export-theme-safety.test.ts` guards it); a migration gate test forbids raw
+  palette classes. See [ADR-019](docs/adrs/ADR-019-dark-mode.md).
+- **Map fade** — a screen-only signed slider (Map Settings): fade the map toward white (overprint
+  design aid) … off … toward dark (night glare), overprint stays full strength on top. `mapFade` in
+  app-settings; a named `screen-only-*` Konva scrim excluded from image export.
 - PDF vector preservation (re-embed original PDF pages in export)
 - Leg bend points (draggable waypoints to route legs around obstacles)
 - Leg gaps (hide segments of legs through uncrossable features)

@@ -35,20 +35,20 @@ export function RecoveryPrompt() {
   };
 
   return (
-    <div className="fixed left-1/2 top-16 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-violet-200 bg-white px-4 py-2.5 shadow-lg">
-      <span className="text-sm text-gray-700">
+    <div className="fixed left-1/2 top-16 z-40 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-accent-edge bg-surface px-4 py-2.5 shadow-lg">
+      <span className="text-sm text-content-2">
         Recover unsaved work — <span className="font-medium">“{draft.name}”</span>
-        <span className="text-gray-400"> ({when})</span>?
+        <span className="text-faint"> ({when})</span>?
       </span>
       <button
         onClick={restore}
-        className="rounded bg-violet-600 px-3 py-1 text-sm font-medium text-white hover:bg-violet-700"
+        className="rounded bg-accent px-3 py-1 text-sm font-medium text-white hover:bg-accent-hover"
       >
         Restore
       </button>
       <button
         onClick={discard}
-        className="rounded px-2 py-1 text-sm text-gray-500 hover:text-gray-800"
+        className="rounded px-2 py-1 text-sm text-subtle hover:text-content"
       >
         Discard
       </button>

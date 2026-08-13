@@ -31,27 +31,27 @@ export function GpsStatusChip() {
   switch (status) {
     case 'acquiring':
       dotClass = 'bg-blue-400 animate-pulse';
-      textClass = 'text-gray-600';
+      textClass = 'text-subtle';
       label = 'Acquiring GPS\u2026';
       break;
     case 'active':
       dotClass = 'bg-blue-500';
-      textClass = 'text-blue-700';
+      textClass = 'text-info-text';
       label = accuracy !== null ? `GPS \u2014 \u00B1${accuracy}m` : 'GPS active';
       break;
     case 'poor-signal':
       dotClass = 'bg-amber-500';
-      textClass = 'text-amber-700';
+      textClass = 'text-warning-text';
       label = accuracy !== null ? `GPS \u2014 \u00B1${accuracy}m poor` : 'GPS \u2014 poor signal';
       break;
     case 'lost':
       dotClass = 'bg-red-500';
-      textClass = 'text-red-700';
+      textClass = 'text-danger-text';
       label = 'GPS signal lost';
       break;
     case 'denied':
-      dotClass = 'bg-gray-400';
-      textClass = 'text-gray-600';
+      dotClass = 'bg-faint';
+      textClass = 'text-subtle';
       label = 'Location denied';
       break;
     default:
@@ -62,7 +62,7 @@ export function GpsStatusChip() {
     <div className="absolute top-2 left-2 z-20 flex flex-col gap-1.5">
       {/* Status chip */}
       <div
-        className="flex items-center gap-1.5 rounded-full bg-white/85 px-3 py-1.5 text-xs font-medium shadow backdrop-blur-sm"
+        className="flex items-center gap-1.5 rounded-full bg-surface/85 px-3 py-1.5 text-xs font-medium shadow backdrop-blur-sm"
         role="status"
         aria-live="polite"
       >

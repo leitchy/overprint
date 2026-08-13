@@ -5,6 +5,17 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.33.0 — 2026-08-13
+- **Dark mode.** A System / Light / Dark theme, chosen in Preferences (follows your OS by default).
+  The whole interface goes dark while the map stays a clean white "paper" sheet on a dark surround —
+  so it's comfortable at night, in a dark room, or just by preference. Applied before the page paints,
+  so there's no flash.
+- **Map fade.** A new slider in Map Settings fades the map lighter — so the purple course stands out
+  while you're setting it — or darker, to cut glare in the field at night. Screen-only: it never
+  changes your PDF, image, or OMAP exports.
+- *Also:* OCAD and transparent maps now sit on a proper white sheet (fixing a faint background in some
+  exports), and the whole UI was moved onto a themeable colour system under the hood.
+
 ## 0.32.0 — 2026-08-13
 - **Offline / installable app (PWA).** A service worker precaches the whole app — shell, sample
   map/event, PDF fonts, and the PDF.js worker — so once Overprint has loaded it keeps working in

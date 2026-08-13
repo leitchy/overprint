@@ -27,28 +27,28 @@ export function ZoomControls({ containerWidth, containerHeight }: ZoomControlsPr
   };
 
   return (
-    <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded bg-white/90 px-2 py-1 shadow max-lg:bottom-6 max-lg:gap-0.5">
+    <div className="absolute bottom-4 right-4 flex items-center gap-1 rounded bg-surface/90 px-2 py-1 shadow max-lg:bottom-6 max-lg:gap-0.5">
       <button
         onClick={handleZoomOut}
-        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
+        className="rounded px-2 py-0.5 text-sm hover:bg-muted max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
         title="Zoom out"
       >
         −
       </button>
-      <span className="min-w-[3.5rem] text-center text-xs text-gray-600">
+      <span className="min-w-[3.5rem] text-center text-xs text-subtle">
         {Math.round(zoom * 100)}%
       </span>
       <button
         onClick={handleZoomIn}
-        className="rounded px-2 py-0.5 text-sm hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
+        className="rounded px-2 py-0.5 text-sm hover:bg-muted max-lg:min-h-(--touch-target-min) max-lg:min-w-(--touch-target-min) max-lg:flex max-lg:items-center max-lg:justify-center max-lg:text-base"
         title="Zoom in"
       >
         +
       </button>
-      <div className="mx-1 h-4 w-px bg-gray-300" />
+      <div className="mx-1 h-4 w-px bg-surface-3" />
       <button
         onClick={handleFitToView}
-        className="rounded px-2 py-0.5 text-xs hover:bg-gray-100 max-lg:min-h-(--touch-target-min) max-lg:px-3 max-lg:text-sm"
+        className="rounded px-2 py-0.5 text-xs hover:bg-muted max-lg:min-h-(--touch-target-min) max-lg:px-3 max-lg:text-sm"
         title="Fit to view"
       >
         Fit

@@ -89,63 +89,63 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
   const content = (
     <div className="flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
         <div>
           <div className="flex items-center gap-1.5">
-            <h2 className="text-sm font-semibold text-gray-900">{t('relayTeamsTitle')}</h2>
+            <h2 className="text-sm font-semibold text-content">{t('relayTeamsTitle')}</h2>
             <HelpButton sectionId="variations" label={t('relayTeamsTitle')} />
           </div>
-          <p className="text-xs text-gray-500">{course.name}</p>
+          <p className="text-xs text-subtle">{course.name}</p>
         </div>
-        <button onClick={onClose} className="text-lg text-gray-400 hover:text-gray-600">
+        <button onClick={onClose} className="text-lg text-faint hover:text-subtle">
           &times;
         </button>
       </div>
 
       {/* Settings */}
-      <div className="flex flex-wrap items-end gap-3 border-b border-gray-100 px-4 py-3">
-        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-gray-400">
+      <div className="flex flex-wrap items-end gap-3 border-b border-edge px-4 py-3">
+        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-faint">
           {t('relayFirstTeamNumber')}
           <input
             type="number"
             min={0}
             value={settings.firstTeamNumber}
             onChange={(e) => update({ firstTeamNumber: Number(e.target.value) })}
-            className="mt-0.5 w-20 rounded border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-violet-400"
+            className="mt-0.5 w-20 rounded border border-edge px-2 py-1 text-sm text-content-2 outline-none focus:border-accent-edge"
           />
         </label>
-        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-gray-400">
+        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-faint">
           {t('relayTeams')}
           <input
             type="number"
             min={0}
             value={settings.teams}
             onChange={(e) => update({ teams: Number(e.target.value) })}
-            className="mt-0.5 w-20 rounded border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-violet-400"
+            className="mt-0.5 w-20 rounded border border-edge px-2 py-1 text-sm text-content-2 outline-none focus:border-accent-edge"
           />
         </label>
-        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-gray-400">
+        <label className="flex flex-col text-[10px] font-medium uppercase tracking-wide text-faint">
           {t('relayLegs')}
           <input
             type="number"
             min={1}
             value={settings.legs}
             onChange={(e) => update({ legs: Number(e.target.value) })}
-            className="mt-0.5 w-20 rounded border border-gray-200 px-2 py-1 text-sm text-gray-700 outline-none focus:border-violet-400"
+            className="mt-0.5 w-20 rounded border border-edge px-2 py-1 text-sm text-content-2 outline-none focus:border-accent-edge"
           />
         </label>
         <div className="ml-auto flex gap-2">
           <button
             disabled={!canExport}
             onClick={handleExportXml}
-            className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            className="rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2 disabled:border-edge disabled:bg-surface-2 disabled:text-faint"
           >
             {t('relayExportXml')}
           </button>
           <button
             disabled={!canExport}
             onClick={handleExportPdf}
-            className="rounded border border-violet-200 bg-violet-50 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100 disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
+            className="rounded border border-accent-edge bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text hover:bg-accent-soft-2 disabled:border-edge disabled:bg-surface-2 disabled:text-faint"
           >
             {t('relayExportPdf')}
           </button>
@@ -154,9 +154,9 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
 
       {/* Warnings */}
       {assignment && assignment.warnings.length > 0 && (
-        <ul className="space-y-0.5 border-b border-gray-100 bg-amber-50 px-4 py-2">
+        <ul className="space-y-0.5 border-b border-edge bg-warning-soft px-4 py-2">
           {assignment.warnings.map((w, i) => (
-            <li key={i} className="text-[11px] text-amber-700">
+            <li key={i} className="text-[11px] text-warning-text">
               ⚠{' '}
               {t('relayUnevenDivisionWarning', {
                 code: w.anchorCode,
@@ -170,16 +170,16 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
         </ul>
       )}
       {assignment && settings.teams > assignment.totalVariations && assignment.totalVariations > 1 && (
-        <p className="border-b border-gray-100 bg-blue-50 px-4 py-2 text-[11px] text-blue-700">
+        <p className="border-b border-edge bg-info-soft px-4 py-2 text-[11px] text-info-text">
           ℹ {t('relayDuplicateTeamsNote', { n: settings.teams - assignment.totalVariations })}
         </p>
       )}
 
       {/* Fixed-pin validation errors */}
       {assignment && assignment.issues.length > 0 && (
-        <ul className="space-y-0.5 border-b border-gray-100 bg-red-50 px-4 py-2">
+        <ul className="space-y-0.5 border-b border-edge bg-danger-soft px-4 py-2">
           {assignment.issues.map((iss, i) => (
-            <li key={i} className="text-[11px] text-red-700">
+            <li key={i} className="text-[11px] text-danger-text">
               ⚠ {issueText(iss)}
             </li>
           ))}
@@ -188,9 +188,9 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
 
       {/* Fixed legs (E10 Phase 3b) — only forks can be pinned */}
       {settings.teams > 0 && forkGens.length > 0 && (
-        <div className="border-b border-gray-100 px-4 py-2">
+        <div className="border-b border-edge px-4 py-2">
           <button
-            className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-gray-400"
+            className="flex w-full items-center justify-between text-[10px] font-semibold uppercase tracking-wide text-faint"
             onClick={() => setFixedOpen((v) => !v)}
           >
             <span>{t('relayFixedLegsTitle')}</span>
@@ -198,19 +198,19 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
           </button>
           {fixedOpen && (
             <div className="mt-1 space-y-2">
-              <p className="text-[10px] italic text-gray-400">{t('relayFixedLegsHint')}</p>
+              <p className="text-[10px] italic text-faint">{t('relayFixedLegsHint')}</p>
               {forkGens.map((gen) => (
                 <div key={gen.fork.id}>
-                  <div className="mb-0.5 text-[11px] font-medium text-gray-600">
+                  <div className="mb-0.5 text-[11px] font-medium text-subtle">
                     {t('forkAtControl', { code: anchorCode(gen.anchorIndex) ?? '?' })}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="border-collapse text-[11px]">
                       <thead>
                         <tr>
-                          <th className="sticky left-0 z-10 bg-white px-1.5 py-0.5" />
+                          <th className="sticky left-0 z-10 bg-surface px-1.5 py-0.5" />
                           {legHeaders.map((n) => (
-                            <th key={n} className="px-1.5 py-0.5 font-normal text-gray-400">
+                            <th key={n} className="px-1.5 py-0.5 font-normal text-faint">
                               {t('relayLeg', { n })}
                             </th>
                           ))}
@@ -219,7 +219,7 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
                       <tbody>
                         {gen.fork.branches.map((b) => (
                           <tr key={b.id}>
-                            <td className="sticky left-0 z-10 bg-white px-1.5 py-0.5 font-medium text-violet-700">
+                            <td className="sticky left-0 z-10 bg-surface px-1.5 py-0.5 font-medium text-accent-text">
                               {b.label}
                             </td>
                             {legHeaders.map((n) => {
@@ -233,8 +233,8 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
                                     onClick={() => toggleRelayFixedLeg(courseId, gen.fork.id, b.id, leg)}
                                     className={`h-5 w-6 rounded border text-[10px] ${
                                       pinned
-                                        ? 'border-violet-500 bg-violet-500 text-white'
-                                        : 'border-gray-200 text-gray-300 hover:bg-violet-50'
+                                        ? 'border-accent-edge bg-accent text-white'
+                                        : 'border-edge text-faint hover:bg-accent-soft'
                                     }`}
                                   >
                                     {pinned ? '●' : ''}
@@ -257,18 +257,18 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
       {/* Grid */}
       <div className="overflow-auto" style={{ maxHeight: breakpoint === 'lg' ? '400px' : undefined }}>
         {!assignment || assignment.teams.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-gray-500">
+          <p className="px-4 py-8 text-center text-sm text-subtle">
             {assignment && assignment.totalVariations <= 1 ? t('relayNoVariations') : `${t('relayTeams')}: 0`}
           </p>
         ) : (
           <table className="w-full border-collapse text-xs">
             <thead>
-              <tr className="sticky top-0 bg-gray-50">
-                <th className="border border-gray-200 px-2 py-1 text-left font-semibold text-gray-600">
+              <tr className="sticky top-0 bg-surface-2">
+                <th className="border border-edge px-2 py-1 text-left font-semibold text-subtle">
                   {t('relayTeamColumn')}
                 </th>
                 {legHeaders.map((n) => (
-                  <th key={n} className="border border-gray-200 px-2 py-1 font-semibold text-gray-600">
+                  <th key={n} className="border border-edge px-2 py-1 font-semibold text-subtle">
                     {t('relayLeg', { n })}
                   </th>
                 ))}
@@ -277,11 +277,11 @@ export function RelayModal({ courseId, onClose }: RelayModalProps) {
             <tbody>
               {assignment.teams.map((team) => (
                 <tr key={team.teamNumber}>
-                  <td className="border border-gray-200 px-2 py-1 font-medium text-gray-500">
+                  <td className="border border-edge px-2 py-1 font-medium text-subtle">
                     {team.teamNumber}
                   </td>
                   {team.legs.map((code, l) => (
-                    <td key={l} className="border border-gray-200 px-2 py-1 text-center font-mono text-violet-700">
+                    <td key={l} className="border border-edge px-2 py-1 text-center font-mono text-accent-text">
                       {code || '–'}
                     </td>
                   ))}
@@ -308,7 +308,7 @@ function DesktopModal({ onClose, children }: { onClose: () => void; children: Re
   const { handleBackdropClick } = useModalClose(onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleBackdropClick}>
-      <div className="max-h-[85vh] w-[min(48rem,92vw)] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl">
+      <div className="max-h-[85vh] w-[min(48rem,92vw)] overflow-hidden rounded-lg border border-edge bg-surface shadow-xl">
         {children}
       </div>
     </div>

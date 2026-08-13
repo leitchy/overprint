@@ -76,29 +76,29 @@ export function ControlContextMenu({ menu, courseId, onClose }: ControlContextMe
       onClick={handleBackdropClick}
     >
       <div
-        className="absolute rounded-lg bg-white shadow-xl border border-gray-200 py-1 min-w-[160px]"
+        className="absolute rounded-lg bg-surface shadow-xl border border-edge py-1 min-w-[160px]"
         style={{ left: x, top: y }}
       >
         {/* Delete */}
         <button
-          className="flex w-full items-center px-4 py-2.5 text-sm text-red-600 active:bg-red-50"
+          className="flex w-full items-center px-4 py-2.5 text-sm text-danger-text active:bg-danger-soft"
           onClick={handleDelete}
         >
           {t('deleteControl')}
         </button>
 
-        <div className="mx-2 border-t border-gray-100" />
+        <div className="mx-2 border-t border-edge" />
 
         {/* Change code */}
         {editingCode ? (
           <div className="flex items-center gap-1 px-4 py-2">
-            <span className="text-xs text-gray-500">#</span>
+            <span className="text-xs text-subtle">#</span>
             <input
               autoFocus
               type="number"
               min={31}
               value={codeDraft}
-              className="w-16 rounded border border-violet-400 px-1 py-0.5 text-sm outline-none"
+              className="w-16 rounded border border-accent-edge px-1 py-0.5 text-sm outline-none"
               onChange={(e) => setCodeDraft(Number(e.target.value))}
               onKeyDown={(e) => {
                 e.stopPropagation();
@@ -110,27 +110,27 @@ export function ControlContextMenu({ menu, courseId, onClose }: ControlContextMe
           </div>
         ) : (
           <button
-            className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 active:bg-gray-50"
+            className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-content-2 active:bg-surface-2"
             onClick={() => {
               setEditingCode(true);
               setCodeDraft(control.code);
             }}
           >
             <span>{t('clickToEditCode')}</span>
-            <span className="text-xs text-gray-400">#{control.code}</span>
+            <span className="text-xs text-faint">#{control.code}</span>
           </button>
         )}
 
         {/* Change type — only for middle controls */}
         {isMiddle && cc && (
           <>
-            <div className="mx-2 border-t border-gray-100" />
+            <div className="mx-2 border-t border-edge" />
             <button
-              className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-gray-700 active:bg-gray-50"
+              className="flex w-full items-center justify-between px-4 py-2.5 text-sm text-content-2 active:bg-surface-2"
               onClick={handleCycleType}
             >
               <span>{t('courseControlType')}</span>
-              <span className="text-xs text-gray-400">{cc.type}</span>
+              <span className="text-xs text-faint">{cc.type}</span>
             </button>
           </>
         )}

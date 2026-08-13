@@ -136,9 +136,10 @@ Near-term planned work, in priority order:
   keeps working with no signal. `prompt`-mode updates never swap mid-session; a reload flushes the
   auto-save draft first. Realises design principle #4 (offline-capable). See
   [ADR-018](adrs/ADR-018-offline-pwa.md).
-- [ ] **Dark mode** — system / light / dark theme toggle, with an explicit dark palette for the canvas
-  (overprint + map) and all panels. Canvas rendering is hand-coded, so it needs deliberate dark
-  colours, not just CSS `dark:` variants.
+- [x] **Dark mode** — system / light / dark theme (Preferences), via a Tailwind v4 semantic-token
+  layer; the map stays a white "paper" sheet on a dark surround, all chrome themed. Includes a
+  screen-only **map-fade** slider (fade toward white for overprint contrast, or toward dark for night
+  glare). Screen-only — never affects exports. See [ADR-019](adrs/ADR-019-dark-mode.md).
 - [ ] **Course appearance customisation** — per-event control-circle size, line width, and number size.
   Number size is already adjustable; extend to circle and line width and surface as appearance settings.
 - [ ] **Map layer visibility toggles** — show/hide OCAD/OMAP map layers for busy maps (also tracked

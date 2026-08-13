@@ -84,8 +84,8 @@ export function HelpButton({ sectionId, label }: HelpButtonProps) {
         aria-expanded={open}
         className={`inline-flex h-4 w-4 items-center justify-center rounded-full border text-[10px] font-bold leading-none ${
           open
-            ? 'border-violet-400 bg-violet-100 text-violet-700'
-            : 'border-gray-300 text-gray-400 hover:border-violet-300 hover:text-violet-500'
+            ? 'border-accent-edge bg-accent-soft-2 text-accent-text'
+            : 'border-edge-strong text-faint hover:border-accent-edge hover:text-accent-text'
         }`}
       >
         ?
@@ -96,13 +96,13 @@ export function HelpButton({ sectionId, label }: HelpButtonProps) {
           role="dialog"
           aria-label={label ?? t('help')}
           style={shiftX ? { transform: `translateX(${shiftX}px)` } : undefined}
-          className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-gray-200 bg-white p-3 text-left shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-edge bg-surface p-3 text-left shadow-lg"
         >
-          <p className="text-xs leading-relaxed text-gray-600">{section.summary}</p>
+          <p className="text-xs leading-relaxed text-subtle">{section.summary}</p>
           <button
             type="button"
             onClick={openGuide}
-            className="mt-2 text-xs font-medium text-violet-600 hover:underline"
+            className="mt-2 text-xs font-medium text-accent-text hover:underline"
           >
             Learn more →
           </button>

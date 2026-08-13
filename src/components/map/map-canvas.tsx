@@ -10,6 +10,7 @@ import { useMapImageStore } from '@/stores/map-image-store';
 import { useViewportStore } from '@/stores/viewport-store';
 import { useEventStore } from '@/stores/event-store';
 import { useToolStore } from '@/stores/tool-store';
+import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { overprintPixelDimensions } from '@/core/geometry/overprint-dimensions';
 import { OVERPRINT_PURPLE, NON_CURRENT_COLOR, SCREEN_LINE_MULTIPLIER, COURSE_COLORS } from '@/core/models/constants';
 import { createControl } from '@/core/models/defaults';
@@ -66,6 +67,8 @@ export function MapCanvas() {
   const mapVersion = useMapImageStore((s) => s.mapVersion);
   const rerenderKind = useMapImageStore((s) => s.rerender?.kind);
   const activeTool = useToolStore((s) => s.activeTool);
+  // Screen-only map fade: −1 (toward white) … 0 (off) … +1 (toward dark). Never exported.
+  const mapFade = useAppSettingsStore((s) => s.mapFade);
 
   // ADR-015 Phase 0 SPIKE — live DOM-SVG map, gated behind `?svgmap=1` so normal
   // rendering is untouched. Active only for vector (OCAD/OMAP) maps.
@@ -471,25 +474,70 @@ export function MapCanvas() {
             hapticConfirm();
           }}
         >
-          {/* Map layer — dimmed when controls are visible for overprint readability */}
-          <Layer
-            listening={false}
-            opacity={1}
-          >
+          {/* Map layer — the base map on its white "paper". */}
+          <Layer listening={false}>
             {image && !useDomSvgMap && (
-              <KonvaImage
-                image={image}
-                width={imageWidth}
-                height={imageHeight}
-                perfectDrawEnabled={false}
-              />
+              <>
+                {/* Soft drop shadow so the white sheet has a lip against a dark
+                    surround (screen-only — hidden from image export). */}
+                <KonvaRect
+                  name="screen-only-paper-shadow"
+                  x={0}
+                  y={0}
+                  width={imageWidth}
+                  height={imageHeight}
+                  fill="#ffffff"
+                  shadowColor="#000000"
+                  shadowBlur={18}
+                  shadowOpacity={0.45}
+                  perfectDrawEnabled={false}
+                />
+                {/* White paper — OCAD/transparent maps have no background of their
+                    own; this makes them a solid light sheet in any theme (and
+                    correctly bakes into image export). */}
+                <KonvaRect
+                  x={0}
+                  y={0}
+                  width={imageWidth}
+                  height={imageHeight}
+                  fill="#ffffff"
+                  perfectDrawEnabled={false}
+                />
+                <KonvaImage
+                  image={image}
+                  width={imageWidth}
+                  height={imageHeight}
+                  perfectDrawEnabled={false}
+                />
+              </>
             )}
           </Layer>
 
           {/* White-out masks — above the map, below the course overprint */}
           <WhiteOutFillLayer />
 
-          {/* Course overprint layer — multiply blend so dark map features show through */}
+          {/* Map fade (screen-only) — above the white-outs so they fade too;
+              below the course overprint so the purple stays full strength.
+              Only mounted when active, so there's no extra layer canvas at rest.
+              Never exported (hidden by name during image export). */}
+          {mapFade !== 0 && image && (
+            <Layer listening={false}>
+              <KonvaRect
+                name="screen-only-dim"
+                x={0}
+                y={0}
+                width={imageWidth}
+                height={imageHeight}
+                fill={mapFade < 0 ? '#ffffff' : '#000000'}
+                opacity={Math.abs(mapFade)}
+                perfectDrawEnabled={false}
+              />
+            </Layer>
+          )}
+
+          {/* Course overprint layer — solid, consistent purple (normal blend;
+              map shows through by colour/draw order, not alpha — see the mixBlendMode
+              note above). */}
           <Layer ref={courseLayerRef}>
             {viewMode === 'allControls' ? (
               /* All-controls view: all controls in purple, no legs, no active course */
@@ -659,7 +707,7 @@ export function MapCanvas() {
             )}
           </Layer>
 
-          {/* Rubber-band preview line — multiply blend to match course layer */}
+          {/* Rubber-band preview line — solid normal blend to match course layer */}
           <Layer ref={rubberBandLayerRef} listening={false}>
             <KonvaLine
               ref={rubberBandRef}
@@ -718,7 +766,7 @@ export function MapCanvas() {
       )}
       {/* Part indicator chip — read-only, shows when viewing a specific course part */}
       {activePartIndex !== null && totalParts > 1 && (
-        <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-violet-700 shadow pointer-events-none">
+        <div className="absolute bottom-4 left-4 rounded-full bg-white/90 px-2.5 py-1 text-xs font-medium text-accent-text shadow pointer-events-none">
           Part {activePartIndex + 1} of {totalParts}
         </div>
       )}
@@ -736,7 +784,7 @@ export function MapCanvas() {
             {mobilePanelOpen !== 'course' && (
               <button
                 onClick={() => toggleMobilePanel('course')}
-                className="absolute right-0 top-16 z-30 rounded-l-lg bg-white/90 px-2 py-3 text-xs font-medium text-gray-600 shadow"
+                className="absolute right-0 top-16 z-30 rounded-l-lg bg-white/90 px-2 py-3 text-xs font-medium text-subtle shadow"
               >
                 {activeCourse?.name ?? 'Courses'} ›
               </button>

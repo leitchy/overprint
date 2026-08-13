@@ -80,6 +80,10 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 - **Installable** — add to your home screen / desktop for a standalone, app-like window
 - **Safe updates** — a new version is downloaded in the background and applied on your next launch, never mid-edit; "Install App" and "Check for Updates" live in the File menu
 
+### Appearance
+- **Dark mode** — System / Light / Dark theme (in Preferences); the whole UI goes dark while the map stays a clean white sheet on a dark surround
+- **Map fade** — a slider to fade the map lighter (so the purple course pops) or darker (to cut glare at night); screen-only, never affects exports
+
 ## Quick Start
 
 ```bash

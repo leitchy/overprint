@@ -94,11 +94,11 @@ export function DescriptionPanel() {
   const sheetContent = (
     <>
       {/* Panel header */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
-        <span className="text-sm font-medium text-gray-700">Descriptions</span>
+      <div className="flex items-center justify-between border-b border-edge px-3 py-2">
+        <span className="text-sm font-medium text-content-2">Descriptions</span>
         <button
           onClick={() => useToolStore.getState().toggleDescriptionsPanel()}
-          className="text-gray-400 hover:text-gray-600"
+          className="text-faint hover:text-subtle"
           title="Close"
         >
           &times;
@@ -142,7 +142,7 @@ export function DescriptionPanel() {
   // Desktop: sidebar
   if (breakpoint === 'lg') {
     return (
-      <div className="h-full w-70 shrink-0 border-l border-gray-200 bg-white">
+      <div className="h-full w-70 shrink-0 border-l border-edge bg-surface">
         {sheetContent}
       </div>
     );

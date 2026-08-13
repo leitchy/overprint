@@ -54,7 +54,7 @@ export function MobileFab() {
         className={`flex h-14 w-14 items-center justify-center rounded-full text-white text-xl shadow-lg ${
           gpsActive && activeTool.type === 'addControl'
             ? 'bg-blue-600 active:bg-blue-700'
-            : 'bg-violet-600 active:bg-violet-700'
+            : 'bg-accent active:bg-accent-hover'
         }`}
         title={primaryTool.label}
         aria-label={primaryTool.label}
@@ -76,8 +76,8 @@ export function MobileFab() {
                 }}
                 className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium shadow-md ${
                   isActive
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-white text-gray-700'
+                    ? 'bg-accent text-white'
+                    : 'bg-surface text-content-2'
                 }`}
                 title={label}
               >

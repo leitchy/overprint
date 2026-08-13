@@ -51,22 +51,22 @@ export function AuditModal({ onClose }: AuditModalProps) {
   const content = (
     <div className="flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
         <div>
           <div className="flex items-center gap-1.5">
-            <h2 className="text-sm font-semibold text-gray-900">{t('eventAudit')}</h2>
+            <h2 className="text-sm font-semibold text-content">{t('eventAudit')}</h2>
             <HelpButton sectionId="audit" label={t('eventAudit')} />
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-subtle">
             {errorCount} {t('auditErrors')} · {warningCount} {t('auditWarnings')}
           </p>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">&times;</button>
+        <button onClick={onClose} className="text-faint hover:text-subtle text-lg">&times;</button>
       </div>
 
       {/* Filter chips */}
       {items.length > 0 && (
-        <div className="flex gap-1 border-b border-gray-100 px-4 py-2">
+        <div className="flex gap-1 border-b border-edge px-4 py-2">
           {(['all', 'error', 'warning'] as FilterMode[]).map((mode) => {
             const count = mode === 'all' ? items.length : mode === 'error' ? errorCount : warningCount;
             const isActive = filter === mode;
@@ -77,8 +77,8 @@ export function AuditModal({ onClose }: AuditModalProps) {
                 onClick={() => setFilter(mode)}
                 className={`rounded-full px-3 py-1 text-xs font-medium ${
                   isActive
-                    ? 'bg-violet-100 text-violet-700'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    ? 'bg-accent-soft-2 text-accent-text'
+                    : 'bg-muted text-subtle hover:bg-surface-3'
                 }`}
               >
                 {label} {count}
@@ -93,8 +93,8 @@ export function AuditModal({ onClose }: AuditModalProps) {
         {items.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
             <span className="text-2xl">✓</span>
-            <p className="text-sm font-medium text-gray-700">{t('auditAllClear')}</p>
-            <p className="text-xs text-gray-500">{t('auditReadyToPrint')}</p>
+            <p className="text-sm font-medium text-content-2">{t('auditAllClear')}</p>
+            <p className="text-xs text-subtle">{t('auditReadyToPrint')}</p>
           </div>
         ) : (
           <ul>
@@ -102,11 +102,11 @@ export function AuditModal({ onClose }: AuditModalProps) {
               <li key={i}>
                 <button
                   onClick={() => handleNavigate(item)}
-                  className="flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 max-lg:min-h-(--touch-target-min)"
+                  className="flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-surface-2 active:bg-muted max-lg:min-h-(--touch-target-min)"
                   aria-label={`${item.severity}: ${t(item.messageKey as Parameters<typeof t>[0], item.messageParams)}`}
                 >
                   <SeverityIcon severity={item.severity} />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-content-2">
                     {t(item.messageKey as Parameters<typeof t>[0], item.messageParams)}
                   </span>
                 </button>
@@ -144,7 +144,7 @@ function DesktopModal({ onClose, children }: { onClose: () => void; children: Re
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={handleBackdropClick}
     >
-      <div className="w-110 rounded-lg border border-gray-200 bg-white shadow-xl">
+      <div className="w-110 rounded-lg border border-edge bg-surface shadow-xl">
         {children}
       </div>
     </div>
@@ -160,7 +160,7 @@ function SeverityIcon({ severity }: { severity: AuditSeverity }) {
     );
   }
   return (
-    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-amber-500" title="Warning">
+    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-warning-text" title="Warning">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
         <path d="M8 1.5L1 14h14L8 1.5zM8 12a1 1 0 110-2 1 1 0 010 2zm-.75-3.5v-4h1.5v4h-1.5z" />
       </svg>

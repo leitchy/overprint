@@ -33,25 +33,25 @@ export function PwaBanner() {
 
   return (
     <div
-      className="fixed left-1/2 z-40 flex max-w-[min(92vw,30rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-violet-200 bg-white px-4 py-3 shadow-lg"
+      className="fixed left-1/2 z-40 flex max-w-[min(92vw,30rem)] -translate-x-1/2 flex-col gap-2 rounded-lg border border-accent-edge bg-surface px-4 py-3 shadow-lg"
       style={{ bottom: 'calc(var(--mobile-nav-height, 0px) + var(--safe-bottom) + 16px)' }}
       role="status"
       aria-live="polite"
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-content-2">
         <span className="font-medium">{t('pwaUpdateTitle')}</span>{' '}
         {hasEvent ? t('pwaUpdateReloadWarn') : t('pwaUpdateBody')}
       </p>
       <div className="flex items-center justify-end gap-2">
         <button
           onClick={dismissUpdate}
-          className="rounded px-2.5 py-1 text-sm text-gray-500 hover:text-gray-800"
+          className="rounded px-2.5 py-1 text-sm text-subtle hover:text-content"
         >
           {t('pwaUpdateLater')}
         </button>
         <button
           onClick={applyUpdate}
-          className="rounded bg-violet-600 px-3 py-1 text-sm font-medium text-white hover:bg-violet-700"
+          className="rounded bg-accent px-3 py-1 text-sm font-medium text-white hover:bg-accent-hover"
         >
           {t('pwaUpdateReload')}
         </button>
