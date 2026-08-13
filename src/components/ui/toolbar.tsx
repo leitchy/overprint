@@ -651,7 +651,7 @@ export function Toolbar() {
     { label: t('gettingStarted'), onClick: () => useToolStore.getState().toggleGettingStarted() },
     { label: t('keyboardShortcuts'), onClick: () => useToolStore.getState().toggleShortcutsModal(), shortcut: '?' },
     { separator: true },
-    { label: t('whatsNew'), onClick: () => window.open(`https://github.com/leitchy/overprint/releases/tag/v${__APP_VERSION__}`, '_blank') },
+    { label: t('whatsNew'), onClick: () => window.open('https://github.com/leitchy/overprint/releases', '_blank') },
     { label: t('reportIssue'), onClick: () => window.open('https://github.com/leitchy/overprint/issues/new', '_blank') },
   ];
 

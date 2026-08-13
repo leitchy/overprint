@@ -20,20 +20,18 @@ interface ShortcutEntry {
   shortcut: string;
 }
 
+// Only shortcuts that are actually wired up (see use-keyboard-shortcuts.ts and
+// use-map-navigation.ts). Zoom/pan are mouse/touch gestures, not keys \u2014 see the
+// note under the grid rather than advertising keys that do nothing.
 const NAVIGATION_SHORTCUTS: ShortcutEntry[] = [
-  { labelKey: 'zoomIn', shortcut: `${mod}+` },
-  { labelKey: 'zoomOut', shortcut: `${mod}\u2212` },
-  { labelKey: 'fitToWindow', shortcut: `${mod}0` },
-  { labelKey: 'toolPan', shortcut: 'Space' },
+  { labelKey: 'toolPan', shortcut: '\u2190 \u2191 \u2192 \u2193' },
   { labelKey: 'undo', shortcut: `${mod}Z` },
   { labelKey: 'redo', shortcut: `\u21E7${mod}Z` },
 ];
 
 const EDITING_SHORTCUTS: ShortcutEntry[] = [
-  { labelKey: 'toolAddControl', shortcut: 'A' },
-  { labelKey: 'toolPan', shortcut: 'V / Esc' },
   { labelKey: 'deleteControl', shortcut: 'Del' },
-  { labelKey: 'toolDescriptions', shortcut: 'D' },
+  { labelKey: 'gpsPlaceAtGps', shortcut: 'G' },
   { labelKey: 'keyboardShortcuts', shortcut: '?' },
 ];
 
@@ -103,6 +101,12 @@ export function ShortcutsModal({ onClose }: ShortcutsModalProps) {
             </div>
           </div>
         </div>
+
+        {/* Gesture note — zoom/pan are mouse/touch, not keyboard */}
+        <p className="px-5 -mt-1 pb-3 text-xs text-gray-400">
+          Scroll or pinch to zoom · drag to pan · <kbd className="font-mono">G</kbd> requires the Add
+          Control tool and a GPS fix.
+        </p>
 
         {/* Supported formats */}
         <div className="border-t border-gray-100 px-5 py-3">
