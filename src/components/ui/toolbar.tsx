@@ -29,6 +29,7 @@ import { RelayModal } from './relay-modal';
 import { GpsToggleButton } from './gps-toggle-button';
 import { useGpsStore } from '@/stores/gps-store';
 import { useToastStore } from '@/stores/toast-store';
+import { usePwaStore } from '@/stores/pwa-store';
 
 import { MAP_FILE_ACCEPT } from '@/utils/platform';
 
@@ -116,6 +117,25 @@ export function Toolbar() {
   const [pageSetupOpen, setPageSetupOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
+
+  const canInstall = usePwaStore((s) => s.canInstall);
+
+  const handleInstall = () => {
+    void usePwaStore.getState().promptInstall();
+  };
+
+  const handleCheckForUpdates = async () => {
+    const pwa = usePwaStore.getState();
+    useToastStore.getState().addToast(t('pwaCheckingUpdates'));
+    await pwa.checkForUpdate();
+    // Give the browser a moment to install a newly-found worker; the update
+    // banner appears on its own if one is found — otherwise confirm we're current.
+    setTimeout(() => {
+      if (!usePwaStore.getState().needRefresh) {
+        useToastStore.getState().addToast(t('pwaUpToDate'));
+      }
+    }, 1500);
+  };
 
   const handleNewEvent = () => {
     // Preserve map image and mapFile metadata — user wants a fresh event, not to lose the map.
@@ -512,6 +532,11 @@ export function Toolbar() {
     { label: t('exportJpeg'), onClick: () => handleExportImage('jpeg'), disabled: !hasImage },
     { separator: true },
     { label: t('importIofXml'), onClick: handleImportIofXml, disabled: !hasEvent },
+    { separator: true },
+    ...(canInstall
+      ? [{ label: t('pwaInstall'), onClick: handleInstall } as MenuEntry]
+      : []),
+    { label: t('pwaCheckUpdates'), onClick: handleCheckForUpdates },
   ];
 
   const editMenuItems: MenuEntry[] = [

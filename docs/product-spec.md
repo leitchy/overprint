@@ -131,9 +131,11 @@ A free, web-based orienteering course setting tool that runs on any device with 
 
 Near-term planned work, in priority order:
 
-- [ ] **Offline / PWA** *(next up)* — installable app with a service worker; precache the app shell
-  and assets so a loaded event keeps working with no signal. Realises design principle #4
-  (offline-capable). Self-contained: the app is already static, backend-free, and file-based.
+- [x] **Offline / PWA** — installable app with a service worker (`vite-plugin-pwa`, Workbox);
+  precaches the whole shell, sample map/event, PDF fonts, and pdf.js worker, so a loaded event
+  keeps working with no signal. `prompt`-mode updates never swap mid-session; a reload flushes the
+  auto-save draft first. Realises design principle #4 (offline-capable). See
+  [ADR-018](adrs/ADR-018-offline-pwa.md).
 - [ ] **Dark mode** — system / light / dark theme toggle, with an explicit dark palette for the canvas
   (overprint + map) and all panels. Canvas rendering is hand-coded, so it needs deliberate dark
   colours, not just CSS `dark:` variants.

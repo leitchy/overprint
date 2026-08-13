@@ -175,6 +175,15 @@ overprint/
   and **cross-team first-loop spreading** in relay scoring (a deliberate improvement over PurplePen —
   spreads the mass-start first loop across teams). See
   [ADR-017](docs/adrs/ADR-017-course-variations-forks.md).
+- Offline / installable **PWA** (`vite-plugin-pwa` + Workbox, `prompt` update mode): precaches the
+  whole app shell, the sample map/event, the PDF fonts, and the pdf.js worker so a loaded event
+  keeps working with no network. A new version is precached and waits — it never swaps in
+  mid-session; the update banner (`PwaBanner`) reloads only on request and flushes the auto-save
+  draft first. "Install App" / "Check for Updates" in the File menu; `navigator.storage.persist()`
+  for iOS retention. State in `stores/pwa-store.ts`. Tested at two layers: a Vitest unit test
+  (`pwa-store.test.ts`) and a **Playwright offline e2e harness** (`tests/e2e/pwa-offline.spec.ts`,
+  `pnpm test:e2e`, own CI job) that cuts the network mid-session and asserts the sample OCAD map +
+  course still render from cache. See [ADR-018](docs/adrs/ADR-018-offline-pwa.md).
 
 ## Getting Started
 

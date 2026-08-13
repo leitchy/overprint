@@ -339,6 +339,20 @@ const en = {
   calibrateBaselineWarning: 'Points are too close together. Spread them at least 50m apart.',
   calibrateLat: 'Latitude',
   calibrateLon: 'Longitude',
+
+  // PWA / offline
+  pwaOfflineReady: 'Ready to work offline',
+  pwaUpdateTitle: 'Update ready.',
+  pwaUpdateBody: 'It will be applied next time you open Overprint.',
+  pwaUpdateReloadWarn:
+    'It applies on your next launch, or reload now — your course is saved, but the map will need re-loading.',
+  pwaUpdateReload: 'Reload now',
+  pwaUpdateLater: 'Later',
+  pwaInstall: 'Install App',
+  pwaCheckUpdates: 'Check for Updates',
+  pwaCheckingUpdates: 'Checking for updates…',
+  pwaUpToDate: 'You’re on the latest version',
+  sampleLoadFailed: 'Could not load the sample — check your connection',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -617,6 +631,20 @@ const fr: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'Les points sont trop proches. \u00c9cartez-les d\u2019au moins 50m.',
   calibrateLat: 'Latitude',
   calibrateLon: 'Longitude',
+
+  // PWA / offline
+  pwaOfflineReady: 'Pr\u00eat \u00e0 fonctionner hors ligne',
+  pwaUpdateTitle: 'Mise \u00e0 jour pr\u00eate.',
+  pwaUpdateBody: 'Elle sera appliqu\u00e9e \u00e0 la prochaine ouverture d\u2019Overprint.',
+  pwaUpdateReloadWarn:
+    'Elle s\u2019applique au prochain lancement, ou rechargez maintenant \u2014 votre parcours est enregistr\u00e9, mais la carte devra \u00eatre recharg\u00e9e.',
+  pwaUpdateReload: 'Recharger',
+  pwaUpdateLater: 'Plus tard',
+  pwaInstall: 'Installer l\u2019application',
+  pwaCheckUpdates: 'Rechercher des mises \u00e0 jour',
+  pwaCheckingUpdates: 'Recherche de mises \u00e0 jour\u2026',
+  pwaUpToDate: 'Vous avez la derni\u00e8re version',
+  sampleLoadFailed: 'Impossible de charger l\u2019exemple \u2014 v\u00e9rifiez votre connexion',
 };
 
 // ---------------------------------------------------------------------------
@@ -894,6 +922,20 @@ const de: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'Punkte sind zu nah beieinander. Mindestens 50m Abstand.',
   calibrateLat: 'Breitengrad',
   calibrateLon: 'L\u00e4ngengrad',
+
+  // PWA / offline
+  pwaOfflineReady: 'Bereit f\u00fcr die Offline-Nutzung',
+  pwaUpdateTitle: 'Update bereit.',
+  pwaUpdateBody: 'Es wird beim n\u00e4chsten \u00d6ffnen von Overprint angewendet.',
+  pwaUpdateReloadWarn:
+    'Es wird beim n\u00e4chsten Start angewendet, oder jetzt neu laden \u2014 dein Kurs ist gespeichert, aber die Karte muss neu geladen werden.',
+  pwaUpdateReload: 'Jetzt neu laden',
+  pwaUpdateLater: 'Sp\u00e4ter',
+  pwaInstall: 'App installieren',
+  pwaCheckUpdates: 'Nach Updates suchen',
+  pwaCheckingUpdates: 'Suche nach Updates\u2026',
+  pwaUpToDate: 'Du hast die neueste Version',
+  sampleLoadFailed: 'Beispiel konnte nicht geladen werden \u2014 pr\u00fcfe deine Verbindung',
 };
 
 // ---------------------------------------------------------------------------
@@ -1171,6 +1213,20 @@ const es: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'Los puntos est\u00e1n demasiado cerca. Sep\u00e1ralos al menos 50m.',
   calibrateLat: 'Latitud',
   calibrateLon: 'Longitud',
+
+  // PWA / offline
+  pwaOfflineReady: 'Listo para trabajar sin conexi\u00f3n',
+  pwaUpdateTitle: 'Actualizaci\u00f3n lista.',
+  pwaUpdateBody: 'Se aplicar\u00e1 la pr\u00f3xima vez que abras Overprint.',
+  pwaUpdateReloadWarn:
+    'Se aplica al pr\u00f3ximo inicio, o recarga ahora \u2014 tu recorrido est\u00e1 guardado, pero deber\u00e1s volver a cargar el mapa.',
+  pwaUpdateReload: 'Recargar',
+  pwaUpdateLater: 'M\u00e1s tarde',
+  pwaInstall: 'Instalar la aplicaci\u00f3n',
+  pwaCheckUpdates: 'Buscar actualizaciones',
+  pwaCheckingUpdates: 'Buscando actualizaciones\u2026',
+  pwaUpToDate: 'Tienes la \u00faltima versi\u00f3n',
+  sampleLoadFailed: 'No se pudo cargar el ejemplo \u2014 comprueba tu conexi\u00f3n',
 };
 
 // ---------------------------------------------------------------------------
@@ -1448,6 +1504,20 @@ const fi: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'Pisteet ovat liian l\u00e4hell\u00e4 toisiaan. V\u00e4hint\u00e4\u00e4n 50m v\u00e4li.',
   calibrateLat: 'Leveysaste',
   calibrateLon: 'Pituusaste',
+
+  // PWA / offline
+  pwaOfflineReady: 'Valmis offline-k\u00e4ytt\u00f6\u00f6n',
+  pwaUpdateTitle: 'P\u00e4ivitys valmiina.',
+  pwaUpdateBody: 'Se otetaan k\u00e4ytt\u00f6\u00f6n, kun avaat Overprintin seuraavan kerran.',
+  pwaUpdateReloadWarn:
+    'Se otetaan k\u00e4ytt\u00f6\u00f6n seuraavalla k\u00e4ynnistyksell\u00e4, tai lataa uudelleen nyt \u2014 ratasi on tallennettu, mutta kartta on ladattava uudelleen.',
+  pwaUpdateReload: 'Lataa uudelleen',
+  pwaUpdateLater: 'My\u00f6hemmin',
+  pwaInstall: 'Asenna sovellus',
+  pwaCheckUpdates: 'Tarkista p\u00e4ivitykset',
+  pwaCheckingUpdates: 'Tarkistetaan p\u00e4ivityksi\u00e4\u2026',
+  pwaUpToDate: 'Sinulla on uusin versio',
+  sampleLoadFailed: 'Esimerkki\u00e4 ei voitu ladata \u2014 tarkista yhteytesi',
 };
 
 // ---------------------------------------------------------------------------
@@ -1724,6 +1794,20 @@ const it: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'I punti sono troppo vicini. Distanziali di almeno 50m.',
   calibrateLat: 'Latitudine',
   calibrateLon: 'Longitudine',
+
+  // PWA / offline
+  pwaOfflineReady: 'Pronto per l’uso offline',
+  pwaUpdateTitle: 'Aggiornamento pronto.',
+  pwaUpdateBody: 'Verrà applicato alla prossima apertura di Overprint.',
+  pwaUpdateReloadWarn:
+    'Verrà applicato al prossimo avvio, oppure ricarica ora — il tuo percorso è salvato, ma la mappa dovrà essere ricaricata.',
+  pwaUpdateReload: 'Ricarica',
+  pwaUpdateLater: 'Più tardi',
+  pwaInstall: 'Installa l’app',
+  pwaCheckUpdates: 'Controlla aggiornamenti',
+  pwaCheckingUpdates: 'Ricerca aggiornamenti…',
+  pwaUpToDate: 'Hai la versione più recente',
+  sampleLoadFailed: 'Impossibile caricare l’esempio — controlla la connessione',
 };
 
 // ---------------------------------------------------------------------------
@@ -2001,6 +2085,20 @@ const sv: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: 'Punkterna \u00e4r f\u00f6r n\u00e4ra varandra. Minst 50m avst\u00e5nd.',
   calibrateLat: 'Latitud',
   calibrateLon: 'Longitud',
+
+  // PWA / offline
+  pwaOfflineReady: 'Redo att arbeta offline',
+  pwaUpdateTitle: 'Uppdatering klar.',
+  pwaUpdateBody: 'Den till\u00e4mpas n\u00e4sta g\u00e5ng du \u00f6ppnar Overprint.',
+  pwaUpdateReloadWarn:
+    'Den till\u00e4mpas vid n\u00e4sta start, eller ladda om nu \u2014 din bana \u00e4r sparad, men kartan m\u00e5ste laddas om.',
+  pwaUpdateReload: 'Ladda om',
+  pwaUpdateLater: 'Senare',
+  pwaInstall: 'Installera appen',
+  pwaCheckUpdates: 'S\u00f6k efter uppdateringar',
+  pwaCheckingUpdates: 'S\u00f6ker efter uppdateringar\u2026',
+  pwaUpToDate: 'Du har den senaste versionen',
+  sampleLoadFailed: 'Kunde inte ladda exemplet \u2014 kontrollera din anslutning',
 };
 
 // ---------------------------------------------------------------------------
@@ -2277,6 +2375,20 @@ const ja: Partial<Record<TranslationKey, string>> = {
   calibrateBaselineWarning: '\u30dd\u30a4\u30f3\u30c8\u304c\u8fd1\u3059\u304e\u307e\u3059\u300250m\u4ee5\u4e0a\u96e2\u3057\u3066\u304f\u3060\u3055\u3044\u3002',
   calibrateLat: '\u7def\u5ea6',
   calibrateLon: '\u7d4c\u5ea6',
+
+  // PWA / offline
+  pwaOfflineReady: '\u30aa\u30d5\u30e9\u30a4\u30f3\u3067\u4f7f\u7528\u3067\u304d\u307e\u3059',
+  pwaUpdateTitle: '\u66f4\u65b0\u306e\u6e96\u5099\u304c\u3067\u304d\u307e\u3057\u305f\u3002',
+  pwaUpdateBody: '\u6b21\u56de Overprint \u3092\u958b\u3044\u305f\u3068\u304d\u306b\u9069\u7528\u3055\u308c\u307e\u3059\u3002',
+  pwaUpdateReloadWarn:
+    '\u6b21\u56de\u306e\u8d77\u52d5\u6642\u306b\u9069\u7528\u3055\u308c\u307e\u3059\u3002\u4eca\u3059\u3050\u518d\u8aad\u307f\u8fbc\u307f\u3082\u3067\u304d\u307e\u3059 \u2014 \u30b3\u30fc\u30b9\u306f\u4fdd\u5b58\u3055\u308c\u307e\u3059\u304c\u3001\u5730\u56f3\u306f\u518d\u8aad\u307f\u8fbc\u307f\u304c\u5fc5\u8981\u3067\u3059\u3002',
+  pwaUpdateReload: '\u518d\u8aad\u307f\u8fbc\u307f',
+  pwaUpdateLater: '\u5f8c\u3067',
+  pwaInstall: '\u30a2\u30d7\u30ea\u3092\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb',
+  pwaCheckUpdates: '\u66f4\u65b0\u3092\u78ba\u8a8d',
+  pwaCheckingUpdates: '\u66f4\u65b0\u3092\u78ba\u8a8d\u3057\u3066\u3044\u307e\u3059\u2026',
+  pwaUpToDate: '\u6700\u65b0\u30d0\u30fc\u30b8\u30e7\u30f3\u3067\u3059',
+  sampleLoadFailed: '\u30b5\u30f3\u30d7\u30eb\u3092\u8aad\u307f\u8fbc\u3081\u307e\u305b\u3093\u3067\u3057\u305f \u2014 \u63a5\u7d9a\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044',
 };
 
 // ---------------------------------------------------------------------------

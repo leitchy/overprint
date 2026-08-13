@@ -2,7 +2,19 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Service worker + manifest must always revalidate so a new deploy is picked up
+# promptly and never pinned stale by the CDN. (Browsers also cap SW script
+# caching at 24h, so this is belt-and-braces.)
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
