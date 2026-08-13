@@ -4,7 +4,7 @@
 
 **Web-based orienteering course setting software.**
 
-Design orienteering courses in your browser — no installation required. Works on macOS, Windows, Linux, tablets, and phones.
+Design orienteering courses in your browser. Works on macOS, Windows, Linux, tablets, and phones — installable as an app and usable offline in the field.
 
 ## Why Overprint?
 
@@ -74,6 +74,11 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 - Editable event name, course names, control codes
 - Pan and zoom with mouse wheel, trackpad, and touch
 - File System Access API save dialogs (Chrome/Edge) with fallback
+
+### Offline & Installable (PWA)
+- **Works offline** — a service worker precaches the whole app, so once loaded it keeps working in the field with no signal
+- **Installable** — add to your home screen / desktop for a standalone, app-like window
+- **Safe updates** — a new version is downloaded in the background and applied on your next launch, never mid-edit; "Install App" and "Check for Updates" live in the File menu
 
 ## Quick Start
 

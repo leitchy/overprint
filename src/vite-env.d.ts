@@ -1,6 +1,18 @@
 /// <reference types="vite/client" />
+/// <reference types="vite-plugin-pwa/client" />
 
 declare const __APP_VERSION__: string;
+
+// `beforeinstallprompt` (Chromium) — captured to drive the "Install App" action.
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+  prompt(): Promise<void>;
+}
+
+interface WindowEventMap {
+  beforeinstallprompt: BeforeInstallPromptEvent;
+}
 
 // Vite `?url` asset imports for font files (vite/client's `*.ttf` wildcard
 // does not match specifiers carrying the `?url` query).

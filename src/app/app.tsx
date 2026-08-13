@@ -15,6 +15,8 @@ import { loadMapFile, loadEventFile, importIofXmlFile, importPpenFile } from '@/
 import { useT } from '@/i18n/use-t';
 import { useIsMobile } from '@/hooks/use-breakpoint';
 import { ToastContainer } from '@/components/ui/toast';
+import { PwaBanner } from '@/components/ui/pwa-banner';
+import { useToastStore } from '@/stores/toast-store';
 
 // Enable react-konva strict mode for React 18 compatibility
 useStrictMode(true);
@@ -151,6 +153,7 @@ export function App() {
       await loadMapFile(mapFile);
     } catch (err) {
       console.error('Failed to load sample:', err);
+      useToastStore.getState().addToast(t('sampleLoadFailed'));
     } finally {
       setLoadingSample(false);
     }
@@ -268,6 +271,7 @@ export function App() {
 
       <ToastContainer />
       <RecoveryPrompt />
+      <PwaBanner />
     </div>
   );
 }

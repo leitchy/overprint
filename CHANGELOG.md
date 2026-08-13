@@ -5,6 +5,19 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.32.0 — 2026-08-13
+- **Offline / installable app (PWA).** A service worker precaches the whole app — shell, sample
+  map/event, PDF fonts, and the PDF.js worker — so once Overprint has loaded it keeps working in
+  the field with no signal. Add it to your home screen / desktop for a standalone window via
+  **File → Install App**.
+- **Safe updates.** A new version downloads in the background and is applied on your next launch —
+  never mid-edit while you might be offline. A gentle banner offers to reload now (saving your work
+  first), and **File → Check for Updates** forces a check.
+- **Fix:** the shipped `Permissions-Policy` header was disabling geolocation in production, which
+  broke GPS-based control placement; GPS now works on the live site again.
+- *Under the hood:* a Playwright end-to-end harness verifies real offline behaviour (network cut →
+  the app and sample map still render from cache), gated in CI.
+
 ## 0.31.1 — 2026-08-13
 - **Fix:** the contextual help "?" popover no longer runs off the right edge of the screen (it
   now clamps within the viewport regardless of which panel it opens from — e.g. the right-hand

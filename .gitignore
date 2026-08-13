@@ -43,3 +43,7 @@ tests/fixtures/screenshots/
 
 # Stray analysis screenshots / scratch in the repo root
 /gap-*.png
+
+# Playwright
+playwright-report/
+test-results/
