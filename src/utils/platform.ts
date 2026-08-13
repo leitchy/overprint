@@ -22,3 +22,12 @@ export function isIOSOrIPadOS(): boolean {
 export const MAP_FILE_ACCEPT = isIOSOrIPadOS()
   ? '*/*'
   : 'image/png,image/jpeg,image/gif,image/tiff,image/bmp,application/pdf,.ocd,.omap,.xmap';
+
+/**
+ * Platform-aware modifier-key symbol for keyboard-shortcut labels:
+ * ⌘ on macOS/iOS, "Ctrl" elsewhere.
+ */
+export const MOD_KEY =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? '⌘'
+    : 'Ctrl';

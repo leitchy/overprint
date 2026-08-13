@@ -437,6 +437,9 @@ export function useMapNavigation({ stageRef, gestureActiveRef }: UseMapNavigatio
     const onKeyDown = (e: KeyboardEvent) => {
       // Don't intercept when typing in form elements
       if (isEditableTarget(e.target)) return;
+      // Leave modifier chords to the browser/OS — otherwise Cmd+Backspace would
+      // delete a control and Cmd/Alt+Arrow would hijack browser back-navigation.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const stage = stageRef.current;
       if (!stage) return;

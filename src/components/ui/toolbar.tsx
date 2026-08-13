@@ -19,7 +19,8 @@ import { PrintSettingsModal } from './print-settings';
 import { ShortcutsModal } from './shortcuts-modal';
 import { GettingStartedDrawer } from './getting-started-drawer';
 import { useT } from '@/i18n/use-t';
-import { fitToView } from '@/components/map/use-map-navigation';
+import { zoomIn, zoomOut, fitMapToWindow } from '@/components/map/viewport-actions';
+import { MOD_KEY as modKey } from '@/utils/platform';
 import { useIsCompact } from '@/hooks/use-breakpoint';
 import { MobileMenuDrawer } from './mobile-menu-drawer';
 import { EventNameEditor } from './event-name-editor';
@@ -552,36 +553,9 @@ export function Toolbar() {
     { label: t('pageSetup'), onClick: () => setPageSetupOpen(true), disabled: !hasEvent },
     { label: t('preferences'), onClick: () => setPreferencesOpen(true) },
     { separator: true },
-    {
-      label: t('zoomIn'),
-      shortcut: '⌘+',
-      onClick: () => {
-        const { zoom, setZoom } = useViewportStore.getState();
-        setZoom(zoom * 1.25);
-      },
-    },
-    {
-      label: t('zoomOut'),
-      shortcut: '⌘-',
-      onClick: () => {
-        const { zoom, setZoom } = useViewportStore.getState();
-        setZoom(zoom / 1.25);
-      },
-    },
-    {
-      label: t('fitToWindow'),
-      onClick: () => {
-        const { imageWidth, imageHeight } = useMapImageStore.getState();
-        // Find the map canvas container to get its dimensions
-        const container = document.querySelector('[data-map-container]');
-        if (container && imageWidth > 0 && imageHeight > 0) {
-          const { width, height } = container.getBoundingClientRect();
-          const fit = fitToView(imageWidth, imageHeight, width, height);
-          useViewportStore.getState().setViewport(fit);
-        }
-      },
-      disabled: !hasImage,
-    },
+    { label: t('zoomIn'), shortcut: `${modKey}+`, onClick: zoomIn, disabled: !hasImage },
+    { label: t('zoomOut'), shortcut: `${modKey}−`, onClick: zoomOut, disabled: !hasImage },
+    { label: t('fitToWindow'), shortcut: `${modKey}0`, onClick: fitMapToWindow, disabled: !hasImage },
   ];
 
   const insertMenuItems: MenuEntry[] = [
