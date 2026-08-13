@@ -77,5 +77,8 @@ export default defineConfig({
     // Unit tests live beside source; the Playwright e2e suite (tests/e2e/*.spec.ts)
     // is run separately via `pnpm test:e2e` and must not be picked up by Vitest.
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // The OMAP/OCAD fidelity tests parse real map fixtures and can exceed the
+    // 5s default per-test timeout on slower (CI) runners — give them headroom.
+    testTimeout: 20_000,
   },
 });
