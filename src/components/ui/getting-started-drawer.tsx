@@ -2,8 +2,10 @@
  * Getting Started drawer — slides in from the right side.
  * Non-modal: the canvas stays visible and interactive behind it.
  */
+import { useEffect, useRef } from 'react';
 import { helpContent } from '@/i18n/help/en';
 import { useT } from '@/i18n/use-t';
+import { useToolStore } from '@/stores/tool-store';
 import { useModalClose } from './use-modal-close';
 
 interface GettingStartedDrawerProps {
@@ -12,7 +14,20 @@ interface GettingStartedDrawerProps {
 
 export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
   const t = useT();
+  const requestedSection = useToolStore((s) => s.gettingStartedSection);
+  // Only honour a section that actually exists — otherwise fall back to the first.
+  const targetSection = helpContent.sections.some((s) => s.id === requestedSection)
+    ? requestedSection
+    : null;
+  const targetRef = useRef<HTMLDetailsElement>(null);
   useModalClose(onClose); // Escape key handling
+
+  // When opened from a contextual help button, scroll its section into view.
+  useEffect(() => {
+    if (targetSection && targetRef.current) {
+      targetRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [targetSection]);
 
   return (
     <div
@@ -36,19 +51,22 @@ export function GettingStartedDrawer({ onClose }: GettingStartedDrawerProps) {
 
       {/* Body — collapsible sections */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
-        {helpContent.sections.map((section, i) => (
-          <details key={i} open={i === 0}>
-            <summary className="cursor-pointer rounded px-2 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 select-none">
-              <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600">
-                {i + 1}
-              </span>
-              {section.title}
-            </summary>
-            <p className="mt-1 mb-3 pl-9 text-sm leading-relaxed text-gray-600">
-              {section.body}
-            </p>
-          </details>
-        ))}
+        {helpContent.sections.map((section, i) => {
+          const isTarget = targetSection ? section.id === targetSection : i === 0;
+          return (
+            <details key={section.id} ref={isTarget ? targetRef : undefined} open={isTarget}>
+              <summary className="cursor-pointer rounded px-2 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 select-none">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-600">
+                  {i + 1}
+                </span>
+                {section.title}
+              </summary>
+              <p className="mt-1 mb-3 pl-9 text-sm leading-relaxed text-gray-600">
+                {section.body}
+              </p>
+            </details>
+          );
+        })}
       </div>
 
       {/* Footer */}

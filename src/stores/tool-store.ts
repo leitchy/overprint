@@ -17,6 +17,8 @@ interface ToolState {
   descriptionsPanelOpen: boolean;
   shortcutsModalOpen: boolean;
   gettingStartedOpen: boolean;
+  /** Getting Started section to open/scroll to, or null for the default (first) section. */
+  gettingStartedSection: string | null;
   selectedSpecialItemId: SpecialItemId | null;
   /** When non-null, the text item is being edited inline on the canvas */
   editingTextItemId: SpecialItemId | null;
@@ -32,6 +34,8 @@ interface ToolActions {
   setDescriptionsPanelOpen: (open: boolean) => void;
   toggleShortcutsModal: () => void;
   toggleGettingStarted: () => void;
+  /** Open the Getting Started drawer at a specific section (used by contextual help buttons). */
+  openGettingStarted: (sectionId?: string | null) => void;
   setSelectedSpecialItem: (id: SpecialItemId | null) => void;
   setEditingTextItemId: (id: SpecialItemId | null) => void;
   setMobilePanelOpen: (panel: MobilePanel) => void;
@@ -44,6 +48,7 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   descriptionsPanelOpen: false,
   shortcutsModalOpen: false,
   gettingStartedOpen: false,
+  gettingStartedSection: null,
   selectedSpecialItemId: null,
   editingTextItemId: null,
   mobilePanelOpen: 'none',
@@ -66,7 +71,14 @@ export const useToolStore = create<ToolState & ToolActions>()((set) => ({
   },
 
   toggleGettingStarted: () => {
-    set((state) => ({ gettingStartedOpen: !state.gettingStartedOpen }));
+    set((state) => ({
+      gettingStartedOpen: !state.gettingStartedOpen,
+      gettingStartedSection: null, // opening from the Help menu → default (first) section
+    }));
+  },
+
+  openGettingStarted: (sectionId = null) => {
+    set({ gettingStartedOpen: true, gettingStartedSection: sectionId });
   },
 
   setSelectedSpecialItem: (id) => {

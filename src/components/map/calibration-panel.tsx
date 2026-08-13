@@ -16,6 +16,7 @@ import { useToolStore } from '@/stores/tool-store';
 import { useEventStore } from '@/stores/event-store';
 import { useGpsStore } from '@/stores/gps-store';
 import { useT } from '@/i18n/use-t';
+import { HelpButton } from '@/components/ui/help-button';
 import proj4 from 'proj4';
 import { computeAffineTransform, computeResiduals } from '@/core/geometry/affine-calibration';
 import type { CalibrationPoint, GeoReference } from '@/core/models/types';
@@ -201,7 +202,10 @@ export function CalibrationPanel() {
     return (
       <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30">
         <div className="mx-4 max-w-[420px] rounded-xl bg-white p-6 shadow-xl">
-          <h2 className="text-lg font-semibold text-gray-900">{t('calibrateTitle')}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-900">{t('calibrateTitle')}</h2>
+            <HelpButton sectionId="gps" label={t('calibrateTitle')} />
+          </div>
           <p className="mt-3 text-sm text-gray-600">{t('calibrateExplain')}</p>
           <p className="mt-2 text-sm text-gray-500">{t('calibrateExplainExample')}</p>
           <div className="mt-6 flex justify-end gap-3">

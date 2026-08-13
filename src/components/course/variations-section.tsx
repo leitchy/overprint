@@ -8,6 +8,7 @@ import { courseForkIssues, type ForkIssue, type ForkIssueKind } from '@/core/mod
 import { calculateCourseLength, courseLengthRange } from '@/core/geometry/course-length';
 import { useT } from '@/i18n/use-t';
 import type { TranslationKey } from '@/i18n/translations';
+import { HelpButton } from '@/components/ui/help-button';
 
 interface VariationsSectionProps {
   course: Course;
@@ -180,6 +181,9 @@ export function VariationsSection({
 
       {open && (
         <div className="px-3 pb-2 space-y-2">
+          <div className="flex justify-end">
+            <HelpButton sectionId="variations" label={t('variationsTitle')} />
+          </div>
           {/* Add a fork or a loop at the currently selected trunk control */}
           <div className="flex gap-1">
             <button
