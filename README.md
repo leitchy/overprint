@@ -1,5 +1,7 @@
 # Overprint
 
+[![CI](https://github.com/leitchy/overprint/actions/workflows/ci.yml/badge.svg)](https://github.com/leitchy/overprint/actions/workflows/ci.yml)
+
 **Web-based orienteering course setting software.**
 
 Design orienteering courses in your browser — no installation required. Works on macOS, Windows, Linux, tablets, and phones.
