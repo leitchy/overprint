@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
 import { useAppSettingsStore } from '@/stores/app-settings-store';
 import { pixelsToMetres } from '@/core/geometry/distance';
 import { useT } from '@/i18n/use-t';
+import type { TranslationKey } from '@/i18n/translations';
 import { HelpButton } from './help-button';
 import { SCALE_PRESETS } from '@/core/models/constants';
+import { DIMMABLE_MAP_GROUPS, type MapColourGroup } from '@/core/files/ink-classification';
+
+/** UI metadata per dimmable map-colour group: i18n label key + swatch (ISOM hue). */
+const GROUP_UI: Record<Exclude<MapColourGroup, 'other'>, { key: TranslationKey; swatch: string }> = {
+  brown: { key: 'mapLayerContours', swatch: '#B05A28' },
+  blue: { key: 'mapLayerWater', swatch: '#00A0E0' },
+  green: { key: 'mapLayerVegetation', swatch: '#4CAE4C' },
+  yellow: { key: 'mapLayerOpen', swatch: '#F2C230' },
+};
 
 export function MapSettingsPanel() {
   const t = useT();
@@ -16,6 +26,20 @@ export function MapSettingsPanel() {
   const imageHeight = useMapImageStore((s) => s.imageHeight);
   const mapFade = useAppSettingsStore((s) => s.mapFade);
   const setMapFade = useAppSettingsStore((s) => s.setMapFade);
+  const rerender = useMapImageStore((s) => s.rerender);
+  const dimmedMapGroups = useMapImageStore((s) => s.dimmedMapGroups);
+  const toggleMapGroup = useMapImageStore((s) => s.toggleMapGroup);
+  const setDimmedMapGroups = useMapImageStore((s) => s.setDimmedMapGroups);
+
+  // Only OCAD/OMAP (vector-SVG) maps can be dimmed. Offer only the groups the
+  // loaded map actually contains (scan the SVG's data-cat tags once).
+  const presentGroups = useMemo(() => {
+    if (rerender?.kind !== 'svg') return [];
+    const found = new Set(
+      [...rerender.svg.matchAll(/data-cat="(\w+)"/g)].map((m) => m[1]),
+    );
+    return DIMMABLE_MAP_GROUPS.filter((g) => found.has(g));
+  }, [rerender]);
 
   const [editingDpi, setEditingDpi] = useState(false);
   const [dpiDraft, setDpiDraft] = useState('');
@@ -171,6 +195,64 @@ export function MapSettingsPanel() {
           <span>☾</span>
         </div>
       </div>
+
+      {/* Map layer dimming (screen-only) — fade groups of map colours to declutter
+          a busy map. OCAD/OMAP only; only groups present in this map are shown. */}
+      {presentGroups.length > 0 && (() => {
+        const declutterTarget = presentGroups.filter((g) => g === 'green' || g === 'yellow');
+        const setEq = (a: MapColourGroup[], b: MapColourGroup[]) =>
+          a.length === b.length && a.every((g) => b.includes(g));
+        const allShown = dimmedMapGroups.length === 0;
+        const allDimmed = setEq(dimmedMapGroups, [...presentGroups]);
+        const isDecluttered = declutterTarget.length > 0 && setEq(dimmedMapGroups, declutterTarget);
+
+        const actionBtn = (label: string, onClick: () => void, disabled: boolean) => (
+          <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`text-[10px] ${disabled ? 'cursor-default text-faint/40' : 'text-faint hover:text-accent-text'}`}
+          >
+            {label}
+          </button>
+        );
+
+        return (
+          <div className="mt-2 border-t border-edge pt-2">
+            <div className="mb-1 text-subtle">{t('mapLayersLabel')}</div>
+            <div className="space-y-0.5">
+              {presentGroups.map((g) => {
+                const dimmed = dimmedMapGroups.includes(g);
+                return (
+                  <label
+                    key={g}
+                    className="flex cursor-pointer items-center gap-1.5 text-subtle hover:text-content-2"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!dimmed}
+                      onChange={() => toggleMapGroup(g)}
+                      className="accent-accent"
+                    />
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-sm border border-edge"
+                      style={{ backgroundColor: GROUP_UI[g].swatch, opacity: dimmed ? 0.3 : 1 }}
+                    />
+                    <span className={dimmed ? 'text-faint' : undefined}>{t(GROUP_UI[g].key)}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {/* Consistent action row: Declutter · None · All, each disabled when a no-op. */}
+            <div className="mt-1.5 flex gap-3">
+              {declutterTarget.length > 0
+                && actionBtn(t('mapLayersDeclutter'), () => setDimmedMapGroups(declutterTarget), isDecluttered)}
+              {actionBtn(t('mapLayersNone'), () => setDimmedMapGroups([...presentGroups]), allDimmed)}
+              {actionBtn(t('mapLayersAll'), () => setDimmedMapGroups([]), allShown)}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

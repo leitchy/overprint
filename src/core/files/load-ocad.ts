@@ -9,7 +9,7 @@ if (typeof (globalThis as any).Buffer === 'undefined') {
 import type { GeoReference } from '@/core/models/types';
 import { BASE_RASTER_LONG_SIDE } from './raster-config';
 import { rasterizeSvgToImage } from './rasterize-svg';
-import { INK_ATTR, INK_UPPER, isUpperInk, type CmykFractions } from './ink-classification';
+import { INK_ATTR, INK_UPPER, isUpperInk, mapColourGroup, type CmykFractions, type MapColourGroup } from './ink-classification';
 
 interface LoadOcadResult {
   image: HTMLImageElement;
@@ -203,37 +203,102 @@ const OCAD_TAGGABLE = new Set(['path', 'rect', 'circle', 'ellipse', 'line', 'pol
  * effective paints is an upper ink and NO effective paint is a non-upper
  * colour (pattern fills and screens keep the element under the purple).
  * Conservative by design: when unsure, don't tag.
+ *
+ * The same pass also stamps each element's OWN fill/stroke with a
+ * `data-cmyk-fill`/`data-cmyk-stroke` attribute (fractions 0–1) resolved from
+ * the colour table, so the vector-PDF exporter can emit true DeviceCMYK to
+ * match PurplePen's muted print colour (Round 4). The rgb→CMYK lookup drops any
+ * rgb key that two different CMYK colours round to (the SVG only carries the rgb
+ * string, so an ambiguous key can't be resolved safely → stay RGB). Attrs are
+ * source-paired (own paint only) to match the exporter's inheritance rule.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function tagUpperInkElements(svgEl: SVGElement, ocadFile: any): void {
+  const normalize = (v: string) => v.replace(/\s+/g, '').toLowerCase();
   const upperRgb = new Set<string>();
+  // rgb key → cmyk fractions, or null once the key is known-ambiguous.
+  const rgbToCmyk = new Map<string, CmykFractions | null>();
+  // rgb key → dimmable map-colour group (screen layer-dimming); ambiguous ⇒ 'other'.
+  const rgbToGroup = new Map<string, MapColourGroup>();
+
+  const parseRgb = (v: string): { r: number; g: number; b: number } | undefined => {
+    const m = /rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i.exec(v);
+    return m ? { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) } : undefined;
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const color of (ocadFile.colors ?? []) as any[]) {
-    if (!color || !Array.isArray(color.cmyk) || color.cmyk.length !== 4) continue;
-    const cmyk = color.cmyk.map((v: number) => Number(v) / 100) as unknown as CmykFractions;
-    if (isUpperInk(cmyk, typeof color.name === 'string' ? color.name : undefined)) {
-      upperRgb.add(String(color.rgb).replace(/\s+/g, '').toLowerCase());
+    if (!color || color.rgb === undefined || color.rgb === null) continue;
+    const key = normalize(String(color.rgb));
+    const name = typeof color.name === 'string' ? color.name : undefined;
+    const valid = Array.isArray(color.cmyk) && color.cmyk.length === 4
+      && color.cmyk.every((v: number) => Number.isFinite(Number(v)));
+    const cmyk = valid
+      ? (color.cmyk.map((v: number) => Number(v) / 100) as unknown as CmykFractions)
+      : undefined;
+
+    // --- Dimmable group (name-first; works even without CMYK) ---
+    const group = mapColourGroup(name, cmyk, parseRgb(String(color.rgb)));
+    if (rgbToGroup.has(key)) {
+      if (rgbToGroup.get(key) !== group) rgbToGroup.set(key, 'other'); // collision → safe
+    } else {
+      rgbToGroup.set(key, group);
+    }
+
+    // --- Upper-ink + DeviceCMYK (needs valid CMYK) ---
+    if (!cmyk) {
+      // rgb with no usable CMYK poisons its cmyk key: elements stay RGB, and no
+      // sibling colour rounding to the same rgb may lend its ink.
+      rgbToCmyk.set(key, null);
+      continue;
+    }
+    if (isUpperInk(cmyk, name)) upperRgb.add(key);
+    if (rgbToCmyk.has(key)) {
+      const prev = rgbToCmyk.get(key);
+      if (!prev || prev.some((v, i) => v !== cmyk[i])) rgbToCmyk.set(key, null);
+    } else {
+      rgbToCmyk.set(key, cmyk);
     }
   }
-  if (upperRgb.size === 0) return;
+  if (upperRgb.size === 0 && rgbToCmyk.size === 0 && rgbToGroup.size === 0) return;
 
-  const normalize = (v: string) => v.replace(/\s+/g, '').toLowerCase();
   const isNoPaint = (v: string | null): boolean =>
     v === null || v === '' || normalize(v) === 'none' || normalize(v) === 'transparent';
   const isUpper = (v: string | null): boolean => v !== null && upperRgb.has(normalize(v));
+  const cmykFor = (v: string | undefined): CmykFractions | null =>
+    v !== undefined && !isNoPaint(v) ? (rgbToCmyk.get(normalize(v)) ?? null) : null;
+  const groupFor = (v: string | null): MapColourGroup =>
+    v !== null && !isNoPaint(v) ? (rgbToGroup.get(normalize(v)) ?? 'other') : 'other';
 
   // Root paint context matches svg-to-pdf: SVG initial fill is black, but the
   // OCAD root overrides it (fill="transparent"); stroke's initial value is none.
   const walk = (el: Element, inhFill: string | null, inhStroke: string | null): void => {
-    const fill = ocadPaintProp(el, 'fill') ?? inhFill;
-    const stroke = ocadPaintProp(el, 'stroke') ?? inhStroke;
+    const ownFill = ocadPaintProp(el, 'fill');
+    const ownStroke = ocadPaintProp(el, 'stroke');
+    const fill = ownFill ?? inhFill;
+    const stroke = ownStroke ?? inhStroke;
 
     if (OCAD_TAGGABLE.has(el.tagName.toLowerCase())) {
       const fillOk = isNoPaint(fill) || isUpper(fill);
       const strokeOk = isNoPaint(stroke) || isUpper(stroke);
       const anyUpper = isUpper(fill) || isUpper(stroke);
       if (anyUpper && fillOk && strokeOk) el.setAttribute(INK_ATTR, INK_UPPER);
+
+      // Layer-dimming group from EFFECTIVE (inherited) paint — fill wins, else
+      // stroke. The `<style>` dimmer does no inheritance walk, so an element that
+      // inherits a green fill from an ancestor <g> must carry its own data-cat.
+      const fillGroup = groupFor(fill);
+      const cat = fillGroup !== 'other' ? fillGroup : groupFor(stroke);
+      if (cat !== 'other') el.setAttribute('data-cat', cat);
     }
+
+    // DeviceCMYK: stamp only the element's OWN paint (source-paired), so a child
+    // that recolours itself never inherits an ancestor's ink in the exporter.
+    const ownFillCmyk = cmykFor(ownFill);
+    if (ownFillCmyk) el.setAttribute('data-cmyk-fill', ownFillCmyk.join(','));
+    const ownStrokeCmyk = cmykFor(ownStroke);
+    if (ownStrokeCmyk) el.setAttribute('data-cmyk-stroke', ownStrokeCmyk.join(','));
+
     for (const child of Array.from(el.children)) walk(child, fill, stroke);
   };
 

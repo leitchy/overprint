@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, clip, clipEvenOdd, endPath } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, cmyk, pushGraphicsState, popGraphicsState, clip, clipEvenOdd, endPath } from 'pdf-lib';
 import { rectangle as rectOp } from 'pdf-lib';
 import type { PDFFont, PDFPage, PDFEmbeddedPage } from 'pdf-lib';
 import { embedDescriptionFonts, type DescriptionFonts } from './description-fonts';
@@ -268,8 +268,10 @@ export async function generateCoursePdf(
       const printAreaOverride = unionPrintArea;
       const multiPage = computeMultiPageViewports(
         layout, mapScale, printScale, dpi, imgWidth, imgHeight, allBounds,
-        30, 15, printAreaOverride ?? undefined,
+        30, 15, printAreaOverride ?? undefined, pageSetup.fitToPage ?? true,
       );
+      // Fit-to-page may have shrunk the scale; symbol sizing must use the actual scale.
+      const effPrintScale = multiPage.effectivePrintScale;
 
       for (let pageIndex = 0; pageIndex < multiPage.viewports.length; pageIndex++) {
         const viewport = multiPage.viewports[pageIndex]!;
@@ -292,7 +294,7 @@ export async function generateCoursePdf(
             settings: event.settings,
             toPdf,
             effectivePPP: viewport.effectivePPP,
-            sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
+            sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, effPrintScale),
           },
           allControlsCourse,
           event.controls,
@@ -358,8 +360,10 @@ export async function generateCoursePdf(
     const effectiveBounds = unionBounds ?? bounds;
     const multiPage = computeMultiPageViewports(
       layout, mapScale, printScale, dpi, imgWidth, imgHeight, effectiveBounds,
-      30, 15, printAreaOverride ?? undefined,
+      30, 15, printAreaOverride ?? undefined, pageSetup.fitToPage ?? true,
     );
+    // Fit-to-page may have shrunk the scale; symbol sizing must track the actual scale.
+    const effPrintScale = multiPage.effectivePrintScale;
 
     // Fork variations (E10): one page-set per enumerated variation, the
     // map-exchange part loop nested inside. A no-fork course yields exactly
@@ -422,7 +426,7 @@ export async function generateCoursePdf(
               toPdf,
               effectivePPP: viewport.effectivePPP,
               sequenceOffset,
-              sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, printScale),
+              sizeMultiplier: eventOverprintSizeMultiplier(event.settings, mapScale, effPrintScale),
             },
             renderCourse,
             event.controls,
@@ -765,18 +769,24 @@ function drawOverprintPasses(
   },
 ): void {
   if (!upperInkPage) {
-    renderOverprint(ctx, course, controls, font);
+    // Raster / PDF-source path (no colour-order): legs (blended, map shows
+    // through) below, then the opaque, haloed locating symbols on top.
+    renderOverprint({ ...ctx, parts: 'legs' }, course, controls, font);
+    renderOverprint({ ...ctx, parts: 'symbols' }, course, controls, font);
     return;
   }
 
-  renderOverprint({ ...ctx, layer: 'lower', solidOverprint: true }, course, controls, font);
+  // Vector colour-order path: legs below the redrawn map upper inks; locating
+  // symbols + numbers drawn opaque ON TOP, so a brown contour never crosses the
+  // circle or number a runner must read.
+  renderOverprint({ ...ctx, parts: 'legs', solidOverprint: true }, course, controls, font);
 
   const holes = whiteOutRects(opts.specialItems, opts.courseId, ctx.toPdf);
   drawEmbeddedPdfPage(
     ctx.page, upperInkPage, opts.layout, ctx.toPdf, opts.imgWidth, opts.imgHeight, holes,
   );
 
-  renderOverprint({ ...ctx, layer: 'upper', solidOverprint: true }, course, controls, font);
+  renderOverprint({ ...ctx, parts: 'symbols', solidOverprint: true }, course, controls, font);
 }
 
 async function renderSpecialItems(
@@ -787,7 +797,7 @@ async function renderSpecialItems(
   _course: Course,
   _controls: Record<ControlId, Control>,
   _eventSettings: EventSettings,
-  _layout: PageLayout,
+  layout: PageLayout,
   toPdf: (point: MapPoint) => MapPoint,
   font: PDFFont,
   effectivePPP: number,
@@ -795,6 +805,17 @@ async function renderSpecialItems(
   // Scale-aware: symbols are a fixed physical size (mm) on the printed page.
   const IOF_SYMBOL_PT = mmToPdfPoints(IOF_SPECIAL_SYMBOL_MM) / 2; // half-size in pt
   const symLine = mmToPdfPoints(IOF_SPECIAL_SYMBOL_LINE_MM); // stroke width in pt
+
+  // Clip every special item to the printable page area, so map-coordinate items
+  // (the imported print-area border, titles, notes) never draw off the page —
+  // especially on multi-page exports where a full-extent border would otherwise
+  // run off the edges of each tile.
+  page.pushOperators(
+    pushGraphicsState(),
+    rectOp(layout.marginLeft, layout.marginBottom, layout.printableWidth, layout.printableHeight),
+    clip(),
+    endPath(),
+  );
 
   for (const item of specialItems) {
     // Filter by course
@@ -819,18 +840,30 @@ async function renderSpecialItems(
     //   (OOB, dangerous, water, first aid, forbidden route, map issue) and
     //   course lines default to the overprint purple.
     const annotationDefaultsBlack = item.type === 'text' || item.type === 'rectangle';
-    const itemColor = !item.color
-      ? (annotationDefaultsBlack ? rgb(0, 0, 0) : PURPLE)
-      : item.color === OVERPRINT_PURPLE ? PURPLE : hexToRgb(item.color);
+    // Prefer the original PurplePen CMYK (emit DeviceCMYK, matching PP's muted
+    // print colour) over the on-screen sRGB approximation.
+    const itemColor = item.colorCmyk
+      ? cmyk(...item.colorCmyk)
+      : !item.color
+        ? (annotationDefaultsBlack ? rgb(0, 0, 0) : PURPLE)
+        : item.color === OVERPRINT_PURPLE ? PURPLE : hexToRgb(item.color);
     const pos = toPdf(item.position);
 
     switch (item.type) {
       case 'text': {
         // fontSize is in map pixels — convert to PDF points
         const fontSizePt = item.fontSize * effectivePPP;
+        // Clamp the text-box TOP just inside the printable area so a title placed
+        // at/above the map border doesn't overlap it (PurplePen keeps the title
+        // inside the frame). Only affects text within ~2mm of the top edge.
+        const printableTop = layout.marginBottom + layout.printableHeight;
+        const topY = Math.min(pos.y, printableTop - mmToPdfPoints(2));
         page.drawText(item.text, {
           x: pos.x,
-          y: pos.y,
+          // `topY` is the text-box TOP (PurplePen anchors text top-left), but
+          // pdf-lib treats `y` as the baseline and grows glyphs upward — drop by
+          // the ascent so the text hangs from the box top, not above it.
+          y: topY - font.heightAtSize(fontSizePt, { descender: false }),
           size: fontSizePt,
           font,
           color: itemColor,
@@ -976,6 +1009,8 @@ async function renderSpecialItems(
       }
     }
   }
+
+  page.pushOperators(popGraphicsState()); // end printable-area clip
 }
 
 /**
@@ -1037,9 +1072,12 @@ async function svgToPngBlob(svgString: string, sizePx: number): Promise<Blob> {
 // Description box rendering (embedded IOF description grid on course map)
 // ---------------------------------------------------------------------------
 
-/** Standard IOF cell size in mm */
-/** PurplePen uses 6mm cells for printed descriptions (not 7mm IOF spec) */
-const DESC_CELL_SIZE_MM = 6;
+/**
+ * Max on-map description-box cell size (mm). PurplePen's printed on-map box is
+ * denser than the 6mm we auto-fit to; 5mm brings our box ~17% smaller so it no
+ * longer dominates the sheet or crowd the map border (still ≥ the 3.5mm floor).
+ */
+const DESC_CELL_SIZE_MM = 5;
 
 const DESC_BORDER_WIDTH = 0.5;
 const DESC_TEXT_FONT_SIZE = 8;
@@ -1073,14 +1111,20 @@ export function descBoxOrigin(
   totalBlockWidth: number,
   opts: { overridePosition?: MapPoint; overrideTopY?: number },
 ): { left: number; topY: number } {
-  if (opts.overridePosition) {
-    return { left: opts.overridePosition.x, topY: opts.overridePosition.y };
-  }
-  const blockRight = layout.pageWidth - layout.marginRight - mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
-  return {
-    left: blockRight - totalBlockWidth,
-    topY: opts.overrideTopY ?? (layout.pageHeight - layout.marginTop - mmToPdfPoints(DESC_TOP_OFFSET_MM)),
-  };
+  const rawLeft = opts.overridePosition
+    ? opts.overridePosition.x
+    : layout.pageWidth - layout.marginRight - mmToPdfPoints(DESC_RIGHT_OFFSET_MM) - totalBlockWidth;
+  const rawTopY = opts.overridePosition
+    ? opts.overridePosition.y
+    : (opts.overrideTopY ?? (layout.pageHeight - layout.marginTop - mmToPdfPoints(DESC_TOP_OFFSET_MM)));
+
+  // Keep the block inside the printable area, a small inset in from the margin
+  // (the map's baked border sits at the print-area edge — stay clear of it).
+  const inset = mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
+  const maxLeft = layout.pageWidth - layout.marginRight - inset - totalBlockWidth;
+  const left = Math.max(layout.marginLeft + inset, Math.min(rawLeft, maxLeft));
+  const topY = Math.min(rawTopY, layout.pageHeight - layout.marginTop - inset); // box draws downward
+  return { left, topY };
 }
 
 /**
@@ -1135,7 +1179,7 @@ async function renderAutoDescriptionBox(
   const bodyCount = bodyRowList.length;
   const colWidthInCells = hasTextCol ? 8 + DESC_TEXT_COL_MULTIPLIER : 8;
 
-  const maxBlockWidth = layout.printableWidth * 0.5;
+  const maxBlockWidth = layout.printableWidth * 0.45;
   const maxBlockHeight = (layout.printableHeight - topOffsetPt) * 0.55;
 
   // Find best column count (maximize cell size)
@@ -1162,6 +1206,13 @@ async function renderAutoDescriptionBox(
   const cellFromWidth = totalGridsWidth / (colWidthInCells * numDescCols);
   let cellPt = Math.max(mmToPdfPoints(2), Math.min(cellFromHeight, cellFromWidth, mmToPdfPoints(DESC_CELL_SIZE_MM)));
   if (overrideCellPt) cellPt = overrideCellPt;
+
+  // Hard cap: the whole block (all columns + gaps) must never exceed the
+  // printable width — otherwise a many-control box (or an imported .ppen cell
+  // size / column count) runs off the right edge of the page.
+  const maxTotalWidth = layout.printableWidth - mmToPdfPoints(DESC_RIGHT_OFFSET_MM);
+  const cellFromTotalWidth = (maxTotalWidth - gapPt * (numDescCols - 1)) / (colWidthInCells * numDescCols);
+  cellPt = Math.min(cellPt, cellFromTotalWidth);
 
   const textColWidthPt = hasTextCol ? cellPt * DESC_TEXT_COL_MULTIPLIER : 0;
   const gridWidth = cellPt * 8 + textColWidthPt;

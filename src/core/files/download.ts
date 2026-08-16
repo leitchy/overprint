@@ -45,6 +45,50 @@ export async function saveBlob(
 }
 
 /**
+ * A save target acquired up-front, written to once the content is ready.
+ */
+export interface PendingSave {
+  /** Persist the generated content (Blob or string) to the chosen target. */
+  write(data: Blob | string): Promise<void>;
+}
+
+/**
+ * Acquire a save target while the user gesture is still fresh, returning a
+ * writer to call once the content has been generated.
+ *
+ * `showSaveFilePicker` needs Chrome's *transient* user activation, which is
+ * consumed by any `await` (a dynamic `import()`, PDF generation, …) between the
+ * click and the picker call. Handlers that do heavy async work must call
+ * `beginSave` FIRST — before those awaits — then generate and `.write()`.
+ * Throws `AbortError` if the user cancels the picker (callers already ignore it).
+ * On Firefox/Safari (no picker) it defers to an auto-download at write time.
+ */
+export async function beginSave(
+  suggestedName: string,
+  types?: SaveFileType[],
+): Promise<PendingSave> {
+  if ('showSaveFilePicker' in window) {
+    const handle = await window.showSaveFilePicker({
+      suggestedName,
+      ...(types ? { types } : {}),
+    });
+    return {
+      async write(data) {
+        const writable = await handle.createWritable();
+        await writable.write(data);
+        await writable.close();
+      },
+    };
+  }
+  return {
+    async write(data) {
+      const blob = typeof data === 'string' ? new Blob([data]) : data;
+      downloadBlob(blob, suggestedName);
+    },
+  };
+}
+
+/**
  * Save a string as a file, prompting for filename when supported.
  */
 export async function saveString(

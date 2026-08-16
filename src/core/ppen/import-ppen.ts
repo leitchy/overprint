@@ -74,17 +74,54 @@ function mmToPx(mmValue: number, dpi: number): number {
   return (mmValue / 25.4) * dpi;
 }
 
-/** Convert PurplePen CMYK colour string "C,M,Y,K" (0-1 each) to hex. */
-function cmykToHex(cmykStr: string): string {
-  const parts = cmykStr.split(',').map(Number);
-  const c = parts[0] ?? 0;
-  const m = parts[1] ?? 0;
-  const y = parts[2] ?? 0;
-  const k = parts[3] ?? 0;
-  const r = Math.round(255 * (1 - c) * (1 - k));
-  const g = Math.round(255 * (1 - m) * (1 - k));
-  const b = Math.round(255 * (1 - y) * (1 - k));
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+/** Parse a PurplePen CMYK colour string "C,M,Y,K" (0-1 each) to a 4-tuple. */
+function parseCmyk(cmykStr: string): [number, number, number, number] {
+  const p = cmykStr.split(',').map(Number);
+  return [p[0] ?? 0, p[1] ?? 0, p[2] ?? 0, p[3] ?? 0];
+}
+
+/**
+ * Convert a PurplePen CMYK colour string "C,M,Y,K" (0-1 each) to on-screen sRGB
+ * hex. The furniture (titles, borders, notes) is exported by PurplePen as
+ * DeviceCMYK and the PDF now emits it as DeviceCMYK too (Round 4) — a muted look
+ * once the viewer applies a CMYK profile. The old naïve model
+ * (`255·(1−c)·(1−k)`) assumes *pure* process inks, so CMY overlaps hit the sRGB
+ * primaries (e.g. C+M → #0000FF vivid blue) and screen looked nothing like the
+ * printed/exported navy. We instead blend realistic coated **solid-ink**
+ * primaries subtractively, which mutes overlaps to roughly match the DeviceCMYK
+ * appearance so screen and PDF read the same colour. Approximation, not an ICC
+ * transform — good enough for course furniture. See [[import-ppen]] colour path.
+ */
+export function cmykStringToHex(cmykStr: string): string {
+  const [c, m, y, k] = parseCmyk(cmykStr);
+  const [r, g, b] = cmykToRgb(c, m, y, k);
+  const hex = (n: number) => Math.round(n * 255).toString(16).padStart(2, '0');
+  return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
+
+/** Backwards-compatible alias. */
+const cmykToHex = cmykStringToHex;
+
+/**
+ * Coated solid-ink sRGB primaries (0-1) for 100% C / M / Y. Chosen to approximate
+ * a generic coated CMYK profile: real inks aren't pure, so each retains a little
+ * cross-channel light, which is what keeps overlaps muted (C+M → dark navy, not
+ * pure blue). Values are an eyeball match to Preview/Acrobat DeviceCMYK output.
+ */
+const INK_CYAN = [0.13, 0.60, 0.85] as const;
+const INK_MAGENTA = [0.90, 0.10, 0.48] as const;
+const INK_YELLOW = [1.0, 0.95, 0.1] as const;
+
+/** CMYK (0-1) → sRGB (0-1) via subtractive blending of coated ink primaries. */
+export function cmykToRgb(c: number, m: number, y: number, k: number): [number, number, number] {
+  // Each ink attenuates a channel toward its solid-ink reflectance; amount = ink %.
+  const chan = (i: number): number => {
+    const v = (1 - c * (1 - INK_CYAN[i]!))
+      * (1 - m * (1 - INK_MAGENTA[i]!))
+      * (1 - y * (1 - INK_YELLOW[i]!));
+    return Math.max(0, Math.min(1, v * (1 - k)));
+  };
+  return [chan(0), chan(1), chan(2)];
 }
 
 /** ViewBox rendering parameters for OCAD/OMAP maps. */
@@ -646,6 +683,7 @@ export function importPpen(
           fontWeight: isBold ? 'bold' : 'normal',
           fontStyle: isItalic ? 'italic' : 'normal',
           color: itemColor,
+          colorCmyk: colorStr ? parseCmyk(colorStr) : undefined,
         });
         break;
       }
@@ -656,7 +694,7 @@ export function importPpen(
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
           const appearEl = getChild(soEl, 'appearance');
           const colorStr = appearEl ? getAttr(appearEl, 'color') : null;
-          specialItems.push({ ...baseProps, type: 'line', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined });
+          specialItems.push({ ...baseProps, type: 'line', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined, colorCmyk: colorStr ? parseCmyk(colorStr) : undefined });
         }
         break;
       }
@@ -665,7 +703,7 @@ export function importPpen(
           const pos2 = convertPoint(getFloatAttr(loc1, 'x'), getFloatAttr(loc1, 'y'), dpi, mapHeightPx, viewBox);
           const appearEl = getChild(soEl, 'appearance');
           const colorStr = appearEl ? getAttr(appearEl, 'color') : null;
-          specialItems.push({ ...baseProps, type: 'rectangle', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined });
+          specialItems.push({ ...baseProps, type: 'rectangle', endPosition: pos2, color: colorStr ? cmykToHex(colorStr) : undefined, colorCmyk: colorStr ? parseCmyk(colorStr) : undefined });
         }
         break;
       }

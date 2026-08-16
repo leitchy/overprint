@@ -93,7 +93,7 @@ const TEST_COURSE: Course = {
 
 async function renderToText(
   mapStandard: EventSettings['mapStandard'],
-  opts: { layer?: 'lower' | 'upper'; solidOverprint?: boolean } = {},
+  opts: { parts?: 'legs' | 'symbols'; solidOverprint?: boolean } = {},
 ): Promise<{ content: string; raw: string }> {
   const doc = await PDFDocument.create();
   const page = doc.addPage([595, 842]);
@@ -116,51 +116,46 @@ async function renderToText(
 
 const PURPLE_STROKE = /0\.35 0\.85 0 0 K/;
 const PURPLE_FILL = /0\.35 0\.85 0 0 k/;
+const WHITE_FILL = /(^|\s)0 0 0 0 k/; // number halo (opaque white knock-out)
 
-describe('renderOverprint layer split', () => {
-  it('ISOM lower layer draws shapes AND numbers (704 is lower on ISOM)', async () => {
-    const { content } = await renderToText('ISOM2017', { layer: 'lower' });
-    expect(content).toMatch(PURPLE_STROKE); // legs/circles
-    expect(content).toMatch(PURPLE_FILL);   // number text
-    expect(content).toContain('BT');
+describe('renderOverprint phase split', () => {
+  it("legs pass draws connecting lines but no numbers", async () => {
+    const { content } = await renderToText('ISOM2017', { parts: 'legs' });
+    expect(content).toMatch(PURPLE_STROKE); // leg lines
+    expect(content).not.toContain('BT'); // no numbers in the legs pass
   });
 
-  it('ISOM upper layer draws nothing', async () => {
-    const { content } = await renderToText('ISOM2017', { layer: 'upper' });
-    expect(content).not.toMatch(/0\.35 0\.85 0 0/);
-    expect(content).not.toContain('BT');
+  it('symbols pass draws circles + haloed numbers', async () => {
+    const { content } = await renderToText('ISOM2017', { parts: 'symbols' });
+    expect(content).toMatch(PURPLE_STROKE); // circle borders
+    expect(content).toContain('BT'); // numbers
+    expect(content).toMatch(PURPLE_FILL); // purple number fill
+    expect(content).toMatch(WHITE_FILL); // white halo behind the number
   });
 
-  it('ISSprOM lower layer omits numbers (704 flips to upper on sprint)', async () => {
-    const { content } = await renderToText('ISSprOM2019', { layer: 'lower' });
-    expect(content).toMatch(PURPLE_STROKE);
-    expect(content).not.toContain('BT');
-  });
-
-  it('ISSprOM upper layer draws ONLY the numbers', async () => {
-    const { content } = await renderToText('ISSprOM2019', { layer: 'upper' });
-    expect(content).toContain('BT');
-    expect(content).toMatch(PURPLE_FILL);
-    expect(content).not.toMatch(PURPLE_STROKE); // no legs/circles/shapes
-  });
-
-  it('unspecified layer draws both (legacy single pass)', async () => {
-    const { content } = await renderToText('ISSprOM2019');
+  it('unspecified draws both (legacy single pass)', async () => {
+    const { content } = await renderToText('ISOM2017');
     expect(content).toMatch(PURPLE_STROKE);
     expect(content).toContain('BT');
   });
 });
 
 describe('renderOverprint overprint ExtGState', () => {
-  it('default (raster interim) sets the Multiply blend', async () => {
-    const { raw } = await renderToText('ISOM2017');
+  it('legs (raster interim) set overprint + the Multiply blend', async () => {
+    const { raw } = await renderToText('ISOM2017', { parts: 'legs' });
     expect(raw).toContain('/Multiply');
     expect(raw).toContain('/OP true');
   });
 
-  it('solidOverprint (true colour-order path) sets OP but NO blend', async () => {
-    const { raw } = await renderToText('ISOM2017', { layer: 'lower', solidOverprint: true });
+  it('legs on the colour-order path set OP but NO blend', async () => {
+    const { raw } = await renderToText('ISOM2017', { parts: 'legs', solidOverprint: true });
     expect(raw).toContain('/OP true');
+    expect(raw).not.toContain('/Multiply');
+  });
+
+  it('symbols pass is opaque — no overprint flag, no blend (halo must knock out)', async () => {
+    const { raw } = await renderToText('ISOM2017', { parts: 'symbols' });
+    expect(raw).not.toContain('/OP true');
     expect(raw).not.toContain('/Multiply');
   });
 });

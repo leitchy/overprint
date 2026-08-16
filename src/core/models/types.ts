@@ -231,6 +231,12 @@ export interface PageSetup {
   customWidth?: number;  // mm, only if paperSize is 'custom'
   customHeight?: number; // mm, only if paperSize is 'custom'
   orientation: 'portrait' | 'landscape';
+  /**
+   * Shrink the print scale so each page's print area fits on one sheet, instead
+   * of tiling a too-big map across several pages. Default true. Turn off for
+   * deliberate large-format (multi-sheet) printing. Never enlarges (shrink-only).
+   */
+  fitToPage?: boolean;
   margins: {
     top: number;    // mm
     right: number;  // mm
@@ -301,6 +307,13 @@ interface SpecialItemBase {
   position: MapPoint;
   rotation?: number;
   color?: string;
+  /**
+   * Original CMYK (0–1 each), preserved from a PurplePen import so the PDF can
+   * emit true DeviceCMYK (matching PurplePen's muted print colour). `color`
+   * stays the sRGB hex used for on-screen rendering. Cleared when the user edits
+   * the colour, so their new sRGB choice wins in the PDF too.
+   */
+  colorCmyk?: [number, number, number, number];
   /** If defined and non-empty, item is only shown on these courses. */
   courseIds?: CourseId[];
 }

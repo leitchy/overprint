@@ -6,11 +6,18 @@ import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { version } from './package.json';
 
+// Serve plain HTTP by default: on localhost Chrome treats HTTP as a secure
+// context, so the File System Access API (showSaveFilePicker / open pickers)
+// works — under a self-signed cert Chrome silently suppresses those dialogs.
+// Opt into the self-signed HTTPS cert with `HTTPS=1 pnpm dev` only when you need
+// a secure origin over the LAN (e.g. GPS/geolocation on a phone).
+const useHttps = process.env.HTTPS === '1' || process.env.HTTPS === 'true';
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    basicSsl(),
+    ...(useHttps ? [basicSsl()] : []),
     VitePWA({
       // Prompt mode: the new service worker waits and only activates on the
       // next launch (or an explicit user reload). Never hot-swap the SW while a

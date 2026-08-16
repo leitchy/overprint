@@ -5,7 +5,8 @@ import { OVERPRINT_PURPLE } from '@/core/models/constants';
 import { LOCAL_STORAGE_KEY_THEME } from '@/stores/app-settings-store';
 
 /**
- * Dark mode is screen-only. These guards keep it from leaking into exports.
+ * Dark mode AND map-layer dimming are screen-only. These guards keep them from
+ * leaking into exports.
  */
 describe('export safety (dark mode is screen-only)', () => {
   it('OVERPRINT_PURPLE is the exact sentinel the PDF path matches on', () => {
@@ -13,17 +14,27 @@ describe('export safety (dark mode is screen-only)', () => {
     expect(OVERPRINT_PURPLE).toBe('#BB29BB');
   });
 
-  it('no export module imports the theme store or map-fade state', () => {
+  it('no export module imports the theme store, map-fade, or layer-dimming state', () => {
     const dir = join(process.cwd(), 'src/core/export');
     const files = readdirSync(dir).filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(join(dir, f), 'utf8');
-      if (/app-settings-store|use-theme-effect|data-theme|mapFade/.test(src)) {
+      // map-layer dimming: exports must never call applyMapDimming or read the
+      // dimmed-groups state, so the exported SVG is always full-strength.
+      if (/app-settings-store|use-theme-effect|data-theme|mapFade|apply-map-dimming|dimmedMapGroups/.test(src)) {
         offenders.push(f);
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it('dimming is non-mutating — the source SVG is byte-identical after applying it', async () => {
+    const { applyMapDimming } = await import('@/core/files/apply-map-dimming');
+    const svg = '<svg viewBox="0 0 1 1"><path data-cat="green" fill="rgb(0,1,0)"/></svg>';
+    const before = svg;
+    applyMapDimming(svg, ['green']); // returns a NEW string; must not touch `svg`
+    expect(svg).toBe(before);
   });
 
   it('index.html no-flash script uses the same localStorage key as the store', () => {

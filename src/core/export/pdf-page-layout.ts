@@ -124,6 +124,12 @@ export interface MultiPageLayout {
   cols: number;
   /** One viewport per page, in reading order (left-to-right, top-to-bottom). */
   viewports: MapViewport[];
+  /**
+   * The print scale actually used. Equals the requested scale unless fit-to-page
+   * shrank it to make the print area fit one sheet — callers must use THIS for
+   * overprint symbol sizing so symbols scale with the (shrunk) map.
+   */
+  effectivePrintScale: number;
 }
 
 /**
@@ -221,6 +227,7 @@ export function computeMultiPageViewports(
   paddingMm = 30,
   overlapMm = 15,
   printAreaOverride?: CourseBounds,
+  fitToPage = false,
 ): MultiPageLayout {
   // PDF points per map pixel at correct print scale
   const effectivePPP = (72 / dpi) * (mapScale / printScale);
@@ -248,7 +255,32 @@ export function computeMultiPageViewports(
     const singleViewport = computeMapViewport(
       layout, mapScale, printScale, dpi, imgWidth, imgHeight, bounds, paddingMm, printAreaOverride,
     );
-    return { rows: 1, cols: 1, viewports: [singleViewport] };
+    return { rows: 1, cols: 1, viewports: [singleViewport], effectivePrintScale: printScale };
+  }
+
+  // Fit-to-page: shrink the print scale so the whole print area fits one sheet
+  // instead of tiling. Closed form — the padding is a FIXED physical size on
+  // paper (paddingMm), so subtract it from the printable area rather than adding
+  // scale-dependent padding to the extent (which would re-tile at the new scale).
+  if (fitToPage) {
+    const padPt = printAreaOverride ? 0 : (paddingMm * 72) / 25.4;
+    const availW = layout.printableWidth - 2 * padPt;
+    const availH = layout.printableHeight - 2 * padPt;
+    const boundsWpx = effectiveBounds.maxX - effectiveBounds.minX;
+    const boundsHpx = effectiveBounds.maxY - effectiveBounds.minY;
+    if (availW > 0 && availH > 0 && boundsWpx > 0 && boundsHpx > 0) {
+      const fitPPP = Math.min(availW / boundsWpx, availH / boundsHpx);
+      let fitScale = (72 / dpi) * mapScale / fitPPP;
+      fitScale = Math.max(printScale, fitScale); // shrink-only (never enlarge)
+      fitScale = Math.ceil(fitScale / 50) * 50; // round up → kills float re-tiling, nicer label
+      fitScale = Math.min(fitScale, printScale * 4); // sanity cap
+      if (Number.isFinite(fitScale) && fitScale > printScale) {
+        const singleViewport = computeMapViewport(
+          layout, mapScale, fitScale, dpi, imgWidth, imgHeight, bounds, paddingMm, printAreaOverride,
+        );
+        return { rows: 1, cols: 1, viewports: [singleViewport], effectivePrintScale: fitScale };
+      }
+    }
   }
 
   // Usable tile size per page (subtract overlap so adjacent tiles can share border area)
@@ -296,5 +328,5 @@ export function computeMultiPageViewports(
     }
   }
 
-  return { rows, cols, viewports };
+  return { rows, cols, viewports, effectivePrintScale: printScale };
 }

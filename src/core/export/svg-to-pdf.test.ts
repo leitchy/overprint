@@ -483,6 +483,92 @@ describe('renderSvgToScratchPdf', () => {
 });
 
 // ---------------------------------------------------------------------------
+// DeviceCMYK colour fidelity (data-cmyk-fill / data-cmyk-stroke — Round 4)
+// ---------------------------------------------------------------------------
+
+describe('renderSvgToScratchPdf DeviceCMYK', () => {
+  it('emits a DeviceCMYK fill (k) from data-cmyk-fill, not RGB', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <path d="M 0 0 L 100 0 L 100 100 Z" fill="rgb(187,41,187)" data-cmyk-fill="0.35,0.85,0,0" fill-rule="evenodd"/>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/0\.35 0\.85 0 0 k/);
+    expect(content).not.toMatch(/(^|\s)rg(\s|$)/); // no DeviceRGB fill emitted
+  });
+
+  it('emits a DeviceCMYK stroke (K) from data-cmyk-stroke', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" fill="transparent" viewBox="0 0 100 100">
+      <path d="M 10 10 L 90 90" fill="none" stroke="rgb(0,0,0)" data-cmyk-stroke="0,0,0,1" stroke-width="2"/>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/0 0 0 1 K/);
+    expect(content).not.toMatch(/(^|\s)RG(\s|$)/);
+  });
+
+  it('a CMYK on a none/transparent paint still resolves to no paint', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" fill="transparent" viewBox="0 0 100 100">
+      <path d="M 10 10 L 90 90" fill="none" data-cmyk-fill="0,0,0,1" stroke="rgb(0,0,0)" data-cmyk-stroke="0.1,0.2,0.3,0.4" stroke-width="2"/>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    // Stroke CMYK present; the none-fill CMYK is ignored (stroke-only path).
+    expect(content).toMatch(/0\.1 0\.2 0\.3 0\.4 K/);
+    expect(content).not.toMatch(/^[fB]\*?$/m);
+  });
+
+  it('does NOT inherit an ancestor CMYK when a child re-sets its own fill (source-paired)', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <g fill="rgb(187,41,187)" data-cmyk-fill="0.35,0.85,0,0">
+        <path d="M 10 10 L 90 10 L 50 90 Z" fill="rgb(255,0,0)"/>
+      </g>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/1 0 0 rg/);     // child's own red, as DeviceRGB
+    expect(content).not.toMatch(/0\.35 0\.85 0 0 k/); // ancestor CMYK not leaked
+  });
+
+  it('inherits an ancestor CMYK for a child with no own fill', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <g fill="rgb(187,41,187)" data-cmyk-fill="0.35,0.85,0,0">
+        <path d="M 10 10 L 90 10 L 50 90 Z"/>
+      </g>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/0\.35 0\.85 0 0 k/);
+  });
+
+  it('emits DeviceCMYK inside a tiled pattern fill', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <defs>
+        <pattern id="dots" patternUnits="userSpaceOnUse" width="50" height="50">
+          <circle cx="25" cy="25" r="6" fill="rgb(0,166,81)" data-cmyk-fill="0.9,0,0.8,0"/>
+        </pattern>
+      </defs>
+      <path d="M 0 0 L 200 0 L 200 200 L 0 200 Z" fill="url(#dots)"/>
+    </svg>`;
+    expect(validateSvgForVector(svg).ok).toBe(true);
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/0\.9 0 0\.8 0 k/);
+  });
+
+  it('emits DeviceCMYK for text', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <text x="10" y="50" fill="rgb(0,0,0)" data-cmyk-fill="0,0,0,1" font-size="10">Hi</text>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/0 0 0 1 k/);
+  });
+
+  it('falls back to RGB when data-cmyk is malformed', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <path d="M 0 0 L 100 0 L 100 100 Z" fill="rgb(255,0,0)" data-cmyk-fill="not,a,cmyk" fill-rule="evenodd"/>
+    </svg>`;
+    const content = contentStreamText(await saveFlat(await renderSvgToScratchPdf(svg)));
+    expect(content).toMatch(/1 0 0 rg/);
+    expect(content).not.toMatch(/(^|\s)k(\s|$)/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // inkFilter: 'upper' (IOF colour-order redraw pass, D2)
 // ---------------------------------------------------------------------------
 

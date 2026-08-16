@@ -40,9 +40,13 @@ export const COURSE_COLORS = [
   '#7340D9', // Purple       (C=0.55 M=0.75 Y=0.15 K=0.00)
 ] as const;
 
-/** Screen line width multiplier — IOF print spec is too thin at screen DPI.
- *  PurplePen also renders thicker on screen. PDF export does NOT use this. */
-export const SCREEN_LINE_MULTIPLIER = 2;
+/**
+ * Screen line-width multiplier for the overprint layer. Kept at 1 so the screen
+ * draws every circle/leg/finish/border at the TRUE IOF spec width (0.35mm) — i.e.
+ * exactly what the PDF exports (WYSIWYG). Was 2 (screen drawn twice as bold as
+ * the print); raise it only as a deliberate legibility trade-off. Applied to
+ * stroke widths and the circle/leg gap, never to diameters or digit height. */
+export const SCREEN_LINE_MULTIPLIER = 1;
 
 /**
  * Control-number sizing: the IOF spec (ISOM 2017-2 §3.7) gives 4.0mm as the DIGIT
