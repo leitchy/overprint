@@ -1317,7 +1317,11 @@ export const useEventStore = create<EventState & EventActions>()(
           if (!state.event) return;
           const index = state.event.specialItems.findIndex((si) => si.id === id);
           if (index === -1) return;
-          Object.assign(state.event.specialItems[index]!, updates);
+          const item = state.event.specialItems[index]!;
+          Object.assign(item, updates);
+          // A user-chosen sRGB colour must win in the PDF too — drop the imported
+          // CMYK override so it doesn't shadow the new choice.
+          if ('color' in updates && !('colorCmyk' in updates)) item.colorCmyk = undefined;
         });
       },
 

@@ -234,3 +234,31 @@ describe('buildSvg upper-ink tagging', () => {
     expect(tagged.some((t) => t.includes('fill="rgb'))).toBe(false);
   });
 });
+
+describe('buildSvg data-cat (layer-dimming groups)', () => {
+  it('tags dimmable groups (green area fill, brown stroke), not black', () => {
+    const { objects, symbols, colors } = parseOmapXml(INK_TEST_OMAP);
+    const svg = buildSvg(objects, symbols, colors);
+    // Green area fill → data-cat="green"; brown line → data-cat="brown".
+    expect(svg).toMatch(/data-cat="green"/);
+    expect(svg).toMatch(/data-cat="brown"/);
+    // Black stroke is never a dimmable group.
+    expect(svg).not.toMatch(/stroke="rgb\(0,0,0\)"[^/>]*data-cat=/);
+  });
+});
+
+describe('buildSvg DeviceCMYK emission', () => {
+  it('emits data-cmyk paired with each rgb paint (strokes and area fill)', () => {
+    const { objects, symbols, colors } = parseOmapXml(INK_TEST_OMAP);
+    const svg = buildSvg(objects, symbols, colors);
+
+    // Black stroke → data-cmyk-stroke="0,0,0,1"; brown → "0,0.56,1,0.18".
+    expect(svg).toMatch(/stroke="rgb\(0,0,0\)" data-cmyk-stroke="0,0,0,1"/);
+    expect(svg).toMatch(/stroke="rgb\(209,115,23\)" data-cmyk-stroke="0,0.56,1,0.18"/);
+    // Green area fill → data-cmyk-fill="0.76,0,0.91,0".
+    expect(svg).toMatch(/data-cmyk-fill="0.76,0,0.91,0"/);
+    // The synthetic white paper rect stays RGB (no CMYK attr).
+    expect(svg).toMatch(/fill="white"\/>/);
+    expect(svg).not.toMatch(/fill="white" data-cmyk/);
+  });
+});

@@ -222,6 +222,17 @@ export function PrintSettingsModal({ onClose }: PrintSettingsModalProps) {
               ))}
             </div>
           </div>
+          {/* Fit to page */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={pageSetup.fitToPage ?? true}
+              onChange={(e) => updatePageSetup({ fitToPage: e.target.checked })}
+              className="h-4 w-4 rounded border-edge-strong text-accent-text focus:ring-accent-edge"
+            />
+            <span className="text-sm text-content-2">{t('fitToPageLabel')}</span>
+          </label>
+
           {/* Show print boundary */}
           <label className="flex items-center gap-2 cursor-pointer">
             <input

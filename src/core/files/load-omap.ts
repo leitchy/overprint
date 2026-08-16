@@ -147,7 +147,7 @@ export interface OmapObject {
 import type { GeoReference } from '@/core/models/types';
 import { BASE_RASTER_LONG_SIDE } from './raster-config';
 import { rasterizeSvgToImage } from './rasterize-svg';
-import { INK_ATTR, INK_UPPER, isUpperInk, type CmykFractions } from './ink-classification';
+import { INK_ATTR, INK_UPPER, isUpperInk, mapColourGroup, type CmykFractions } from './ink-classification';
 
 interface LoadOmapResult {
   image: HTMLImageElement;
@@ -731,6 +731,34 @@ function colorStr(colors: Map<number, OmapColor>, index: number): string {
   return `rgb(${c.r},${c.g},${c.b})`;
 }
 
+/**
+ * DeviceCMYK companion to {@link colorStr}: emits a ` data-cmyk-fill="c,m,y,k"`
+ * (or `-stroke`) attribute (with a leading space) when the colour carries CMYK,
+ * else `''`. The vector-PDF exporter turns it into true DeviceCMYK to match
+ * PurplePen's muted print colour (Round 4); the browser ignores the unknown
+ * attribute on screen. Older OMAP exports without CMYK stay RGB everywhere.
+ */
+function cmykAttr(colors: Map<number, OmapColor>, index: number, which: 'fill' | 'stroke'): string {
+  if (index < 0) return '';
+  const c = colors.get(index);
+  if (!c || !c.cmyk) return '';
+  return ` data-cmyk-${which}="${c.cmyk.join(',')}"`;
+}
+
+/**
+ * `data-cat` attribute grouping this colour into a dimmable ISOM map-colour group
+ * (screen layer-dimming). Emitted only for the four dimmable groups (brown/blue/
+ * green/yellow) — `'other'` gets no attribute and always renders full strength.
+ * Classifies from the colour's own name first, then CMYK, then RGB.
+ */
+function catAttr(colors: Map<number, OmapColor>, index: number): string {
+  if (index < 0) return '';
+  const c = colors.get(index);
+  if (!c) return '';
+  const group = mapColourGroup(c.name, c.cmyk, { r: c.r, g: c.g, b: c.b });
+  return group === 'other' ? '' : ` data-cat="${group}"`;
+}
+
 /** Measure text width in pixels using an offscreen canvas context.
  *  Uses the same fallback font that the SVG data URL will use,
  *  so the measured width matches the rendered width exactly. */
@@ -815,7 +843,7 @@ function buildSvg(
           + `width="${spacing}" height="${spacing}" `
           + `patternTransform="rotate(${angleDeg}, 0, 0)">`
           + `<line x1="0" y1="${spacing / 2}" x2="${spacing}" y2="${spacing / 2}" `
-          + `stroke="${stroke}" stroke-width="${lw}"/>`
+          + `stroke="${stroke}"${cmykAttr(colors, pat.color, 'stroke')} stroke-width="${lw}"/>`
           + `</pattern>`,
         );
       } else if (pat.type === 2) {
@@ -833,9 +861,9 @@ function buildSvg(
             `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
             + `width="${colSpacing}" height="${rowSpacing * 2}" `
             + `patternTransform="rotate(${angleDeg}, 0, 0)">`
-            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
-            + `<circle cx="0" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"/>`
-            + `<circle cx="${colSpacing}" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"/>`
+            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"${cmykAttr(colors, pat.color, 'fill')}/>`
+            + `<circle cx="0" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"${cmykAttr(colors, pat.color, 'fill')}/>`
+            + `<circle cx="${colSpacing}" cy="${rowSpacing * 1.5}" r="${r}" fill="${fill}"${cmykAttr(colors, pat.color, 'fill')}/>`
             + `</pattern>`,
           );
         } else {
@@ -843,7 +871,7 @@ function buildSvg(
             `<pattern id="${patId}" patternUnits="userSpaceOnUse" `
             + `width="${colSpacing}" height="${rowSpacing}" `
             + `patternTransform="rotate(${angleDeg}, 0, 0)">`
-            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"/>`
+            + `<circle cx="${colSpacing / 2}" cy="${rowSpacing / 2}" r="${r}" fill="${fill}"${cmykAttr(colors, pat.color, 'fill')}/>`
             + `</pattern>`,
           );
         }
@@ -885,24 +913,24 @@ function buildSvg(
       // Solid fill (if inner_color / combined fill is set)
       const solidColor = sym.type === 4 ? sym.colorIndex : sym.fillColorIndex;
       if (solidColor >= 0) {
-        mapFrags.push({ pri: priOf(solidColor), svg: `<path d="${d}" fill="${colorStr(colors, solidColor)}" fill-rule="evenodd"${inkAttr(solidColor)}/>` });
+        mapFrags.push({ pri: priOf(solidColor), svg: `<path d="${d}" fill="${colorStr(colors, solidColor)}"${cmykAttr(colors, solidColor, 'fill')}${catAttr(colors, solidColor)} fill-rule="evenodd"${inkAttr(solidColor)}/>` });
       }
 
       // Pattern fill layers
       for (let pi = 0; pi < sym.patterns.length; pi++) {
         const patId = `pat-${sym.id}-${pi}`;
-        mapFrags.push({ pri: priOf(sym.patterns[pi]!.color), svg: `<path d="${d}" fill="url(#${patId})" fill-rule="evenodd"/>` });
+        mapFrags.push({ pri: priOf(sym.patterns[pi]!.color), svg: `<path d="${d}" fill="url(#${patId})" fill-rule="evenodd"${catAttr(colors, sym.patterns[pi]!.color)}/>` });
       }
 
       // Pattern-only symbols we couldn't fully parse: faint colour fallback
       if (solidColor < 0 && sym.patterns.length === 0 && sym.colorIndex >= 0) {
-        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="${colorStr(colors, sym.colorIndex)}" fill-rule="evenodd" opacity="0.35"/>` });
+        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="${colorStr(colors, sym.colorIndex)}"${cmykAttr(colors, sym.colorIndex, 'fill')}${catAttr(colors, sym.colorIndex)} fill-rule="evenodd" opacity="0.35"/>` });
       }
 
       // Combined symbols: border stroke on top of the fill (may be dashed)
       if (sym.type === 16 && sym.colorIndex >= 0 && sym.lineWidth > 0) {
         const dash = sym.dashArray ? ` stroke-dasharray="${sym.dashArray}"` : '';
-        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
+        mapFrags.push({ pri: priOf(sym.colorIndex), svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}"${cmykAttr(colors, sym.colorIndex, 'stroke')}${catAttr(colors, sym.colorIndex)} stroke-width="${sym.lineWidth}"${dash} stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
       }
     } else {
       const d = coordsToPath(obj.coords, false);
@@ -918,9 +946,9 @@ function buildSvg(
         // core (paint-order trick), emitted first so it stays underneath.
         if (sym.border) {
           const outer = sw + 2 * sym.border.shift + sym.border.width;
-          mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"${inkAttr(sym.border.color)}/>` });
+          mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.border.color)}"${cmykAttr(colors, sym.border.color, 'stroke')}${catAttr(colors, sym.border.color)} stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"${inkAttr(sym.border.color)}/>` });
         }
-        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}" stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
+        mapFrags.push({ pri, svg: `<path d="${d}" fill="none" stroke="${colorStr(colors, sym.colorIndex)}"${cmykAttr(colors, sym.colorIndex, 'stroke')}${catAttr(colors, sym.colorIndex)} stroke-width="${sw}"${dash} stroke-linecap="${cap}" stroke-linejoin="round"${inkAttr(sym.colorIndex)}/>` });
       }
 
       // Along-line glyphs: mid symbols repeated along each sub-path (walls, fences,
@@ -978,7 +1006,7 @@ function buildSvg(
       parts.push(svg);
     } else {
       // Fallback dot (glyphless symbol or a glyph that drew nothing)
-      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${colorStr(colors, sym.colorIndex)}"${inkAttr(sym.colorIndex)}/>`);
+      parts.push(`<circle cx="${c.x}" cy="${c.y}" r="80" fill="${colorStr(colors, sym.colorIndex)}"${cmykAttr(colors, sym.colorIndex, 'fill')}${catAttr(colors, sym.colorIndex)}${inkAttr(sym.colorIndex)}/>`);
     }
   }
 
@@ -1020,7 +1048,7 @@ function buildSvg(
     };
 
     const attrs = (anchor: string) =>
-      `fill="${fill}" font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"${inkAttr(sym.colorIndex)}`;
+      `fill="${fill}"${cmykAttr(colors, sym.colorIndex, 'fill')}${catAttr(colors, sym.colorIndex)} font-family="${fontFamily}" font-size="${sym.fontSize}" font-weight="${fontWeight}" font-style="${fontStyle}" text-anchor="${anchor}" dominant-baseline="${baseline}"${inkAttr(sym.colorIndex)}`;
 
     if (lines.length <= 1) {
       const lineText = lines[0] ?? '';
@@ -1303,29 +1331,32 @@ function renderGlyph(glyph: OmapPointGlyph, colors: Map<number, OmapColor>, tran
   if (glyph.elements.length > 0) {
     for (const elem of glyph.elements) {
       const elemFill = colorStr(colors, elem.color);
+      const elemCmykFill = cmykAttr(colors, elem.color, 'fill');
+      const elemCmykStroke = cmykAttr(colors, elem.color, 'stroke');
+      const elemCat = catAttr(colors, elem.color);
       if (elem.symType === 1 && elem.objType === 0 && elem.coords.length > 0) {
         const ep = elem.coords[0]!;
         if (glyph.innerRadius > 0 && glyph.innerColor >= 0) {
-          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"${cmykAttr(colors, glyph.innerColor, 'fill')}${catAttr(colors, glyph.innerColor)}/>`);
         }
         if (elem.lineWidth > 0) {
-          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius || 360}" fill="none" stroke="${elemFill}" stroke-width="${elem.lineWidth}"/>`);
+          inner.push(`<circle cx="${ep.x}" cy="${ep.y}" r="${glyph.innerRadius || 360}" fill="none" stroke="${elemFill}"${elemCmykStroke}${elemCat} stroke-width="${elem.lineWidth}"/>`);
         }
       } else if (elem.symType === 2 && elem.coords.length >= 2) {
         const d = coordsToPath(elem.coords, false);
         const sw = Math.max(elem.lineWidth, 50);
-        inner.push(`<path d="${d}" fill="none" stroke="${elemFill}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        inner.push(`<path d="${d}" fill="none" stroke="${elemFill}"${elemCmykStroke}${elemCat} stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`);
       } else if (elem.symType === 4 && elem.coords.length >= 3) {
         const d = coordsToPath(elem.coords, true);
-        inner.push(`<path d="${d}" fill="${elemFill}" fill-rule="evenodd"/>`);
+        inner.push(`<path d="${d}" fill="${elemFill}"${elemCmykFill}${elemCat} fill-rule="evenodd"/>`);
       }
     }
   } else {
     if (glyph.innerColor >= 0 && glyph.innerRadius > 0) {
-      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"/>`);
+      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="${colorStr(colors, glyph.innerColor)}"${cmykAttr(colors, glyph.innerColor, 'fill')}${catAttr(colors, glyph.innerColor)}/>`);
     }
     if (glyph.outerColor >= 0 && glyph.outerWidth > 0) {
-      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="none" stroke="${colorStr(colors, glyph.outerColor)}" stroke-width="${glyph.outerWidth}"/>`);
+      inner.push(`<circle cx="0" cy="0" r="${glyph.innerRadius}" fill="none" stroke="${colorStr(colors, glyph.outerColor)}"${cmykAttr(colors, glyph.outerColor, 'stroke')}${catAttr(colors, glyph.outerColor)} stroke-width="${glyph.outerWidth}"/>`);
     }
   }
   if (inner.length === 0) return '';

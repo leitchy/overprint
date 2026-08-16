@@ -32,6 +32,7 @@ import {
   LineCapStyle,
   LineJoinStyle,
   rgb,
+  cmyk,
   pushGraphicsState,
   popGraphicsState,
   concatTransformationMatrix,
@@ -109,15 +110,27 @@ interface Bbox {
   maxY: number;
 }
 
+/** DeviceCMYK components as fractions 0–1 (matches pdf-lib's `cmyk()`). */
+type Cmyk = readonly [number, number, number, number];
+
 /**
  * SVG paint properties inherited down the element tree. `fill` is always a
  * concrete value (SVG's initial value is `black`; OCAD roots override it with
  * `fill="transparent"`, which is why hardcoded per-shape defaults flood-fill
  * OCAD line paths black). `stroke`'s initial value is none (`null`).
+ *
+ * `fillCmyk`/`strokeCmyk` carry the DeviceCMYK the map loaders attach via
+ * `data-cmyk-fill`/`data-cmyk-stroke` alongside the rgb paint (screen ignores
+ * the unknown attrs; the PDF path emits true DeviceCMYK to match PurplePen's
+ * muted print colour — Round 4). They are **source-paired** with the rgb paint:
+ * an element that sets its own `fill` but no own `data-cmyk-fill` gets `null`,
+ * never an ancestor's CMYK (else a recoloured child would inherit a stale ink).
  */
 interface InheritedPaint {
   fill: string;
+  fillCmyk: Cmyk | null;
   stroke: string | null;
+  strokeCmyk: Cmyk | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +173,36 @@ export function parseColor(value: string | null | undefined): Color | null {
   }
 
   return null;
+}
+
+/**
+ * Read a `data-cmyk-fill` / `data-cmyk-stroke` attribute (four comma-separated
+ * fractions 0–1) as a {@link Cmyk} tuple, or `null` when absent or malformed.
+ *
+ * Attribute-only (never the `style` string) — the loaders emit it purely for
+ * the vector-PDF path; the browser ignores the unknown attribute on screen.
+ */
+function cmykAttr(el: Element, name: string): Cmyk | null {
+  const v = el.getAttribute(name);
+  if (!v) return null;
+  const parts = v.split(',').map((s) => Number(s.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return null;
+  return [parts[0]!, parts[1]!, parts[2]!, parts[3]!];
+}
+
+/**
+ * Resolve an SVG paint string plus its optional paired CMYK into a pdf-lib
+ * colour. A concrete CMYK wins over the rgb string (emit true DeviceCMYK), but
+ * `none`/`transparent`/empty still resolves to `null` (no paint) regardless —
+ * so the CMYK check sits BEFORE parseColor's colour handling, and after the
+ * no-paint short-circuit. `url(#…)` fills are handled by the caller, not here.
+ */
+function resolvePaintColor(raw: string | null | undefined, cmykVal: Cmyk | null): Color | null {
+  if (!raw) return null;
+  const v = raw.trim().toLowerCase();
+  if (v === '' || v === 'none' || v === 'transparent') return null;
+  if (cmykVal) return cmyk(cmykVal[0], cmykVal[1], cmykVal[2], cmykVal[3]);
+  return parseColor(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -572,10 +615,15 @@ function tileChildPrimitive(child: Element, inherited: InheritedPaint): TilePrim
   if (!pathOps) return null;
 
   // A bare line has no fillable area; everything else inherits the fill.
+  // CMYK is source-paired: own data-cmyk only when the child sets its own paint.
+  const ownFill = styleProp(child, 'fill');
+  const fillCmyk = ownFill !== undefined ? cmykAttr(child, 'data-cmyk-fill') : inherited.fillCmyk;
   const fillColor = tag === 'line'
     ? null
-    : parseColor(styleProp(child, 'fill') ?? inherited.fill);
-  const strokeColor = parseColor(styleProp(child, 'stroke') ?? inherited.stroke ?? undefined);
+    : resolvePaintColor(ownFill ?? inherited.fill, fillCmyk);
+  const ownStroke = styleProp(child, 'stroke');
+  const strokeCmyk = ownStroke !== undefined ? cmykAttr(child, 'data-cmyk-stroke') : inherited.strokeCmyk;
+  const strokeColor = resolvePaintColor(ownStroke ?? inherited.stroke ?? undefined, strokeCmyk);
   if (!fillColor && !strokeColor) return null;
 
   const ops: PDFOperator[] = [];
@@ -634,7 +682,9 @@ function collectPatterns(root: Element, rootPaint: InheritedPaint): Map<string, 
     if (children.length === 1 && children[0]!.tagName.toLowerCase() === 'line') {
       const line = children[0]!;
       const y1 = numAttr(line, 'y1');
-      const color = parseColor(styleProp(line, 'stroke') ?? rootPaint.stroke ?? undefined);
+      const ownStroke = styleProp(line, 'stroke');
+      const strokeCmyk = ownStroke !== undefined ? cmykAttr(line, 'data-cmyk-stroke') : rootPaint.strokeCmyk;
+      const color = resolvePaintColor(ownStroke ?? rootPaint.stroke ?? undefined, strokeCmyk);
       if (color && y1 === numAttr(line, 'y2')) {
         hLine = { y: y1, color, width: numProp(line, 'stroke-width') ?? 1 };
       }
@@ -719,8 +769,14 @@ interface ResolvedPaint {
 }
 
 function resolvePaint(ctx: RenderCtx, el: Element, inherited: InheritedPaint): ResolvedPaint {
-  const fillRaw = styleProp(el, 'fill') ?? inherited.fill;
-  const strokeRaw = styleProp(el, 'stroke') ?? inherited.stroke ?? undefined;
+  // Source-paired CMYK: an element's own paint carries its own data-cmyk; an
+  // inherited paint carries the ancestor's CMYK (never mix the two).
+  const ownFill = styleProp(el, 'fill');
+  const fillRaw = ownFill ?? inherited.fill;
+  const fillCmyk = ownFill !== undefined ? cmykAttr(el, 'data-cmyk-fill') : inherited.fillCmyk;
+  const ownStroke = styleProp(el, 'stroke');
+  const strokeRaw = ownStroke ?? inherited.stroke ?? undefined;
+  const strokeCmyk = ownStroke !== undefined ? cmykAttr(el, 'data-cmyk-stroke') : inherited.strokeCmyk;
 
   let fillColor: Color | null = null;
   let fillPatternId: string | null = null;
@@ -728,10 +784,10 @@ function resolvePaint(ctx: RenderCtx, el: Element, inherited: InheritedPaint): R
   if (urlMatch) {
     fillPatternId = urlMatch[1]!;
   } else {
-    fillColor = parseColor(fillRaw);
+    fillColor = resolvePaintColor(fillRaw, fillCmyk);
   }
 
-  const strokeColor = parseColor(strokeRaw);
+  const strokeColor = resolvePaintColor(strokeRaw, strokeCmyk);
   const strokeOps: PDFOperator[] = [];
   if (strokeColor) {
     strokeOps.push(setStrokingColor(strokeColor));
@@ -943,7 +999,7 @@ function renderLine(ctx: RenderCtx, el: Element, inherited: InheritedPaint): voi
   paintShape(ctx, el, ops, {
     evenOdd: false,
     bbox: null,
-    inherited: { fill: 'none', stroke: inherited.stroke },
+    inherited: { fill: 'none', fillCmyk: null, stroke: inherited.stroke, strokeCmyk: inherited.strokeCmyk },
   });
 }
 
@@ -994,7 +1050,9 @@ interface TextRun { text: string; x: number; y: number; anchor: string }
  * in SVG user units; the base CTM scales it onto the page.
  */
 function renderText(ctx: RenderCtx, el: Element, inherited: InheritedPaint): void {
-  const color = parseColor(styleProp(el, 'fill') ?? inherited.fill);
+  const ownFill = styleProp(el, 'fill');
+  const fillCmyk = ownFill !== undefined ? cmykAttr(el, 'data-cmyk-fill') : inherited.fillCmyk;
+  const color = resolvePaintColor(ownFill ?? inherited.fill, fillCmyk);
   if (!color) return;
   const fontSize = numProp(el, 'font-size') ?? 16;
   if (fontSize <= 0) return;
@@ -1057,7 +1115,13 @@ function inheritPaint(el: Element, inherited: InheritedPaint): InheritedPaint {
   const fill = styleProp(el, 'fill');
   const stroke = styleProp(el, 'stroke');
   if (fill === undefined && stroke === undefined) return inherited;
-  return { fill: fill ?? inherited.fill, stroke: stroke ?? inherited.stroke };
+  // Source-paired: a channel's CMYK is re-read only when that channel is re-set.
+  return {
+    fill: fill ?? inherited.fill,
+    fillCmyk: fill !== undefined ? cmykAttr(el, 'data-cmyk-fill') : inherited.fillCmyk,
+    stroke: stroke ?? inherited.stroke,
+    strokeCmyk: stroke !== undefined ? cmykAttr(el, 'data-cmyk-stroke') : inherited.strokeCmyk,
+  };
 }
 
 function renderElement(ctx: RenderCtx, el: Element, inherited: InheritedPaint, inkActive = false): void {
@@ -1134,9 +1198,13 @@ export async function renderSvgToScratchPdf(svg: string, options: RenderSvgOptio
   // fill="transparent", which is what makes their line paths stroke-only.
   // Pattern content sits outside the render tree and inherits from the root
   // too, so the same context seeds collectPatterns.
+  const rootFill = styleProp(root, 'fill');
+  const rootStroke = styleProp(root, 'stroke');
   const rootPaint: InheritedPaint = {
-    fill: styleProp(root, 'fill') ?? 'black',
-    stroke: styleProp(root, 'stroke') ?? null,
+    fill: rootFill ?? 'black',
+    fillCmyk: rootFill !== undefined ? cmykAttr(root, 'data-cmyk-fill') : null,
+    stroke: rootStroke ?? null,
+    strokeCmyk: rootStroke !== undefined ? cmykAttr(root, 'data-cmyk-stroke') : null,
   };
 
   const ctx: RenderCtx = {

@@ -360,8 +360,10 @@ describe('importPpen — special objects', () => {
     const text = event.specialItems.find((i) => i.type === 'text');
     const colouredRect = event.specialItems.find((i) => i.type === 'rectangle' && i.color);
     const plainRect = event.specialItems.find((i) => i.type === 'rectangle' && !i.color);
-    expect(text?.color).toBe('#00ffff'); // cmyk 1,0,0,0
-    expect(colouredRect?.color).toBe('#00ffff');
+    // cmyk 1,0,0,0 → muted coated-cyan sRGB (matches the DeviceCMYK the PDF emits),
+    // not the naïve pure #00ffff which looked nothing like the print/export.
+    expect(text?.color).toBe('#2199d9');
+    expect(colouredRect?.color).toBe('#2199d9');
     expect(plainRect).toBeDefined();
     expect(plainRect!.color).toBeUndefined(); // no appearance → unset → defaults black at render
   });

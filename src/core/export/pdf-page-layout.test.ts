@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeCourseBounds, computeMapViewport, computePageLayout } from './pdf-page-layout';
+import { computeCourseBounds, computeMapViewport, computePageLayout, computeMultiPageViewports } from './pdf-page-layout';
 import type { Course, Control } from '@/core/models/types';
 import type { ControlId, CourseId } from '@/utils/id';
 import { DEFAULT_PAGE_SETUP } from '@/core/models/defaults';
@@ -58,6 +58,38 @@ describe('computeCourseBounds', () => {
 
     const bounds = computeCourseBounds(course, controls);
     expect(bounds).toEqual({ minX: 250, minY: 400, maxX: 250, maxY: 400 });
+  });
+});
+
+describe('computeMultiPageViewports — fit to page', () => {
+  const layout = computePageLayout(DEFAULT_PAGE_SETUP); // A4 portrait, 10mm margins
+  // A print area far bigger than one page at 1:3000 (would tile).
+  const bigArea = { minX: 0, minY: 0, maxX: 8000, maxY: 6000 };
+
+  it('tiles into multiple pages when fit-to-page is OFF', () => {
+    const r = computeMultiPageViewports(
+      layout, 3000, 3000, 300, 8000, 6000, bigArea, 30, 15, bigArea, false,
+    );
+    expect(r.viewports.length).toBeGreaterThan(1);
+    expect(r.effectivePrintScale).toBe(3000); // unchanged
+  });
+
+  it('shrinks to ONE page when fit-to-page is ON, and reports the fitted scale', () => {
+    const r = computeMultiPageViewports(
+      layout, 3000, 3000, 300, 8000, 6000, bigArea, 30, 15, bigArea, true,
+    );
+    expect(r.viewports.length).toBe(1);
+    expect(r.effectivePrintScale).toBeGreaterThan(3000); // shrunk (larger denominator)
+    expect(r.effectivePrintScale % 50).toBe(0); // rounded up to a nice value
+  });
+
+  it('never enlarges — content that already fits keeps the requested scale', () => {
+    const smallArea = { minX: 0, minY: 0, maxX: 500, maxY: 400 };
+    const r = computeMultiPageViewports(
+      layout, 3000, 3000, 300, 8000, 6000, smallArea, 30, 15, smallArea, true,
+    );
+    expect(r.viewports.length).toBe(1);
+    expect(r.effectivePrintScale).toBe(3000); // shrink-only: unchanged
   });
 });
 

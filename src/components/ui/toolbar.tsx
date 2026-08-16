@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { loadMapFile, loadEventFile, importIofXmlFile } from '@/core/files/load-map-file';
 import { serializeEvent } from '@/core/files/overprint-format';
-import { saveBlob, saveString } from '@/core/files/download';
+import { beginSave, saveBlob, saveString } from '@/core/files/download';
 // Heavy exporters and format parsers are lazy-imported to keep initial bundle small
 import { useEventStore } from '@/stores/event-store';
 import { useMapImageStore } from '@/stores/map-image-store';
@@ -263,24 +263,16 @@ export function Toolbar() {
     const mapSource = getExportMapSource();
     if (!currentEvent || !mapImage) return;
 
+    const courseName = currentEvent.courses[0]?.name ?? 'Course';
+    const suggestedName = `${currentEvent.name} - ${courseName}.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
     try {
-      // Open save dialog FIRST to preserve user gesture, then generate PDF
+      // Open the save dialog FIRST (while the user gesture is fresh), THEN
+      // import + generate the PDF — the import await would otherwise expire
+      // Chrome's transient activation and the picker would silently no-op.
+      const save = await beginSave(suggestedName);
       const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
-      const courseName = currentEvent.courses[0]?.name ?? 'Course';
-      const suggestedName = `${currentEvent.name} - ${courseName}.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
-
-      if ('showSaveFilePicker' in window) {
-        // Get file handle while gesture is still valid
-        const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf, mapSource);
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        // Fallback: generate then auto-download
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf, mapSource);
-        await saveBlob(blob, suggestedName);
-      }
+      const { blob } = await generateCoursePdf(currentEvent, mapImage, {}, pdfBuf, mapSource);
+      await save.write(blob);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('PDF export failed:', err);
@@ -294,21 +286,14 @@ export function Toolbar() {
     const mapSource = getExportMapSource();
     if (!currentEvent || !mapImage) return;
 
+    const suggestedName = `${currentEvent.name} - All Courses.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
     try {
+      // Picker first (fresh gesture), then import + generate — see handleExportPdf.
+      const save = await beginSave(suggestedName);
       const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
       const courseIndices = currentEvent.courses.map((_: unknown, i: number) => i);
-      const suggestedName = `${currentEvent.name} - All Courses.pdf`.replace(/[^a-zA-Z0-9-_ .]/g, '');
-
-      if ('showSaveFilePicker' in window) {
-        const handle = await window.showSaveFilePicker({ suggestedName });
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf, mapSource);
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf, mapSource);
-        await saveBlob(blob, suggestedName);
-      }
+      const { blob } = await generateCoursePdf(currentEvent, mapImage, { courseIndices }, pdfBuf, mapSource);
+      await save.write(blob);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('PDF export all courses failed:', err);
@@ -323,11 +308,10 @@ export function Toolbar() {
     if (!currentEvent || !mapImage) return;
 
     try {
-      const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
-
       if (window.showDirectoryPicker) {
-        // Chrome/Edge: pick folder, write all course PDFs there
+        // Chrome/Edge: pick folder FIRST (fresh gesture), then import + generate.
         const dirHandle = await window.showDirectoryPicker();
+        const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
         for (let i = 0; i < currentEvent.courses.length; i++) {
           const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf, mapSource);
           const fileHandle = await dirHandle.getFileHandle(suggestedName, { create: true });
@@ -337,6 +321,7 @@ export function Toolbar() {
         }
       } else {
         // Fallback: sequential auto-downloads
+        const { generateCoursePdf } = await import('@/core/export/pdf-course-map');
         for (let i = 0; i < currentEvent.courses.length; i++) {
           const { blob, suggestedName } = await generateCoursePdf(currentEvent, mapImage, { courseIndex: i }, pdfBuf, mapSource);
           await saveBlob(blob, suggestedName);
@@ -355,10 +340,17 @@ export function Toolbar() {
     if (!stage) return;
 
     const ext = format === 'jpeg' ? 'jpg' : 'png';
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const baseName = currentEvent?.name ?? 'export';
     const suggestedName = `${baseName.replace(/[^a-zA-Z0-9-_ ]/g, '')}.${ext}`;
 
     try {
+      // Open the save dialog FIRST (fresh gesture), then composite + encode —
+      // the compositing/encode awaits would otherwise expire Chrome activation.
+      const save = await beginSave(suggestedName, [
+        { description: format.toUpperCase(), accept: { [mimeType]: [`.${ext}`] } },
+      ]);
+
       // Manual layer compositing to capture CSS mix-blend-mode (multiply)
       // which stage.toCanvas() does not apply.
       const pixelRatio = 2;
@@ -392,19 +384,7 @@ export function Toolbar() {
 
       const { generateImageBlob } = await import('@/core/export/image-export');
       const { blob } = await generateImageBlob(canvas, format);
-
-      if ('showSaveFilePicker' in window) {
-        const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-        const handle = await (window as Window & typeof globalThis).showSaveFilePicker({
-          suggestedName,
-          types: [{ description: format.toUpperCase(), accept: { [mimeType]: [`.${ext}`] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        await saveBlob(blob, suggestedName);
-      }
+      await save.write(blob);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error(`${format.toUpperCase()} export failed:`, err);
@@ -415,20 +395,18 @@ export function Toolbar() {
     const currentEvent = useEventStore.getState().event;
     if (!currentEvent) return;
 
+    // Suggested name mirrors generateDescriptionSheetPdf (course index 0).
+    const descCourseName = currentEvent.courses[0]?.name ?? 'Course';
+    const suggestedName = `${currentEvent.name} - ${descCourseName} Descriptions.pdf`
+      .replace(/[^a-zA-Z0-9-_ .]/g, '');
     try {
+      // Picker first (fresh gesture), then import + generate — see handleExportPdf.
+      const save = await beginSave(suggestedName);
       const { generateDescriptionSheetPdf } = await import(
         '@/core/export/pdf-description-sheet'
       );
-      const { blob, suggestedName } = await generateDescriptionSheetPdf(currentEvent);
-
-      if ('showSaveFilePicker' in window) {
-        const handle = await window.showSaveFilePicker({ suggestedName });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } else {
-        await saveBlob(blob, suggestedName);
-      }
+      const { blob } = await generateDescriptionSheetPdf(currentEvent);
+      await save.write(blob);
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('Description PDF export failed:', err);

@@ -167,14 +167,17 @@ describe('generateCoursePdf true colour-order (vector path)', () => {
     expect(upperPurple).toBeGreaterThan(secondDo);
   });
 
-  it('ISOM keeps the upper purple pass empty but still redraws the upper inks', async () => {
+  it('ISOM draws legs below the upper inks but circles + numbers on top', async () => {
     const { content } = await exportAndLoad(makeEvent('ISOM2017'));
     const doMatches = [...content.matchAll(/\/\S+ Do/g)];
     expect(doMatches.length).toBe(2);
-    // Numbers (704) are LOWER on ISOM → purple text fill before the second Do.
-    const purpleText = content.indexOf(PURPLE_FILL);
-    expect(purpleText).toBeGreaterThan(-1);
-    expect(purpleText).toBeLessThan(doMatches[1]!.index);
+    const secondDo = doMatches[1]!.index;
+    // Legs (first purple stroke) sit BELOW the redrawn upper inks so brown/black
+    // map detail shows through the solid purple leg where it crosses.
+    expect(content.indexOf(PURPLE_STROKE)).toBeLessThan(secondDo);
+    // Control numbers (purple fill) are drawn AFTER the upper-ink redraw — on top —
+    // so a brown contour never crosses the number a runner must read.
+    expect(content.indexOf(PURPLE_FILL)).toBeGreaterThan(secondDo);
   });
 
   it('sets no Multiply blend anywhere on the vector colour-order path', async () => {

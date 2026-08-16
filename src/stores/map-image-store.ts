@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { MapColourGroup } from '@/core/files/ink-classification';
 
 type MapImageSource = HTMLImageElement | HTMLCanvasElement | null;
 
@@ -23,6 +24,13 @@ interface MapImageState {
    * off this so a mid-zoom bitmap swap doesn't reset the viewport.
    */
   mapVersion: number;
+  /**
+   * Map-colour groups the setter has dimmed on screen (declutter aid). Screen-only
+   * and **per-map/session** — never persisted, and reset whenever a new map loads
+   * (hidden layers must not silently carry over to a different map). Exports never
+   * read this. See core/files/apply-map-dimming.ts.
+   */
+  dimmedMapGroups: MapColourGroup[];
 }
 
 interface MapImageActions {
@@ -35,6 +43,10 @@ interface MapImageActions {
   /** Swap the displayed bitmap only, preserving logical dimensions and mapVersion. */
   setImageBitmap: (image: MapImageSource) => void;
   setPdfArrayBuffer: (buffer: ArrayBuffer | null) => void;
+  /** Toggle one dimmable group on/off. */
+  toggleMapGroup: (group: MapColourGroup) => void;
+  /** Replace the whole dimmed set (e.g. the "Declutter" preset or "Reset"). */
+  setDimmedMapGroups: (groups: MapColourGroup[]) => void;
   clear: () => void;
 }
 
@@ -46,6 +58,7 @@ export const useMapImageStore = create<MapImageState & MapImageActions>()(
     pdfArrayBuffer: null,
     rerender: null,
     mapVersion: 0,
+    dimmedMapGroups: [],
 
     setImage: (image, width, height, rerender = null) => {
       set((state) => ({
@@ -54,6 +67,7 @@ export const useMapImageStore = create<MapImageState & MapImageActions>()(
         imageHeight: height,
         rerender,
         mapVersion: state.mapVersion + 1,
+        dimmedMapGroups: [], // new map → clear any dimming (no silent carry-over)
       }));
     },
 
@@ -65,6 +79,18 @@ export const useMapImageStore = create<MapImageState & MapImageActions>()(
       set({ pdfArrayBuffer: buffer });
     },
 
+    toggleMapGroup: (group) => {
+      set((state) => ({
+        dimmedMapGroups: state.dimmedMapGroups.includes(group)
+          ? state.dimmedMapGroups.filter((g) => g !== group)
+          : [...state.dimmedMapGroups, group],
+      }));
+    },
+
+    setDimmedMapGroups: (groups) => {
+      set({ dimmedMapGroups: groups });
+    },
+
     clear: () => {
       set((state) => ({
         image: null,
@@ -73,6 +99,7 @@ export const useMapImageStore = create<MapImageState & MapImageActions>()(
         pdfArrayBuffer: null,
         rerender: null,
         mapVersion: state.mapVersion + 1,
+        dimmedMapGroups: [],
       }));
     },
   }),

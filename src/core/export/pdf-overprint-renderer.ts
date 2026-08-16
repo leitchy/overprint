@@ -46,32 +46,36 @@ export function pdfPolylineToSvgPath(points: MapPoint[]): string {
  * on-screen viewers (which ignore OP unless overprint-preview is on) still show map
  * detail through the purple. Returns the resource name to pass to setGraphicsState.
  */
-function registerOverprintGState(page: PDFPage, multiply: boolean): PDFName {
+function registerOverprintGState(
+  page: PDFPage,
+  { overprint, multiply }: { overprint: boolean; multiply: boolean },
+): PDFName {
   const dict = page.doc.context.obj({
     Type: 'ExtGState',
-    OP: true,
-    op: true,
-    OPM: 1,
+    ...(overprint ? { OP: true, op: true, OPM: 1 } : {}),
     ...(multiply ? { BM: 'Multiply' } : {}),
   });
   return page.node.newExtGState('OP', dict);
 }
 
 /**
- * Which IOF purple layer to render (Printing & Colour Defs Rev 4 §6).
+ * Which part of the overprint to render, so the caller can interleave the map's
+ * black/brown/blue linework between them (the PurplePen-matching order):
  *
- * Of the symbols THIS renderer draws, the split is:
- * - lower (below map black/brown/blue 100%): 701 start, 703 circle, 705 legs,
- *   706 finish, 710.1 crossing point, 715 map exchange/flip, and 704 numbers
- *   on ISOM maps.
- * - upper (above the map inks): 704 numbers on ISSprOM (sprint) maps. The
- *   other upper symbols (702, 707, 709, 711, 710.2, 714) are special items
- *   rendered elsewhere.
+ *   1. `'legs'`   — connecting lines (705). Drawn UNDER the map's upper inks and
+ *                   with the Multiply blend, so contours/streams a leg crosses
+ *                   still show through the solid purple (ISOM §3.7 intent).
+ *   2. map upper-ink redraw (black/brown/blue 100%) happens between the calls.
+ *   3. `'symbols'` — the locating marks: control circle (703), start (701),
+ *                    finish (706), crossing (710.1), map exchange/flip (715),
+ *                    and the control NUMBERS (704, with a white halo). Drawn
+ *                    SOLID (no Multiply) and ON TOP of the upper inks, so a brown
+ *                    contour never crosses the circle the runner must read.
  *
- * When omitted, BOTH layers are drawn in one pass (legacy behaviour, used by
- * the raster export path where no colour-order exists anyway).
+ * When omitted, BOTH parts draw in one pass (legacy raster fallback — there is no
+ * upper-ink redraw to sit between them anyway).
  */
-export type OverprintLayer = 'lower' | 'upper';
+export type OverprintPart = 'legs' | 'symbols';
 
 interface PdfOverprintContext {
   page: PDFPage;
@@ -82,8 +86,8 @@ interface PdfOverprintContext {
   effectivePPP: number;
   /** Offset added to sequence numbers when rendering a course part (default 0). */
   sequenceOffset?: number;
-  /** Render only this purple layer (see {@link OverprintLayer}). Omit = both. */
-  layer?: OverprintLayer;
+  /** Render only legs, or only the locating symbols (see {@link OverprintPart}). Omit = both. */
+  parts?: OverprintPart;
   /**
    * True on the vector-PDF colour-order path (D2): the purple is a solid spot
    * overprint (OP flag only, NO Multiply blend). With true colour-order the
@@ -114,7 +118,11 @@ export function renderOverprint(
   const { page, settings } = ctx;
   // Item-scaling multiplier — applied to every SYMBOL dimension (not positions).
   const k = ctx.sizeMultiplier ?? 1;
-  const lineWidth = mmToPdfPoints(settings.lineWidth) * k;
+  // Line width scales with item-scaling, but never prints THINNER than the IOF
+  // spec (0.35 mm) — a reduced print scale (k < 1) used to yield hairline,
+  // barely-visible overprint. Floor at the spec width for legible print output.
+  const specLineWidth = mmToPdfPoints(settings.lineWidth);
+  const lineWidth = Math.max(specLineWidth, specLineWidth * k);
 
   // Resolve controls with positions and their source CourseControl. `index` is the
   // position in `course.controls` (NOT in `resolved`) — leg geometry lookups must use
@@ -137,21 +145,21 @@ export function renderOverprint(
 
   if (resolved.length === 0) return;
 
-  // Layer split (see OverprintLayer): control numbers (704) are the only
-  // upper-purple symbol this renderer draws, and only on sprint maps.
-  const isSprint = settings.mapStandard === 'ISSprOM2019';
-  const numbersAreUpper = isSprint;
-  const layer = ctx.layer;
-  const drawShapes = layer !== 'upper'; // legs, circles, start, finish, etc. = lower
-  const drawNumbers = layer === undefined || (layer === 'upper') === numbersAreUpper;
-  if (!drawShapes && !drawNumbers) return; // upper pass on ISOM: nothing to draw
+  // Phase split (see OverprintPart): legs draw under the map's upper inks; the
+  // locating symbols + numbers draw solid, on top.
+  const drawLegs = ctx.parts !== 'symbols';
+  const drawSymbols = ctx.parts !== 'legs';
 
-  // Wrap the whole overprint layer in an ExtGState (overprint flag + optional
-  // Multiply blend). Drawn after the base map + white-outs, so this scope covers
-  // only the purple overprint. pdf-lib's per-draw q/Q nest inside this outer scope.
-  // On the true colour-order path (solidOverprint) the blend is forced OFF.
-  const multiply = ctx.solidOverprint ? false : (ctx.settings.overprintBlend ?? true);
-  const gsName = registerOverprintGState(page, multiply);
+  // Wrap the pass in an ExtGState. The SYMBOLS phase draws OPAQUE (no overprint,
+  // no Multiply): it sits on top of the map, so it must read at full purple
+  // strength and its white number halo must actually knock the map out — under
+  // the OP overprint flag white paints nothing, and under Multiply white is a
+  // no-op. Legs keep the overprint flag (+ optional Multiply on the raster path)
+  // so map detail shows through the solid purple they cross.
+  const isSymbolsPass = ctx.parts === 'symbols';
+  const overprint = !isSymbolsPass;
+  const multiply = isSymbolsPass || ctx.solidOverprint ? false : (settings.overprintBlend ?? true);
+  const gsName = registerOverprintGState(page, { overprint, multiply });
   page.pushOperators(pushGraphicsState(), setGraphicsState(gsName));
 
   // Dimension helpers (IOF mm × item-scaling multiplier, in PDF points)
@@ -176,9 +184,9 @@ export function renderOverprint(
     );
   }
 
-  // Draw legs first (behind shapes). Legs (705) are lower purple.
+  // Draw legs first (behind shapes). Legs (705) sit under the map's upper inks.
   // Score courses have no ordered legs — skip them entirely.
-  if (drawShapes && course.courseType !== 'score') {
+  if (drawLegs && course.courseType !== 'score') {
     // Auto leg-cut gaps, computed in PDF-point space (same as the drawn paths).
     const pdfRadius = (type: CourseControlType): number =>
       type === 'start' || type === 'mapExchange' || type === 'mapFlip' ? startTriangleSide / Math.sqrt(3)
@@ -270,72 +278,104 @@ export function renderOverprint(
     fanRadiusMapPx,
   );
 
-  // Draw shapes and numbers
-  for (let ri = 0; ri < resolved.length; ri++) {
-    const { control, type, index } = resolved[ri]!;
-    const numberOffset = fanOffsets[ri];
-    const pt = ctx.toPdf(control.position);
+  // Draw the locating symbols + numbers (solid, on top of the map upper inks).
+  const haloWidth = Math.max(lineWidth, mmToPdfPoints(0.3));
+  if (drawSymbols) {
+    for (let ri = 0; ri < resolved.length; ri++) {
+      const { control, type, index } = resolved[ri]!;
+      const numberOffset = fanOffsets[ri];
+      const pt = ctx.toPdf(control.position);
 
-    if (!drawShapes) {
-      // Upper pass: skip all shapes, fall through to the (upper) numbers.
-    } else if (type === 'start') {
-      drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget);
-    } else if (type === 'finish') {
-      drawFinishCircles(page, pt, finishOuterRadius, finishInnerRadius, lineWidth);
-    } else if (type === 'crossingPoint') {
-      drawCrossingPoint(page, pt, crossingPointArm, lineWidth);
-    } else if (type === 'mapExchange' || type === 'mapFlip') {
-      // Inverted triangle — rotated π from start direction
-      drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
-    } else if (control.circleGaps && control.circleGaps.length > 0) {
-      drawGappedCircle(page, pt, circleRadius, lineWidth, control.circleGaps);
-    } else {
-      page.drawCircle({
-        x: pt.x,
-        y: pt.y,
-        size: circleRadius,
-        borderColor: PURPLE,
-        borderWidth: lineWidth,
-      });
-    }
+      if (type === 'start') {
+        drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget);
+      } else if (type === 'finish') {
+        drawFinishCircles(page, pt, finishOuterRadius, finishInnerRadius, lineWidth);
+      } else if (type === 'crossingPoint') {
+        drawCrossingPoint(page, pt, crossingPointArm, lineWidth);
+      } else if (type === 'mapExchange' || type === 'mapFlip') {
+        // Inverted triangle — rotated π from start direction
+        drawStartTriangle(page, pt, startTriangleSide, lineWidth, startTarget, Math.PI);
+      } else if (control.circleGaps && control.circleGaps.length > 0) {
+        drawGappedCircle(page, pt, circleRadius, lineWidth, control.circleGaps);
+      } else {
+        page.drawCircle({
+          x: pt.x,
+          y: pt.y,
+          size: circleRadius,
+          borderColor: PURPLE,
+          borderWidth: lineWidth,
+        });
+      }
 
-    // Compute label text from course labelMode setting
-    const labelMode = course.settings.labelMode ?? 'sequence';
-    const seqNum = index + (ctx.sequenceOffset ?? 0) + 1;
-    let labelText: string;
-    if (labelMode === 'sequence') {
-      labelText = String(seqNum);
-    } else if (labelMode === 'code') {
-      labelText = String(control.code);
-    } else if (labelMode === 'both') {
-      labelText = `${seqNum} (${control.code})`;
-    } else {
-      labelText = '';
-    }
+      // Compute label text from course labelMode setting
+      const labelMode = course.settings.labelMode ?? 'sequence';
+      const seqNum = index + (ctx.sequenceOffset ?? 0) + 1;
+      let labelText: string;
+      if (labelMode === 'sequence') {
+        labelText = String(seqNum);
+      } else if (labelMode === 'code') {
+        labelText = String(control.code);
+      } else if (labelMode === 'both') {
+        labelText = `${seqNum} (${control.code})`;
+      } else {
+        labelText = '';
+      }
 
-    // Label — default offset to the right of the shape, then apply
-    // the user-defined numberOffset (stored in map pixels, converted via effectivePPP).
-    // PDF Y-axis is inverted relative to screen (bottom-left origin), so negate Y.
-    if (drawNumbers && labelText !== '') {
-      const baseOffsetX = shapeOffset(type) + lineWidth;
-      const baseOffsetY = -numberSize * 0.35;
+      // Label — default offset to the right of the shape, then apply
+      // the user-defined numberOffset (stored in map pixels, converted via effectivePPP).
+      // PDF Y-axis is inverted relative to screen (bottom-left origin), so negate Y.
+      if (labelText !== '') {
+        // Control CODES render smaller than sequence NUMBERS (PurplePen: 3.0mm
+        // code digit vs 4.0mm number digit) — otherwise all-controls code labels
+        // are oversized.
+        const labelDigitPt = labelMode === 'code' ? mmToPdfPoints(3.0) * k : numberSize;
+        const baseOffsetX = shapeOffset(type) + lineWidth;
+        const baseOffsetY = -labelDigitPt * 0.35;
 
-      const numOffsetX = numberOffset ? numberOffset.x * ctx.effectivePPP : 0;
-      const numOffsetY = numberOffset ? -(numberOffset.y * ctx.effectivePPP) : 0;
+        const numOffsetX = numberOffset ? numberOffset.x * ctx.effectivePPP : 0;
+        const numOffsetY = numberOffset ? -(numberOffset.y * ctx.effectivePPP) : 0;
 
-      page.drawText(labelText, {
-        x: pt.x + baseOffsetX + numOffsetX,
-        y: pt.y + baseOffsetY + numOffsetY,
-        // numberSize is the digit (cap) height; convert to font Em. Helvetica here
-        // is already non-bold, per spec.
-        size: numberSize * NUMBER_DIGIT_HEIGHT_TO_EM,
-        font,
-        color: PURPLE,
-      });
+        drawHaloedText(page, labelText, {
+          x: pt.x + baseOffsetX + numOffsetX,
+          y: pt.y + baseOffsetY + numOffsetY,
+          // digit (cap) height → font Em.
+          size: labelDigitPt * NUMBER_DIGIT_HEIGHT_TO_EM,
+          font,
+          haloWidth,
+        });
+      }
     }
   }
 
   page.pushOperators(popGraphicsState());
+}
+
+/** White CMYK for the number halo (opaque knock-out — drawn in the opaque symbols pass). */
+const HALO_WHITE = cmyk(0, 0, 0, 0);
+
+/**
+ * Draw control-number text with a white halo so it stays legible over busy map
+ * detail (PurplePen renders the same white framing behind the glyphs). The halo
+ * is eight white copies offset around the glyph, then the purple fill on top —
+ * robust across pdf renderers (pdf-lib's drawText exposes no stroke/framing).
+ * Must be called inside the OPAQUE symbols pass, or the white would not knock out.
+ */
+function drawHaloedText(
+  page: PDFPage,
+  text: string,
+  opts: { x: number; y: number; size: number; font: PDFFont; haloWidth: number },
+): void {
+  const { x, y, size, font, haloWidth } = opts;
+  const r = haloWidth;
+  const diag = r * Math.SQRT1_2;
+  const offsets: Array<[number, number]> = [
+    [r, 0], [-r, 0], [0, r], [0, -r],
+    [diag, diag], [diag, -diag], [-diag, diag], [-diag, -diag],
+  ];
+  for (const [dx, dy] of offsets) {
+    page.drawText(text, { x: x + dx, y: y + dy, size, font, color: HALO_WHITE });
+  }
+  page.drawText(text, { x, y, size, font, color: PURPLE });
 }
 
 /**
