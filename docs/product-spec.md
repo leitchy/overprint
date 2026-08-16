@@ -112,7 +112,7 @@ A free, web-based orienteering course setting tool that runs on any device with 
 
 - [x] OpenOrienteering Mapper (.omap) file loading — XML format, render map layers to canvas
 - [x] OpenOrienteering Mapper (.xmap) support
-- [ ] Map layer visibility toggles
+- [x] Map layer visibility toggles (screen dimming of OCAD/OMAP colour groups — contours/water/vegetation/open)
 
 ### Phase 6 — Polish & Community
 **Goal**: Production-ready for the orienteering community.
@@ -142,8 +142,9 @@ Near-term planned work, in priority order:
   glare). Screen-only — never affects exports. See [ADR-019](adrs/ADR-019-dark-mode.md).
 - [ ] **Course appearance customisation** — per-event control-circle size, line width, and number size.
   Number size is already adjustable; extend to circle and line width and surface as appearance settings.
-- [ ] **Map layer visibility toggles** — show/hide OCAD/OMAP map layers for busy maps (also tracked
-  under Phase 5).
+- [x] **Map layer visibility toggles** — screen dimming of OCAD/OMAP colour groups (contours/water/
+  vegetation/open) to declutter a busy map; grouped by the map's own colour table, screen-only. See
+  `docs/research/map-layer-toggles-plan.md`.
 
 ## Non-Goals (for now)
 

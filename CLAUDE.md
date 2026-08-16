@@ -196,6 +196,34 @@ overprint/
   (`pwa-store.test.ts`) and a **Playwright offline e2e harness** (`tests/e2e/pwa-offline.spec.ts`,
   `pnpm test:e2e`, own CI job) that cuts the network mid-session and asserts the sample OCAD map +
   course still render from cache. See [ADR-018](docs/adrs/ADR-018-offline-pwa.md).
+- **DeviceCMYK colour fidelity in the vector PDF** — the OCAD/OMAP map layer now emits true
+  DeviceCMYK (matching PurplePen's muted print look) instead of vivid DeviceRGB. Each map colour's
+  CMYK is threaded to the exporter via `data-cmyk-fill`/`-stroke` attributes alongside the rgb paint
+  (screen ignores them); `svg-to-pdf` emits `cmyk()` at every colour sink (fills, strokes, pattern
+  tiles, `hLine`, text, source-paired inheritance). OCAD builds an rgb→CMYK map (collision-guarded)
+  in `tagUpperInkElements`; OMAP emits `cmykAttr` at all `buildSvg` sites incl. `renderGlyph`. `.ppen`
+  furniture (notes/text/rects) also carries CMYK (`SpecialItemBase.colorCmyk`). Raster fallback stays
+  RGB (documented divergence). Full writeup: `docs/research/pdf-print-quality-vs-purplepen.md`.
+- **Screen ↔ PDF consistency** — on-screen overprint now draws at the true print line width
+  (`SCREEN_LINE_MULTIPLIER = 1`, was 2× bold); imported `.ppen` furniture uses a muted coated-CMYK→
+  sRGB conversion so screen titles/borders read like the DeviceCMYK PDF; PDF description box ~17%
+  smaller and the title is clamped inside the printable area. (Title-vs-PurplePen fine-positioning and
+  exact colour-space matching remain open follow-ups — see the research doc.)
+- **Reliable save dialogs** — every export/save acquires the file-picker as the FIRST `await` (via
+  `beginSave` in `download.ts`) before any dynamic import / generation, so Chrome's transient user
+  activation isn't consumed and the dialog opens on the first click. Dev server defaults to **plain
+  HTTP** (`vite.config.ts`, `HTTPS=1` opt-in) — a self-signed cert silently suppresses Chrome's File
+  System Access dialogs.
+- **Map colour dimming (screen layer toggles)** — dim groups of OCAD/OMAP map colours (contours/
+  water/vegetation/open land) to declutter a busy map while placing controls. Colours are grouped by
+  the map's own colour table (name-first, CMYK/RGB fallback) into a dimmable `MapColourGroup`
+  (`ink-classification.ts`); loaders stamp `data-cat` on rendered SVG elements (OCAD from effective
+  inherited paint; OMAP at all sites incl. pattern-fill areas). `applyMapDimming` injects a `<style>`
+  opacity rule (nothing removed → features stay ghost-visible, safe); the re-raster hook re-renders on
+  a dim change (keyed by `dimKey`). State is per-map/session in `map-image-store` (resets on map load,
+  never persisted, guarded out of exports). Compact "Dim map colours" section in Map Settings with
+  swatches + Declutter/None/All. Screen-only; ISOM "black" is deliberately never a group. See
+  `docs/research/map-layer-toggles-plan.md`.
 
 ## Getting Started
 

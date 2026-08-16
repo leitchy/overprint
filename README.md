@@ -50,6 +50,7 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 ### Export & Import
 - **PDF course maps** — correct print scale, course-centered, title + scale bar
 - **True-vector map embedding** — OCAD/OMAP maps export as crisp PDF vectors (not raster), with true IOF colour-order (map black/brown/blue print over the purple overprint)
+- **DeviceCMYK colour fidelity** — vector PDFs emit the map's true CMYK inks (as PurplePen does), so printed/print-previewed colours are the muted, on-spec tones rather than oversaturated RGB
 - **Multi-page & batch PDF** — all courses in one PDF, or one PDF per course
 - **PDF description sheets** — IOF 8-column grid with SVG symbols
 - **OpenOrienteering Mapper (.omap)** — export a course's overprint for print-shop/mapper merge
@@ -83,6 +84,7 @@ Inspired by the excellent [PurplePen](https://purple-pen.org) — Overprint aims
 ### Appearance
 - **Dark mode** — System / Light / Dark theme (in Preferences); the whole UI goes dark while the map stays a clean white sheet on a dark surround
 - **Map fade** — a slider to fade the map lighter (so the purple course pops) or darker (to cut glare at night); screen-only, never affects exports
+- **Dim map colours** — fade groups of OCAD/OMAP map colours (contours, water, vegetation, open land) to declutter a busy map while placing controls, with a one-click "Declutter"; screen-only, never affects exports
 
 ## Quick Start
 

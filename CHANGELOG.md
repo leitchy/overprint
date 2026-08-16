@@ -5,6 +5,23 @@ notes live on **[GitHub Releases](https://github.com/leitchy/overprint/releases)
 file summarises each tagged version. Dates are release dates; versions follow semver
 (0.x pre-1.0). Untitled patch releases are grouped with their feature release.
 
+## 0.34.0 — 2026-08-16
+- **Truer PDF colours (DeviceCMYK).** Exported vector PDFs of OCAD/OMAP maps now use the map's real
+  CMYK inks — the same muted, on-spec tones PurplePen prints — instead of oversaturated RGB. The
+  purple course overprint, contours, water, vegetation and detail all look right in a print preview.
+- **Dim map colours.** A new Map Settings control fades groups of map colour — contours, water,
+  vegetation, open land — so you can declutter a busy map while placing controls, with a one-click
+  "Declutter". It fades rather than hides (features stay faintly visible, so nothing you need
+  disappears), and it's screen-only — never changes your exports.
+- **Screen now matches print more closely.** On-screen course lines are drawn at the true printed
+  width (they were twice as bold), and imported PurplePen titles/borders show in their muted print
+  colour rather than a vivid on-screen blue. The PDF description box is a little smaller and the title
+  no longer sits on the map border.
+- **Reliable "Save" dialogs in Chrome.** The file-save dialog now opens on the first click every time
+  (it could previously be silently swallowed). *For developers:* the dev server now serves plain HTTP
+  by default (`HTTPS=1` to opt back in) — a self-signed certificate was suppressing Chrome's save
+  dialogs.
+
 ## 0.33.0 — 2026-08-13
 - **Dark mode.** A System / Light / Dark theme, chosen in Preferences (follows your OS by default).
   The whole interface goes dark while the map stays a clean white "paper" sheet on a dark surround —
